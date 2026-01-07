@@ -26,7 +26,7 @@ elderly_bot/
 │   └── patrol_goals.yaml           # Patrol waypoints
 │
 ├── firmware/                        # ESP32 Arduino firmware
-│   ├── elderly_bot_esp32.ino       # Complete ESP32 firmware
+│   ├── test.ino                     # Complete ESP32 firmware (authoritative)
 │   ├── ESP32_CORE_COMPATIBILITY.md # ESP32 Core version compatibility guide
 │   ├── FIRMWARE_CHANGES.md         # Firmware changelog
 │   └── FIRMWARE_TROUBLESHOOTING.md # Comprehensive troubleshooting guide

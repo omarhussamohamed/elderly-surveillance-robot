@@ -2,7 +2,7 @@
 
 ## Summary
 
-The elderly_bot_esp32.ino firmware has been updated to address ESP32 Arduino Core compatibility issues.
+The test.ino firmware has been updated to address ESP32 Arduino Core compatibility issues.
 
 ## Changes Made
 
@@ -104,7 +104,7 @@ After flashing firmware:
 **Lines Removed**: 0
 
 **Files Changed**:
-- `elderly_bot_esp32.ino` - Added compatibility layer and initialization fixes
+- `test.ino` - Added compatibility layer and initialization fixes
 
 **Files Added**:
 - `ESP32_CORE_COMPATIBILITY.md` - Detailed compatibility documentation

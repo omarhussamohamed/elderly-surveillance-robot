@@ -73,7 +73,7 @@ float error_sum_fl=0, error_sum_fr=0, error_sum_rl=0, error_sum_rr=0;
 float prev_error_fl=0, prev_error_fr=0, prev_error_rl=0, prev_error_rr=0;
 
 float odom_x = 0, odom_y = 0, odom_theta = 0;
-MPU9250 mpu; // Declared but not initialized (not used in current firmware)
+MPU9250 mpu;
 
 // TWEAKED PID GAINS FOR STABILITY
 float kp = 5.0, ki = 2.0, kd = 0.1; 
@@ -83,9 +83,9 @@ const int TICKS_PER_REV = 4900;
 unsigned long last_control_time=0, last_cmd_time=0, last_imu_time=0;
 
 nav_msgs::Odometry odom_msg;
-sensor_msgs::Imu imu_msg; // Declared but not published (IMU not initialized)
+sensor_msgs::Imu imu_msg;
 ros::Publisher odom_pub("wheel_odom", &odom_msg);
-ros::Publisher imu_pub("imu/data", &imu_msg); // Declared but not advertised (IMU not used)
+ros::Publisher imu_pub("imu/data", &imu_msg);
 
 // ==================== ISRs ====================
 void IRAM_ATTR isrFL(){ if(digitalRead(ENC_FL_A)==digitalRead(ENC_FL_B)) encoder_fl--; else encoder_fl++; }
@@ -236,20 +236,79 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
 
+  // Initialize I2C for IMU
+  Wire.begin(IMU_SDA, IMU_SCL);
+  Wire.setClock(400000); // 400kHz I2C clock
+  
+  // Initialize MPU9250
+  Serial.print("Initializing MPU9250...");
+  if (mpu.begin()) {
+    Serial.println(" OK");
+    mpu.calibrateAccelGyro();
+    Serial.println("IMU calibrated!");
+  } else {
+    Serial.println(" FAILED - IMU not detected");
+  }
+
   *nh.getHardware() = ros_wifi_hw;
   nh.initNode();
   nh.subscribe(cmd_vel_sub);
   nh.advertise(odom_pub);
+  nh.advertise(imu_pub);
+  
+  // Initialize odometry message frame_id
+  odom_msg.header.frame_id = "odom";
+  odom_msg.child_frame_id = "base_footprint";
+  
+  // Initialize IMU message frame_id
+  imu_msg.header.frame_id = "imu_link";
+  
+  Serial.println("ROS node initialized!");
+  Serial.println("Elderly Bot Ready!");
+}
+
+void publishIMU() {
+  if (mpu.update()) {
+    imu_msg.header.stamp = nh.now();
+    
+    // Angular velocity (rad/s) - gyroscope data
+    imu_msg.angular_velocity.x = mpu.getGyroX();
+    imu_msg.angular_velocity.y = mpu.getGyroY();
+    imu_msg.angular_velocity.z = mpu.getGyroZ();
+    
+    // Linear acceleration (m/s²) - accelerometer data (convert from g to m/s²)
+    imu_msg.linear_acceleration.x = mpu.getAccX() * 9.80665;
+    imu_msg.linear_acceleration.y = mpu.getAccY() * 9.80665;
+    imu_msg.linear_acceleration.z = mpu.getAccZ() * 9.80665;
+    
+    // Set covariance matrices (diagonal)
+    imu_msg.angular_velocity_covariance[0] = 0.02; // x
+    imu_msg.angular_velocity_covariance[4] = 0.02; // y
+    imu_msg.angular_velocity_covariance[8] = 0.02; // z
+    
+    imu_msg.linear_acceleration_covariance[0] = 0.04; // x
+    imu_msg.linear_acceleration_covariance[4] = 0.04; // y
+    imu_msg.linear_acceleration_covariance[8] = 0.04; // z
+    
+    imu_pub.publish(&imu_msg);
+  }
 }
 
 void loop() {
   software_pwm_loop();
-  if(millis() - last_cmd_time > 500) {
+  // Safety timeout: stop motors if no command received for 500ms
+  unsigned long current_time = millis();
+  if((current_time - last_cmd_time > 500) || (current_time < last_cmd_time)) { // Handle millis() overflow
     target_vel_fl = target_vel_fr = target_vel_rl = target_vel_rr = 0;
   }
   if(millis() - last_control_time >= 20) { // Slower loop for stability
     controlLoop();
     last_control_time = millis();
+  }
+  // Publish IMU data at ~50Hz (every 20ms)
+  if(millis() - last_imu_time >= 20) {
+    publishIMU();
+    last_imu_time = millis();
   }
   nh.spinOnce();
 }

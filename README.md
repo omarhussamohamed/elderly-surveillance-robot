@@ -253,7 +253,7 @@ max_vel_theta: 1.0     # rad/s
 
 ### PID Tuning (ESP32)
 
-Edit in `firmware/elderly_bot_esp32.ino`:
+Edit in `firmware/test.ino`:
 
 ```cpp
 float kp = 25.0;
@@ -286,7 +286,7 @@ elderly_bot/
 │   ├── local_costmap.yaml
 │   └── patrol_goals.yaml       # Patrol waypoints
 ├── firmware/
-│   ├── elderly_bot_esp32.ino           # ESP32 Arduino firmware
+│   ├── test.ino                        # ESP32 Arduino firmware (authoritative)
 │   ├── ESP32_CORE_COMPATIBILITY.md     # ESP32 Core compatibility guide
 │   ├── FIRMWARE_CHANGES.md             # Firmware changelog
 │   └── FIRMWARE_TROUBLESHOOTING.md     # Troubleshooting guide
