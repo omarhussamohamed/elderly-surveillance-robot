@@ -72,37 +72,39 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 
 ### ESP32 Wiring
 
+**⚠️ IMPORTANT: Pin assignments are defined in `firmware/test.ino` and are the single source of truth. The table below reflects the pinout from test.ino.**
+
 #### Motor Driver #1 (L298N)
-| ESP32 Pin | Function | L298N Pin |
-|-----------|----------|-----------|
-| 32 | FL PWM | ENA |
-| 14 | FL IN1 | IN1 |
-| 33 | FL IN2 | IN2 |
-| 25 | FR PWM | ENB |
-| 26 | FR IN1 | IN3 |
-| 27 | FR IN2 | IN4 |
+| ESP32 Pin | Function | L298N Pin | Defined in test.ino |
+|-----------|----------|-----------|---------------------|
+| 13 | FL PWM | ENA | MOTOR_FL_PWM |
+| 12 | FL IN1 | IN1 | MOTOR_FL_IN1 |
+| 14 | FL IN2 | IN2 | MOTOR_FL_IN2 |
+| 27 | FR PWM | ENB | MOTOR_FR_PWM |
+| 26 | FR IN1 | IN3 | MOTOR_FR_IN1 |
+| 25 | FR IN2 | IN4 | MOTOR_FR_IN2 |
 
 #### Motor Driver #2 (L298N)
-| ESP32 Pin | Function | L298N Pin |
-|-----------|----------|-----------|
-| 4 | RL PWM | ENA |
-| 5 | RL IN1 | IN1 |
-| 16 | RL IN2 | IN2 |
-| 17 | RR PWM | ENB |
-| 18 | RR IN1 | IN3 |
-| 19 | RR IN2 | IN4 |
+| ESP32 Pin | Function | L298N Pin | Defined in test.ino |
+|-----------|----------|-----------|---------------------|
+| 2 | RL PWM | ENA | MOTOR_RL_PWM |
+| 32 | RL IN1 | IN1 | MOTOR_RL_IN1 |
+| 15 | RL IN2 | IN2 | MOTOR_RL_IN2 |
+| 4 | RR PWM | ENB | MOTOR_RR_PWM |
+| 16 | RR IN1 | IN3 | MOTOR_RR_IN1 |
+| 17 | RR IN2 | IN4 | MOTOR_RR_IN2 |
 
 #### Encoders
-| ESP32 Pin | Function | Notes |
-|-----------|----------|-------|
-| 34 | FL Encoder A | Input only |
-| 35 | FL Encoder B | Input only |
-| 36 | FR Encoder A | Input only |
-| 39 | FR Encoder B | Input only |
-| 13 | RL Encoder A | With pullup |
-| 12 | RL Encoder B | With pullup |
-| 15 | RR Encoder A | With pullup |
-| 2 | RR Encoder B | With pullup |
+| ESP32 Pin | Function | Notes | Defined in test.ino |
+|-----------|----------|-------|---------------------|
+| 34 | FL Encoder A | Input only | ENC_FL_A |
+| 35 | FL Encoder B | Input only | ENC_FL_B |
+| 36 | FR Encoder A | Input only | ENC_FR_A |
+| 39 | FR Encoder B | Input only | ENC_FR_B |
+| 18 | RL Encoder A | With pullup | ENC_RL_A |
+| 19 | RL Encoder B | With pullup | ENC_RL_B |
+| 23 | RR Encoder A | With pullup | ENC_RR_A |
+| 5 | RR Encoder B | With pullup | ENC_RR_B |
 
 #### IMU (MPU-9250)
 | ESP32 Pin | Function |
@@ -135,8 +137,9 @@ rosrun rosserial_arduino make_libraries.py .
 
 ### Upload Firmware
 1. Open Arduino IDE
-2. File → Open → `~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32.ino`
-3. Tools → Board → "ESP32 Dev Module"
+2. File → Open → `~/catkin_ws/src/elderly_bot/firmware/test.ino`
+   - **Note**: `test.ino` is the authoritative firmware file. All pin assignments are defined here.
+3. Tools → Board → "ESP32 Dev Module" (or "NodeMCU-32S" if available)
 4. Tools → Port → Select ESP32 port
 5. Upload
 
