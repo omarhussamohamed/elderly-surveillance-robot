@@ -72,10 +72,10 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 
 ### ESP32 Wiring
 
-**⚠️ IMPORTANT: Pin assignments are defined in `firmware/test.ino` and are the single source of truth. The table below reflects the pinout from test.ino.**
+**⚠️ IMPORTANT: Pin assignments are defined in `firmware/elderly_bot_esp32.ino` and are the single source of truth.**
 
 #### Motor Driver #1 (L298N)
-| ESP32 Pin | Function | L298N Pin | Defined in test.ino |
+| ESP32 Pin | Function | L298N Pin | Defined in elderly_bot_esp32.ino |
 |-----------|----------|-----------|---------------------|
 | 13 | FL PWM | ENA | MOTOR_FL_PWM |
 | 12 | FL IN1 | IN1 | MOTOR_FL_IN1 |
@@ -85,7 +85,7 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 | 25 | FR IN2 | IN4 | MOTOR_FR_IN2 |
 
 #### Motor Driver #2 (L298N)
-| ESP32 Pin | Function | L298N Pin | Defined in test.ino |
+| ESP32 Pin | Function | L298N Pin | Defined in elderly_bot_esp32.ino |
 |-----------|----------|-----------|---------------------|
 | 2 | RL PWM | ENA | MOTOR_RL_PWM |
 | 32 | RL IN1 | IN1 | MOTOR_RL_IN1 |
@@ -95,7 +95,7 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 | 17 | RR IN2 | IN4 | MOTOR_RR_IN2 |
 
 #### Encoders
-| ESP32 Pin | Function | Notes | Defined in test.ino |
+| ESP32 Pin | Function | Notes | Defined in elderly_bot_esp32.ino |
 |-----------|----------|-------|---------------------|
 | 34 | FL Encoder A | Input only | ENC_FL_A |
 | 35 | FL Encoder B | Input only | ENC_FL_B |
@@ -137,8 +137,7 @@ rosrun rosserial_arduino make_libraries.py .
 
 ### Upload Firmware
 1. Open Arduino IDE
-2. File → Open → `~/catkin_ws/src/elderly_bot/firmware/test.ino`
-   - **Note**: `test.ino` is the authoritative firmware file. All pin assignments are defined here.
+2. File → Open → `~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32.ino`
 3. Tools → Board → "ESP32 Dev Module" (or "NodeMCU-32S" if available)
 4. Tools → Port → Select ESP32 port
 5. Upload

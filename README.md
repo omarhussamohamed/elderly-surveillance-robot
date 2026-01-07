@@ -137,8 +137,7 @@ source devel/setup.bash
    ```
 
 5. **Upload Firmware**
-   - Open: `~/catkin_ws/src/elderly_bot/firmware/test.ino`
-   - **Note**: `test.ino` is the authoritative firmware file. All pin assignments are defined in this file.
+   - Open: `~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32.ino`
    - Select Board: "ESP32 Dev Module"
    - **Verify Core Version**: Tools → Board → Board Manager → esp32 should show 2.0.17
    - Select Port: `/dev/ttyUSB1` (or appropriate port)
@@ -253,7 +252,7 @@ max_vel_theta: 1.0     # rad/s
 
 ### PID Tuning (ESP32)
 
-Edit in `firmware/test.ino`:
+Edit in `firmware/elderly_bot_esp32.ino`:
 
 ```cpp
 float kp = 25.0;
@@ -286,7 +285,7 @@ elderly_bot/
 │   ├── local_costmap.yaml
 │   └── patrol_goals.yaml       # Patrol waypoints
 ├── firmware/
-│   ├── test.ino                        # ESP32 Arduino firmware (authoritative)
+│   ├── elderly_bot_esp32.ino          # ESP32 Arduino firmware
 │   ├── ESP32_CORE_COMPATIBILITY.md     # ESP32 Core compatibility guide
 │   ├── FIRMWARE_CHANGES.md             # Firmware changelog
 │   └── FIRMWARE_TROUBLESHOOTING.md     # Troubleshooting guide

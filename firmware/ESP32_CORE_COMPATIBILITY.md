@@ -2,7 +2,7 @@
 
 ## Problem Summary
 
-The test.ino firmware experiences compatibility issues when upgrading from ESP32 Arduino Core 2.x to 3.x:
+The elderly_bot_esp32.ino firmware experiences compatibility issues when upgrading from ESP32 Arduino Core 2.x to 3.x:
 
 ### Issues Encountered:
 
@@ -202,7 +202,7 @@ arduino-cli core list
 ### Test Compilation:
 ```bash
 # Compile firmware
-arduino-cli compile --fqbn esp32:esp32:esp32 test.ino
+arduino-cli compile --fqbn esp32:esp32:esp32 elderly_bot_esp32.ino
 
 # Should complete without errors
 ```
@@ -210,7 +210,7 @@ arduino-cli compile --fqbn esp32:esp32:esp32 test.ino
 ### Test Upload and Run:
 ```bash
 # Upload firmware
-arduino-cli upload -p /dev/ttyUSB1 --fqbn esp32:esp32:esp32 test.ino
+arduino-cli upload -p /dev/ttyUSB1 --fqbn esp32:esp32:esp32 elderly_bot_esp32.ino
 
 # Monitor serial output
 arduino-cli monitor -p /dev/ttyUSB1 -c baudrate=115200

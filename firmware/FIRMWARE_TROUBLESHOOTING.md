@@ -63,7 +63,7 @@ rosrun rosserial_arduino make_libraries.py .
 
 **Step 2: Re-upload Firmware to ESP32**
 1. Open Arduino IDE
-2. Open `firmware/test.ino`
+2. Open `firmware/elderly_bot_esp32.ino`
 3. Verify Board: "ESP32 Dev Module"
 4. Verify Port: `/dev/ttyUSB0` (or your ESP32 port)
 5. Click Upload
@@ -154,7 +154,7 @@ Required libraries in `~/Arduino/libraries/`:
 
 ```bash
 # Using arduino-cli
-arduino-cli compile --fqbn esp32:esp32:esp32 test.ino
+arduino-cli compile --fqbn esp32:esp32:esp32 elderly_bot_esp32.ino
 ```
 
 **Common compilation errors**:
@@ -181,7 +181,7 @@ Even on Core 2.0.17, rosserial can trigger LWIP initialization because the ESP32
 The firmware disables WiFi at startup to prevent LWIP initialization. If you're still experiencing crashes:
 
 1. **Verify firmware is up to date** - The current firmware includes WiFi disable code
-2. **Upload firmware** - Re-upload `test.ino` to ESP32
+2. **Upload firmware** - Re-upload `elderly_bot_esp32.ino` to ESP32
 3. **Monitor serial output** - Should see clean boot without crashes
 
 ### Expected Serial Output (After Fix)

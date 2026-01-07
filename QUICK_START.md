@@ -27,7 +27,7 @@ Log out and log back in (for serial port permissions).
    rm -rf ros_lib
    rosrun rosserial_arduino make_libraries.py .
    ```
-5. Open `firmware/test.ino`
+5. Open `firmware/elderly_bot_esp32.ino`
 6. Select Board: "ESP32 Dev Module"
 7. **Verify**: Tools → Board → Board Manager shows esp32 2.0.17
 8. Upload to ESP32
