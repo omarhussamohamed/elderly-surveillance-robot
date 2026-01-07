@@ -1,0 +1,29 @@
+# Global Costmap Parameters
+# Used for long-term planning with the static map
+
+global_costmap:
+  # ========== FRAME CONFIGURATION ==========
+  global_frame: map
+  robot_base_frame: base_footprint
+  
+  # ========== UPDATE RATES ==========
+  update_frequency: 2.0      # Hz - how often to update the costmap
+  publish_frequency: 1.0     # Hz - how often to publish visualization
+  
+  # ========== STATIC MAP ==========
+  static_map: true           # Use the map from map_server
+  rolling_window: false      # Fixed map, not rolling
+  
+  # ========== RESOLUTION ==========
+  resolution: 0.05           # meters per cell (match map resolution)
+  
+  # ========== TRANSFORM TOLERANCE ==========
+  transform_tolerance: 0.5   # seconds - latency tolerance for transforms
+  
+  # ========== LAYER CONFIGURATION ==========
+  plugins:
+    - {name: static_layer,        type: "costmap_2d::StaticLayer"}
+    - {name: obstacle_layer,      type: "costmap_2d::ObstacleLayer"}
+    - {name: inflation_layer,     type: "costmap_2d::InflationLayer"}
+
+

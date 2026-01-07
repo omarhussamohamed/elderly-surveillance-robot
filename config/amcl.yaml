@@ -1,0 +1,99 @@
+# AMCL (Adaptive Monte Carlo Localization) Configuration
+# Localization on a known map using laser scan matching
+
+# ========== OVERALL FILTER PARAMETERS ==========
+
+# Minimum and maximum number of particles
+min_particles: 100
+max_particles: 1000
+
+# KLD sampling parameters
+kld_err: 0.01                    # Maximum error between true and estimated distribution
+kld_z: 0.99                      # Upper standard normal quantile
+
+# Update rates
+update_min_d: 0.1                # Minimum linear travel before update (meters)
+update_min_a: 0.2                # Minimum angular travel before update (radians)
+
+# Resample interval
+resample_interval: 1             # Number of filter updates before resampling
+
+# Transform tolerance
+transform_tolerance: 0.5         # Seconds - TF tolerance
+
+# Recovery behaviors
+recovery_alpha_slow: 0.001       # Exponential decay rate for slow average
+recovery_alpha_fast: 0.1         # Exponential decay rate for fast average
+
+# Random particles
+random_particles: 10             # Number of random particles to add on each update
+
+# ========== LASER MODEL PARAMETERS ==========
+
+laser_model_type: likelihood_field  # Options: beam, likelihood_field, likelihood_field_prob
+
+# Laser likelihood field parameters
+laser_likelihood_max_dist: 2.0   # Maximum distance to obstacle in likelihood field
+
+# Mixture weights for laser model
+laser_z_hit: 0.95                # Weight for correct range measurements
+laser_z_short: 0.1               # Weight for short measurements (e.g., unexpected obstacles)
+laser_z_max: 0.05                # Weight for max range measurements
+laser_z_rand: 0.05               # Weight for random measurements
+
+# Laser noise parameters
+laser_sigma_hit: 0.2             # Standard deviation of hit distribution (meters)
+
+# Laser decimation
+laser_max_beams: 60              # Maximum number of beams to use (RPLidar A1 has ~360)
+laser_min_range: 0.15            # Minimum laser range to use (meters)
+laser_max_range: 10.0            # Maximum laser range to use (meters)
+
+# ========== ODOMETRY MODEL PARAMETERS ==========
+
+odom_model_type: diff-corrected  # Options: diff, omni, diff-corrected, omni-corrected
+
+# Odometry noise parameters (tuned for skid-steer with wheel slip)
+odom_alpha1: 0.2                 # Rotation noise from rotation
+odom_alpha2: 0.2                 # Rotation noise from translation
+odom_alpha3: 0.2                 # Translation noise from translation
+odom_alpha4: 0.2                 # Translation noise from rotation
+odom_alpha5: 0.1                 # Translation noise (strafe, for omni models)
+
+# ========== FRAME IDs ==========
+
+odom_frame_id: odom
+base_frame_id: base_footprint
+global_frame_id: map
+
+# ========== INITIAL POSE ==========
+
+# Set initial pose estimate (can be overridden via ROS parameters or 2D Pose Estimate in RViz)
+initial_pose_x: 0.0
+initial_pose_y: 0.0
+initial_pose_a: 0.0
+
+# Initial covariance
+initial_cov_xx: 0.25             # meters^2
+initial_cov_yy: 0.25             # meters^2
+initial_cov_aa: 0.068            # radians^2 (~15 degrees)
+
+# ========== ADVANCED PARAMETERS ==========
+
+# GUI parameters
+gui_publish_rate: 10.0           # Hz - rate to publish pose for visualization
+save_pose_rate: 0.5              # Hz - rate to save last estimated pose
+
+# Use map topic
+use_map_topic: false             # Get map from map_server instead
+
+# First map only
+first_map_only: false            # Allow map updates
+
+# TF broadcast
+tf_broadcast: true               # Publish map -> odom transform
+
+# Selective resampling
+selective_resampling: false
+
+

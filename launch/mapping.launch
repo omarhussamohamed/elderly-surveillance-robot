@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+  Elderly Bot Mapping Launch File
+  
+  MODE 1: Autonomous Mapping
+  
+  Starts:
+  - Hardware bringup
+  - robot_localization EKF (wheel odom + IMU fusion)
+  - gmapping (SLAM)
+  - explore_lite (autonomous exploration)
+  
+  Usage:
+    roslaunch elderly_bot mapping.launch
+    
+  To save the map when exploration is complete:
+    rosrun map_server map_saver -f ~/catkin_ws/src/elderly_bot/maps/my_house
+-->
+<launch>
+  <!-- ========== BRINGUP HARDWARE ========== -->
+  
+  <include file="$(find elderly_bot)/launch/bringup.launch" />
+  
+  <!-- ========== ROBOT LOCALIZATION (EKF) ========== -->
+  
+  <node pkg="robot_localization" 
+        type="ekf_localization_node" 
+        name="ekf_localization"
+        output="screen">
+    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
+  </node>
+  
+  <!-- ========== GMAPPING (SLAM) ========== -->
+  
+  <node pkg="gmapping" 
+        type="slam_gmapping" 
+        name="slam_gmapping"
+        output="screen">
+    <rosparam command="load" file="$(find elderly_bot)/config/gmapping.yaml" />
+  </node>
+  
+  <!-- ========== EXPLORE LITE (AUTONOMOUS EXPLORATION) ========== -->
+  
+  <node pkg="explore_lite" 
+        type="explore" 
+        name="explore"
+        output="screen">
+    
+    <!-- Robot radius for obstacle checking -->
+    <param name="robot_base_frame" value="base_link" />
+    <param name="costmap_topic" value="map" />
+    <param name="costmap_updates_topic" value="map_updates" />
+    <param name="visualize" value="true" />
+    
+    <!-- Exploration parameters -->
+    <param name="planner_frequency" value="0.5" />
+    <param name="progress_timeout" value="30.0" />
+    <param name="potential_scale" value="3.0" />
+    <param name="orientation_scale" value="0.0" />
+    <param name="gain_scale" value="1.0" />
+    <param name="transform_tolerance" value="0.3" />
+    <param name="min_frontier_size" value="0.5" />
+    
+  </node>
+  
+  <!-- ========== RVIZ VISUALIZATION ========== -->
+  
+  <node name="rviz" 
+        pkg="rviz" 
+        type="rviz" 
+        args="-d $(find elderly_bot)/rviz/mapping.rviz"
+        required="false" />
+  
+</launch>
+
+

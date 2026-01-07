@@ -1,0 +1,148 @@
+# robot_localization EKF Configuration
+# Fuses wheel odometry from ESP32 with IMU data
+# Publishes odom -> base_footprint transform
+
+# Frequency of the filter (Hz)
+frequency: 50
+
+# Sensor timeout (seconds)
+sensor_timeout: 0.1
+
+# If true, will publish the transform from the world_frame to the base_link_frame
+two_d_mode: true
+
+# The filter accepts an arbitrary number of inputs from each input message type
+# (Odometry, PoseStamped, TwistStamped, Imu). To add a new one, simply append
+# the next number in the sequence to its base name, e.g., odom0, odom1, twist0, twist1
+
+# ========== FRAME CONFIGURATION ==========
+
+# Map frame (not used in odometry mode, only with navsat_transform_node)
+map_frame: map
+
+# Odometry frame
+odom_frame: odom
+
+# Base link frame
+base_link_frame: base_footprint
+
+# World frame (same as odom for local navigation)
+world_frame: odom
+
+# ========== WHEEL ODOMETRY (from ESP32) ==========
+
+# Wheel odometry input
+odom0: /wheel_odom
+
+# Which values to fuse from wheel odometry
+# [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+odom0_config: [true,  true,  false,  # position (x, y, z)
+               false, false, true,   # orientation (roll, pitch, yaw)
+               true,  true,  false,  # linear velocity (vx, vy, vz)
+               false, false, true,   # angular velocity (vroll, vpitch, vyaw)
+               false, false, false]  # linear acceleration (ax, ay, az)
+
+# Differential mode (integrates velocities to get pose)
+odom0_differential: false
+
+# Relative mode
+odom0_relative: false
+
+# Queue size
+odom0_queue_size: 10
+
+# Reject measurements that are this many standard deviations from the current state
+# (Mahalanobis distance threshold)
+odom0_pose_rejection_threshold: 5.0
+odom0_twist_rejection_threshold: 2.0
+
+# ========== IMU DATA (from ESP32/MPU-9250) ==========
+
+# IMU input
+imu0: /imu/data
+
+# Which values to fuse from IMU
+# We only use angular velocity and linear acceleration (no orientation from IMU)
+imu0_config: [false, false, false,  # position
+              false, false, false,  # orientation (EKF estimates this)
+              false, false, false,  # linear velocity
+              false, false, true,   # angular velocity (only yaw rate)
+              true,  true,  false]  # linear acceleration (x, y only for 2D)
+
+# Differential mode
+imu0_differential: false
+
+# Relative mode
+imu0_relative: false
+
+# Queue size
+imu0_queue_size: 10
+
+# Remove gravitational acceleration
+imu0_remove_gravitational_acceleration: true
+
+# Rejection thresholds
+imu0_pose_rejection_threshold: 0.8
+imu0_twist_rejection_threshold: 0.8
+imu0_linear_acceleration_rejection_threshold: 0.8
+
+# ========== PROCESS NOISE COVARIANCE ==========
+
+# Process noise covariance matrix
+# Diagonal values for [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # x
+                           0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # y
+                           0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # z
+                           0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # roll
+                           0.0,  0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # pitch
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # yaw
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # vx
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # vy
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.04, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # vz
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,  0.0,  0.0,  0.0,   # vroll
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,  0.0,  0.0,   # vpitch
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.02, 0.0,  0.0,  0.0,   # vyaw
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,   # ax
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,   # ay
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.015] # az
+
+# ========== INITIAL STATE COVARIANCE ==========
+
+# Initial estimate covariance
+initial_estimate_covariance: [1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9]
+
+# ========== ADVANCED SETTINGS ==========
+
+# Use control input (cmd_vel) to improve prediction
+use_control: false
+
+# Smoothing (Rauch-Tung-Striebel smoother)
+smooth_lagged_data: false
+
+# History length for smoothing
+history_length: 0
+
+# Print diagnostics
+print_diagnostics: false
+
+# Debug output
+debug: false
+
+# Debug output file
+debug_out_file: /tmp/ekf_debug.txt
+
+

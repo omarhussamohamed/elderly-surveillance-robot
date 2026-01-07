@@ -1,0 +1,73 @@
+# Patrol Goals Configuration
+#
+# This file defines the waypoints for autonomous patrol.
+# The robot will visit these locations in sequence and loop indefinitely.
+#
+# Each goal consists of:
+#   name: Descriptive name for the location
+#   x: X coordinate in map frame (meters)
+#   y: Y coordinate in map frame (meters)
+#   yaw: Orientation in radians (0 = facing +X axis)
+#
+# To create your own patrol goals:
+# 1. Launch navigation: roslaunch elderly_bot navigation.launch
+# 2. In RViz, use "2D Pose Estimate" to move the robot around
+# 3. Note the coordinates from /amcl_pose topic or RViz
+# 4. Update this file with your desired waypoints
+#
+# Coordinate system (REP-103):
+#   X: Forward
+#   Y: Left
+#   Yaw: Counter-clockwise rotation from +X axis
+
+patrol_goals:
+  # Living Room
+  - name: "Living Room Center"
+    x: 2.0
+    y: 1.5
+    yaw: 0.0
+  
+  # Kitchen
+  - name: "Kitchen Entrance"
+    x: 5.0
+    y: 1.0
+    yaw: 1.57  # 90 degrees, facing left
+  
+  # Hallway
+  - name: "Hallway"
+    x: 3.5
+    y: -2.0
+    yaw: 3.14  # 180 degrees, facing backward
+  
+  # Bedroom 1
+  - name: "Bedroom 1"
+    x: 1.0
+    y: -4.0
+    yaw: -1.57  # -90 degrees, facing right
+  
+  # Bedroom 2
+  - name: "Bedroom 2"
+    x: 6.0
+    y: -4.0
+    yaw: 0.0
+  
+  # Bathroom
+  - name: "Bathroom"
+    x: 4.0
+    y: 3.0
+    yaw: 1.57
+  
+  # Return to start
+  - name: "Home Position"
+    x: 0.0
+    y: 0.0
+    yaw: 0.0
+
+# Notes:
+# - Coordinates are examples and must be adjusted for your specific map
+# - Use RViz to determine actual coordinates after mapping
+# - Ensure goals are in accessible areas (not inside walls or furniture)
+# - The robot will attempt to reach each goal with the specified orientation
+# - Failed goals will be retried (see patrol_client.py parameters)
+
+

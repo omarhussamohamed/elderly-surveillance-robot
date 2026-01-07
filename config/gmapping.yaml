@@ -1,0 +1,98 @@
+# GMapping SLAM Configuration
+# Optimized for indoor 4WD robot with RPLidar A1
+
+# ========== FRAME IDs ==========
+base_frame: base_footprint
+map_frame: map
+odom_frame: odom
+
+# ========== TRANSFORM ==========
+# Time tolerance for TF lookups
+transform_publish_period: 0.05
+
+# ========== MAP PARAMETERS ==========
+# Map resolution (meters per cell)
+map_update_interval: 2.0
+
+# Maximum range of laser (RPLidar A1: ~12m, but use conservative value indoors)
+maxRange: 10.0
+maxUrange: 9.5
+
+# Minimum range
+minRange: 0.15
+
+# Map size and resolution
+xmin: -50.0
+ymin: -50.0
+xmax: 50.0
+ymax: 50.0
+delta: 0.05  # 5cm resolution
+
+# ========== LASER PARAMETERS ==========
+# Number of beams to skip in each scan (for computational efficiency)
+# RPLidar A1 produces ~360 points, skip every other one
+throttle_scans: 1
+
+# Laser parameters
+sigma: 0.05
+kernelSize: 1
+lstep: 0.05
+astep: 0.05
+iterations: 5
+lsigma: 0.075
+ogain: 3.0
+lskip: 0
+
+# ========== MOTION MODEL ==========
+# Odometry error parameters for skid-steer robot
+# These are critical for accurate mapping with wheel slip
+
+# Linear movement error
+srr: 0.01   # Linear -> Linear
+srt: 0.02   # Linear -> Angular
+
+# Angular movement error  
+str: 0.01   # Angular -> Linear
+stt: 0.02   # Angular -> Angular
+
+# ========== PARTICLE FILTER ==========
+# Number of particles in the filter
+particles: 30
+
+# Resampling thresholds
+resampleThreshold: 0.5
+
+# ========== LIKELIHOOD ==========
+# Likelihood sampling parameters
+llsamplerange: 0.01
+llsamplestep: 0.01
+lasamplerange: 0.005
+lasamplestep: 0.005
+
+# ========== SCAN MATCHING ==========
+# Linear and angular search range for scan matching
+linearUpdate: 0.2    # Minimum linear travel before update (meters)
+angularUpdate: 0.25  # Minimum angular travel before update (radians)
+
+# Temporal update
+temporalUpdate: -1.0  # Disabled (use distance-based updates only)
+
+# ========== OPTIMIZATION ==========
+# Number of iterations for scan matching optimization
+optIterations: 5
+
+# ========== INITIAL POSE ==========
+# Initial map size
+xmin: -10.0
+ymin: -10.0
+xmax: 10.0
+ymax: 10.0
+
+# ========== OUTPUT ==========
+# Occupancy threshold
+occ_thresh: 0.25
+
+# Map update interval
+map_update_interval: 2.0
+
+

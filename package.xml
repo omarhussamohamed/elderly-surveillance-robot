@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>elderly_bot</name>
+  <version>1.0.0</version>
+  <description>
+    Autonomous indoor 4WD monitoring robot with mapping and patrol capabilities.
+    Designed for ROS Melodic on Jetson Nano with ESP32 motor controller.
+  </description>
+  
+  <maintainer email="robot@example.com">Elderly Bot Team</maintainer>
+  <license>BSD</license>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <!-- Core ROS dependencies -->
+  <depend>rospy</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>tf</depend>
+  <depend>tf2_ros</depend>
+  
+  <!-- Navigation stack -->
+  <depend>move_base</depend>
+  <depend>move_base_msgs</depend>
+  <depend>actionlib</depend>
+  <depend>actionlib_msgs</depend>
+  <depend>amcl</depend>
+  <depend>map_server</depend>
+  <depend>navfn</depend>
+  <depend>dwa_local_planner</depend>
+  <depend>costmap_2d</depend>
+  
+  <!-- Mapping -->
+  <depend>gmapping</depend>
+  <depend>explore_lite</depend>
+  
+  <!-- Sensor fusion -->
+  <depend>robot_localization</depend>
+  
+  <!-- Sensors -->
+  <depend>rplidar_ros</depend>
+  
+  <!-- Serial communication -->
+  <depend>rosserial_python</depend>
+  <depend>rosserial_arduino</depend>
+  
+  <export>
+  </export>
+</package>
+
+
