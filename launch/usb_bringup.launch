@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Elderly Bot USB Bringup -->
+    
+    <!-- Bridge Node (monitors connection) -->
+    <node name="elderly_bot_bridge" pkg="elderly_bot" type="elderly_bot_bridge.py" output="screen">
+        <param name="port" value="/dev/ttyUSB0" />
+        <param name="baud" value="115200" />
+    </node>
+    
+    <!-- rosserial_python for ROS communication -->
+    <node name="esp32_serial_node" pkg="rosserial_python" type="serial_node.py" output="screen">
+        <param name="port" value="/dev/ttyUSB0" />
+        <param name="baud" value="115200" />
+    </node>
+    
+    <!-- Robot Localization (EKF) -->
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization">
+        <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
+    </node>
+    
+    <!-- RPLidar (if connected) -->
+    <include file="$(find rplidar_ros)/launch/rplidar.launch" if="$(eval env('HAS_LIDAR') != '')" />
+    
+    <!-- RViz for visualization -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find elderly_bot)/rviz/bringup.rviz" />
+    
+</launch>
