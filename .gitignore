@@ -1,0 +1,43 @@
+# ROS build artifacts
+build/
+devel/
+install/
+logs/
+.catkin_workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Maps (generated files)
+maps/*.pgm
+maps/*.yaml
+!maps/README.md
+
+# RViz configs (user-specific)
+*.rviz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Arduino
+*.hex
+*.elf
+*.bin
+

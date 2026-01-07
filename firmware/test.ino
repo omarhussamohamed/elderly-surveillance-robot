@@ -1,0 +1,227 @@
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <ros.h>
+#include <geometry_msgs/Twist.h>
+#include <nav_msgs/Odometry.h>
+#include <sensor_msgs/Imu.h>
+#include <Wire.h>
+#include <MPU9250.h>
+
+// ==================== ROS WiFi Hardware ====================
+class RosWiFiHardware {
+public:
+  WiFiClient* client;
+  IPAddress server;
+  uint16_t port;
+  unsigned long baud_; 
+  RosWiFiHardware() : client(nullptr), server(), port(0), baud_(0) {}
+  RosWiFiHardware(WiFiClient* c, IPAddress s, uint16_t p) : client(c), server(s), port(p), baud_(0) {}
+  void setConnection(IPAddress s, uint16_t p) { server = s; port = p; }
+  void init() { if (client && !client->connected()) client->connect(server, port); }
+  int read() { return (client && client->connected() && client->available()) ? client->read() : -1; }
+  void write(uint8_t* data, int length) { if (client && client->connected()) client->write(data, length); }
+  unsigned long time() { return millis(); }
+};
+
+// ==================== SETTINGS ====================
+#define ROS_SERIAL_BUFFER_SIZE 1024
+const char* ssid = "ShellBack";
+const char* password = "hhmo@1974";
+IPAddress server(192, 168, 1, 16); 
+const uint16_t serverPort = 11411;
+
+// ==================== PINOUT (FINAL VERIFIED) ====================
+#define MOTOR_FL_PWM 13
+#define MOTOR_FL_IN1 12
+#define MOTOR_FL_IN2 14
+#define MOTOR_FR_PWM 27
+#define MOTOR_FR_IN1 26
+#define MOTOR_FR_IN2 25
+
+#define MOTOR_RL_PWM 2  
+#define MOTOR_RL_IN1 32
+#define MOTOR_RL_IN2 15
+#define MOTOR_RR_PWM 4  
+#define MOTOR_RR_IN1 16
+#define MOTOR_RR_IN2 17
+
+// Encoders (Corrected Pins)
+#define ENC_FL_A 34
+#define ENC_FL_B 35
+#define ENC_FR_A 36
+#define ENC_FR_B 39
+#define ENC_RL_A 18
+#define ENC_RL_B 19
+#define ENC_RR_A 23
+#define ENC_RR_B 5
+
+#define IMU_SDA 21
+#define IMU_SCL 22
+
+// ==================== GLOBALS ====================
+WiFiClient client;
+RosWiFiHardware ros_wifi_hw(&client, server, serverPort);
+ros::NodeHandle_<RosWiFiHardware, 25, 25, ROS_SERIAL_BUFFER_SIZE, ROS_SERIAL_BUFFER_SIZE> nh;
+
+volatile long encoder_fl=0, encoder_fr=0, encoder_rl=0, encoder_rr=0;
+long prev_encoder_fl=0, prev_encoder_fr=0, prev_encoder_rl=0, prev_encoder_rr=0;
+int motor_speeds[4] = {0,0,0,0}; 
+
+float target_vel_fl=0, target_vel_fr=0, target_vel_rl=0, target_vel_rr=0;
+float current_vel_fl=0, current_vel_fr=0, current_vel_rl=0, current_vel_rr=0;
+float error_sum_fl=0, error_sum_fr=0, error_sum_rl=0, error_sum_rr=0;
+float prev_error_fl=0, prev_error_fr=0, prev_error_rl=0, prev_error_rr=0;
+
+float odom_x = 0, odom_y = 0, odom_theta = 0;
+MPU9250 mpu;
+
+// TWEAKED PID GAINS FOR STABILITY
+float kp = 5.0, ki = 2.0, kd = 0.1; 
+const float WHEEL_RADIUS = 0.0325;
+const float TRACK_WIDTH = 0.26;
+const int TICKS_PER_REV = 4900; 
+unsigned long last_control_time=0, last_cmd_time=0, last_imu_time=0;
+
+nav_msgs::Odometry odom_msg;
+sensor_msgs::Imu imu_msg;
+ros::Publisher odom_pub("wheel_odom", &odom_msg);
+ros::Publisher imu_pub("imu/data", &imu_msg);
+
+// ==================== ISRs ====================
+void IRAM_ATTR isrFL(){ if(digitalRead(ENC_FL_A)==digitalRead(ENC_FL_B)) encoder_fl--; else encoder_fl++; }
+void IRAM_ATTR isrFR(){ if(digitalRead(ENC_FR_A)==digitalRead(ENC_FR_B)) encoder_fr--; else encoder_fr++; }
+void IRAM_ATTR isrRL(){ if(digitalRead(ENC_RL_A)==digitalRead(ENC_RL_B)) encoder_rl--; else encoder_rl++; }
+void IRAM_ATTR isrRR(){ if(digitalRead(ENC_RR_A)==digitalRead(ENC_RR_B)) encoder_rr--; else encoder_rr++; }
+
+// ==================== MOTOR LOGIC ====================
+void software_pwm_loop() {
+  unsigned long now = micros();
+  unsigned long us_in_period = now % 1000; // 1kHz frequency
+  long rl_thresh = map(abs(motor_speeds[2]), 0, 255, 0, 1000);
+  long rr_thresh = map(abs(motor_speeds[3]), 0, 255, 0, 1000);
+  digitalWrite(MOTOR_RL_PWM, (us_in_period < rl_thresh) ? HIGH : LOW);
+  digitalWrite(MOTOR_RR_PWM, (us_in_period < rr_thresh) ? HIGH : LOW);
+}
+
+void setMotorSpeed(int motor, int pwm_value) {
+  int in1, in2;
+  if(motor == 0) { in1=MOTOR_FL_IN1; in2=MOTOR_FL_IN2; }
+  else if(motor == 1) { in1=MOTOR_FR_IN1; in2=MOTOR_FR_IN2; }
+  else if(motor == 2) { in1=MOTOR_RL_IN1; in2=MOTOR_RL_IN2; }
+  else { in1=MOTOR_RR_IN1; in2=MOTOR_RR_IN2; }
+
+  if (pwm_value > 0) {
+    digitalWrite(in1, (motor < 2 ? LOW : HIGH)); 
+    digitalWrite(in2, (motor < 2 ? HIGH : LOW));
+  } else if (pwm_value < 0) {
+    digitalWrite(in1, (motor < 2 ? HIGH : LOW)); 
+    digitalWrite(in2, (motor < 2 ? LOW : HIGH));
+  } else {
+    digitalWrite(in1, LOW); digitalWrite(in2, LOW);
+  }
+
+  if(motor < 2) ledcWrite(motor, abs(pwm_value)); // Hardware PWM for fronts
+  motor_speeds[motor] = pwm_value; // Store for software PWM (rears)
+}
+
+int computePID(float target, float current, float &error_sum, float &prev_error, float dt) {
+  if (target == 0 && current == 0) return 0;
+  float error = target - current;
+  error_sum += error * dt;
+  error_sum = constrain(error_sum, -50, 50);
+  float d = (dt > 0) ? (error - prev_error) / dt : 0;
+  prev_error = error;
+  return constrain((int)(kp*error + ki*error_sum + kd*d), -255, 255);
+}
+
+void updateOdometry(float dt) {
+  float v_left = (current_vel_fl + current_vel_rl) / 2.0;
+  float v_right = (current_vel_fr + current_vel_rr) / 2.0;
+  float v_linear = (v_left + v_right) / 2.0;
+  float v_angular = (v_right - v_left) / TRACK_WIDTH;
+
+  odom_theta += v_angular * dt;
+  odom_x += v_linear * cos(odom_theta) * dt;
+  odom_y += v_linear * sin(odom_theta) * dt;
+
+  while(odom_theta > PI) odom_theta -= 2 * PI;
+  while(odom_theta < -PI) odom_theta += 2 * PI;
+
+  odom_msg.header.stamp = nh.now();
+  odom_msg.pose.pose.position.x = odom_x;
+  odom_msg.pose.pose.position.y = odom_y;
+  odom_msg.pose.pose.orientation.z = sin(odom_theta * 0.5);
+  odom_msg.pose.pose.orientation.w = cos(odom_theta * 0.5);
+  odom_msg.twist.twist.linear.x = v_linear;
+  odom_msg.twist.twist.angular.z = v_angular;
+  odom_pub.publish(&odom_msg);
+}
+
+void controlLoop() {
+  float dt = 0.02; // Increased dt to 20ms for better stability
+  float ticks_to_m = (2.0 * PI * WHEEL_RADIUS) / TICKS_PER_REV;
+  
+  current_vel_fl = (encoder_fl - prev_encoder_fl) * ticks_to_m / dt;
+  current_vel_fr = (encoder_fr - prev_encoder_fr) * ticks_to_m / dt;
+  current_vel_rl = (encoder_rl - prev_encoder_rl) * ticks_to_m / dt;
+  current_vel_rr = (encoder_rr - prev_encoder_rr) * ticks_to_m / dt;
+
+  prev_encoder_fl = encoder_fl; prev_encoder_fr = encoder_fr;
+  prev_encoder_rl = encoder_rl; prev_encoder_rr = encoder_rr;
+
+  setMotorSpeed(0, computePID(target_vel_fl, current_vel_fl, error_sum_fl, prev_error_fl, dt));
+  setMotorSpeed(1, computePID(target_vel_fr, current_vel_fr, error_sum_fr, prev_error_fr, dt));
+  setMotorSpeed(2, computePID(target_vel_rl, current_vel_rl, error_sum_rl, prev_error_rl, dt));
+  setMotorSpeed(3, computePID(target_vel_rr, current_vel_rr, error_sum_rr, prev_error_rr, dt));
+
+  updateOdometry(dt);
+}
+
+void cmdVelCallback(const geometry_msgs::Twist& cmd_vel){
+  last_cmd_time = millis();
+  float v = cmd_vel.linear.x;
+  float w = cmd_vel.angular.z;
+  target_vel_fl = target_vel_rl = v - w * (TRACK_WIDTH / 2.0);
+  target_vel_fr = target_vel_rr = v + w * (TRACK_WIDTH / 2.0);
+}
+ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmdVelCallback);
+
+void setup() {
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) delay(100);
+
+  int outPins[] = {MOTOR_FL_IN1, MOTOR_FL_IN2, MOTOR_FL_PWM, MOTOR_FR_IN1, MOTOR_FR_IN2, MOTOR_FR_PWM,
+                   MOTOR_RL_IN1, MOTOR_RL_IN2, MOTOR_RL_PWM, MOTOR_RR_IN1, MOTOR_RR_IN2, MOTOR_RR_PWM};
+  for(int p : outPins) pinMode(p, OUTPUT);
+
+  // Lower frequency (1000Hz) is better for L298N
+  ledcSetup(0, 1000, 8); ledcSetup(1, 1000, 8);
+  ledcAttachPin(MOTOR_FL_PWM, 0); ledcAttachPin(MOTOR_FR_PWM, 1);
+
+  pinMode(ENC_FL_A, INPUT); pinMode(ENC_FL_B, INPUT);
+  pinMode(ENC_FR_A, INPUT); pinMode(ENC_FR_B, INPUT);
+  pinMode(ENC_RL_A, INPUT_PULLUP); pinMode(ENC_RL_B, INPUT_PULLUP);
+  pinMode(ENC_RR_A, INPUT_PULLUP); pinMode(ENC_RR_B, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(ENC_FL_A), isrFL, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_FR_A), isrFR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
+
+  *nh.getHardware() = ros_wifi_hw;
+  nh.initNode();
+  nh.subscribe(cmd_vel_sub);
+  nh.advertise(odom_pub);
+}
+
+void loop() {
+  software_pwm_loop();
+  if(millis() - last_cmd_time > 500) {
+    target_vel_fl = target_vel_fr = target_vel_rl = target_vel_rr = 0;
+  }
+  if(millis() - last_control_time >= 20) { // Slower loop for stability
+    controlLoop();
+    last_control_time = millis();
+  }
+  nh.spinOnce();
+}

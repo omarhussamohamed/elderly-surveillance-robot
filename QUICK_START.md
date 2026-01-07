@@ -32,7 +32,7 @@ Log out and log back in (for serial port permissions).
 7. **Verify**: Tools → Board → Board Manager shows esp32 2.0.17
 8. Upload to ESP32
 
-**If you get errors**: See `firmware/ESP32_CORE_COMPATIBILITY.md`
+**If you get errors**: See `firmware/FIRMWARE_TROUBLESHOOTING.md` for troubleshooting help
 
 ## 3. Hardware Connections
 

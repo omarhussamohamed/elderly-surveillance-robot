@@ -143,7 +143,7 @@ source devel/setup.bash
    - Select Port: `/dev/ttyUSB1` (or appropriate port)
    - Upload
 
-**Troubleshooting ESP32 Issues**: If you experience compilation errors or crashes, see `firmware/ESP32_CORE_COMPATIBILITY.md` for detailed troubleshooting.
+**Troubleshooting ESP32 Issues**: If you experience compilation errors or crashes, see `firmware/FIRMWARE_TROUBLESHOOTING.md` for comprehensive troubleshooting. For detailed technical information about ESP32 Core compatibility, see `firmware/ESP32_CORE_COMPATIBILITY.md`.
 
 ## Hardware Setup
 
@@ -285,7 +285,10 @@ elderly_bot/
 │   ├── local_costmap.yaml
 │   └── patrol_goals.yaml       # Patrol waypoints
 ├── firmware/
-│   └── elderly_bot_esp32.ino   # ESP32 Arduino firmware
+│   ├── elderly_bot_esp32.ino           # ESP32 Arduino firmware
+│   ├── ESP32_CORE_COMPATIBILITY.md     # ESP32 Core compatibility guide
+│   ├── FIRMWARE_CHANGES.md             # Firmware changelog
+│   └── FIRMWARE_TROUBLESHOOTING.md     # Troubleshooting guide
 ├── launch/
 │   ├── bringup.launch          # Hardware interfaces
 │   ├── mapping.launch          # Autonomous mapping mode
@@ -332,6 +335,7 @@ elderly_bot/
 - Verify rosserial connection: `rostopic list`
 - Check Arduino serial monitor for errors
 - Ensure ros_lib is up to date
+- See `firmware/FIRMWARE_TROUBLESHOOTING.md` for detailed troubleshooting
 
 ## Safety Features
 
