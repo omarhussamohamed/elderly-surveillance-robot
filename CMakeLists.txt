@@ -74,11 +74,8 @@ include_directories(
 #############
 
 # Install Python scripts
-catkin_install_python(
-  PROGRAMS
+catkin_install_python(PROGRAMS
   scripts/patrol_client.py
-  scripts/elderly_bot_bridge.py
-  scripts/test_usb.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
