@@ -24,7 +24,9 @@
 #include <freertos/task.h>
 
 // ==================== SETTINGS ====================
-#define ROS_SERIAL_BUFFER_SIZE 1024
+// CRITICAL: Buffer size must match default rosserial (512 bytes)
+// Larger buffers can cause sync issues
+#define ROS_SERIAL_BUFFER_SIZE 512
 
 // Rate control (Hz)
 #define ODOM_PUBLISH_RATE 20       // 20Hz odometry
@@ -64,6 +66,7 @@
 #define ENC_RR_B 5
 
 // ==================== GLOBALS ====================
+// CRITICAL: Use default NodeHandle (no template parameters) - matches minimal test
 ros::NodeHandle nh;
 
 volatile long encoder_fl=0, encoder_fr=0, encoder_rl=0, encoder_rr=0;
@@ -91,6 +94,9 @@ ros::Publisher odom_pub("wheel_odom", &odom_msg);
 // Mutex for shared data
 SemaphoreHandle_t encoder_mutex;
 SemaphoreHandle_t motor_mutex;
+
+// Flag to prevent tasks from running until ROS sync completes
+bool ros_sync_complete = false;
 
 // ==================== ISRs ====================
 void IRAM_ATTR isrFL(){ 
@@ -235,6 +241,11 @@ ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmdVelCallback);
 
 // Task 1: Control Loop (50Hz)
 void controlTask(void *pvParameters) {
+  // Wait for ROS sync to complete before starting (motors disabled until ROS ready)
+  while(!ros_sync_complete) {
+    vTaskDelay(pdMS_TO_TICKS(50)); // Wait 50ms, then check again
+  }
+  
   const TickType_t xFrequency = pdMS_TO_TICKS(1000 / CONTROL_LOOP_RATE);
   TickType_t xLastWakeTime = xTaskGetTickCount();
   
@@ -255,26 +266,34 @@ void controlTask(void *pvParameters) {
 
 // Task 2: Odometry Publisher (20Hz)
 void odomTask(void *pvParameters) {
+  // Wait for ROS sync to complete before starting
+  while(!ros_sync_complete) {
+    vTaskDelay(pdMS_TO_TICKS(50)); // Wait 50ms, then check again
+  }
+  
   const TickType_t xFrequency = pdMS_TO_TICKS(1000 / ODOM_PUBLISH_RATE);
   TickType_t xLastWakeTime = xTaskGetTickCount();
   
   for(;;) {
-    odom_msg.header.stamp = nh.now();
-    odom_msg.pose.pose.position.x = odom_x;
-    odom_msg.pose.pose.position.y = odom_y;
-    odom_msg.pose.pose.orientation.z = sin(odom_theta * 0.5);
-    odom_msg.pose.pose.orientation.w = cos(odom_theta * 0.5);
-    
-    // Calculate velocities for twist
-    float v_left = (current_vel_fl + current_vel_rl) / 2.0;
-    float v_right = (current_vel_fr + current_vel_rr) / 2.0;
-    float v_linear = (v_left + v_right) / 2.0;
-    float v_angular = (v_right - v_left) / TRACK_WIDTH;
-    
-    odom_msg.twist.twist.linear.x = v_linear;
-    odom_msg.twist.twist.angular.z = v_angular;
-    
-    odom_pub.publish(&odom_msg);
+    // Only publish if ROS is connected
+    if(nh.connected()) {
+      odom_msg.header.stamp = nh.now();
+      odom_msg.pose.pose.position.x = odom_x;
+      odom_msg.pose.pose.position.y = odom_y;
+      odom_msg.pose.pose.orientation.z = sin(odom_theta * 0.5);
+      odom_msg.pose.pose.orientation.w = cos(odom_theta * 0.5);
+      
+      // Calculate velocities for twist
+      float v_left = (current_vel_fl + current_vel_rl) / 2.0;
+      float v_right = (current_vel_fr + current_vel_rr) / 2.0;
+      float v_linear = (v_left + v_right) / 2.0;
+      float v_angular = (v_right - v_left) / TRACK_WIDTH;
+      
+      odom_msg.twist.twist.linear.x = v_linear;
+      odom_msg.twist.twist.angular.z = v_angular;
+      
+      odom_pub.publish(&odom_msg);
+    }
     
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
@@ -282,119 +301,130 @@ void odomTask(void *pvParameters) {
 
 // Task 3: ROS Communication (handles spinOnce)
 void rosTask(void *pvParameters) {
+  // Wait for initial ROS sync to complete before starting
+  while(!ros_sync_complete) {
+    vTaskDelay(pdMS_TO_TICKS(50)); // Wait 50ms, then check again
+  }
+  
   for(;;) {
-    // Keep trying to connect if not connected
-    if(!nh.connected()) {
-      nh.initNode();
-      nh.subscribe(cmd_vel_sub);
-      nh.advertise(odom_pub);
-      delay(100);
+    // Only call spinOnce if connected
+    if(nh.connected()) {
+      nh.spinOnce();
+    } else {
+      // If disconnected, wait longer before retrying
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
-    
-    nh.spinOnce();
     vTaskDelay(pdMS_TO_TICKS(10)); // ~100Hz ROS communication
   }
 }
 
 void setup() {
-  // ==================== WORKING SYNC METHOD (VERIFIED) ====================
+  // ==================== WORKING SYNC METHOD (EXACT COPY FROM MINIMAL TEST) ====================
   // This EXACT sequence was tested and works with rosserial_python
   
-  // Step 1: Initialize Serial and wait for stabilization
+  // Step 1: Initialize Serial (EXACTLY like minimal test - NO hardware init yet)
   Serial.begin(115200);
-  delay(500);  // CRITICAL: ESP32 needs time for USB-to-serial to initialize
+  delay(500);  // CRITICAL: Wait for Serial to stabilize
   
-  // Step 2: Initialize ALL hardware BEFORE ROS (NO Serial output here)
-  // Create mutexes
-  encoder_mutex = xSemaphoreCreateMutex();
-  motor_mutex = xSemaphoreCreateMutex();
-  
-  if(encoder_mutex == NULL || motor_mutex == NULL) {
-    // Can't use Serial here - will corrupt ROS sync
-    // Just halt and wait for watchdog
-    while(1) delay(1000);
-  }
-
-  // Initialize direction control pins as OUTPUT
-  int dirPins[] = {MOTOR_FL_IN1, MOTOR_FL_IN2, MOTOR_FR_IN1, MOTOR_FR_IN2,
-                   MOTOR_RL_IN1, MOTOR_RL_IN2, MOTOR_RR_IN1, MOTOR_RR_IN2};
-  for(int p : dirPins) {
-    pinMode(p, OUTPUT);
-    digitalWrite(p, LOW);
-  }
-  
-  // Setup Hardware PWM channels for motor PWM pins
-  // Configure PWM channels
-  ledcSetup(PWM_CHANNEL_FL, PWM_FREQUENCY, PWM_RESOLUTION);
-  ledcSetup(PWM_CHANNEL_FR, PWM_FREQUENCY, PWM_RESOLUTION);
-  ledcSetup(PWM_CHANNEL_RL, PWM_FREQUENCY, PWM_RESOLUTION);
-  ledcSetup(PWM_CHANNEL_RR, PWM_FREQUENCY, PWM_RESOLUTION);
-  
-  // Attach PWM pins to channels
-  ledcAttachPin(MOTOR_FL_PWM, PWM_CHANNEL_FL);
-  ledcAttachPin(MOTOR_FR_PWM, PWM_CHANNEL_FR);
-  ledcAttachPin(MOTOR_RL_PWM, PWM_CHANNEL_RL);
-  ledcAttachPin(MOTOR_RR_PWM, PWM_CHANNEL_RR);
-  
-  // Initialize all PWM channels to 0 (motors stopped)
-  ledcWrite(PWM_CHANNEL_FL, 0);
-  ledcWrite(PWM_CHANNEL_FR, 0);
-  ledcWrite(PWM_CHANNEL_RL, 0);
-  ledcWrite(PWM_CHANNEL_RR, 0);
-
-  pinMode(ENC_FL_A, INPUT); pinMode(ENC_FL_B, INPUT);
-  pinMode(ENC_FR_A, INPUT); pinMode(ENC_FR_B, INPUT);
-  pinMode(ENC_RL_A, INPUT_PULLUP); pinMode(ENC_RL_B, INPUT_PULLUP);
-  pinMode(ENC_RR_A, INPUT_PULLUP); pinMode(ENC_RR_B, INPUT_PULLUP);
-
-  attachInterrupt(digitalPinToInterrupt(ENC_FL_A), isrFL, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENC_FR_A), isrFR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
-
-  // Step 3: Configure ROS baud rate
+  // Step 2: Initialize ROS immediately (EXACTLY like minimal test)
+  // DO NOT initialize hardware yet - might interfere with sync
   nh.getHardware()->setBaud(115200);
   delay(200);  // CRITICAL: Additional delay before ROS init
   
-  // Step 4: Initialize ROS node (this starts the sync process)
+  // Step 3: Initialize ROS node (this starts the sync process)
   nh.initNode();
   
-  // Step 5: Wait for sync to complete (CRITICAL - DO NOT SKIP)
+  // Step 4: Wait for sync to complete (CRITICAL - EXACTLY like minimal test)
   unsigned long timeout = millis() + 10000;  // 10 second timeout
   while(!nh.connected() && millis() < timeout) {
     nh.spinOnce();  // Process incoming sync packets
     delay(10);
   }
   
-  // Step 6: Only AFTER sync succeeds, configure publishers/subscribers
-  nh.subscribe(cmd_vel_sub);
-  nh.advertise(odom_pub);
-  
-  // Initialize message frame_ids
-  odom_msg.header.frame_id = "odom";
-  odom_msg.child_frame_id = "base_footprint";
-  
-  // Step 7: Only NOW safe to use Serial.println() - sync is complete
+  // Step 5: Only AFTER sync succeeds, configure publishers/subscribers
   if(nh.connected()) {
+    nh.subscribe(cmd_vel_sub);
+    nh.advertise(odom_pub);
+    
+    // Initialize message frame_ids
+    odom_msg.header.frame_id = "odom";
+    odom_msg.child_frame_id = "base_footprint";
+    
+    // NOW safe to use Serial.println() - sync is complete
     Serial.println("\n\nElderly Bot ESP32 Ready!");
+    Serial.println("ROS Connected Successfully!");
+    
+    // Step 6: Initialize hardware AFTER ROS sync (safer)
+    Serial.println("Initializing hardware...");
+    
+    // Create mutexes
+    encoder_mutex = xSemaphoreCreateMutex();
+    motor_mutex = xSemaphoreCreateMutex();
+    
+    if(encoder_mutex == NULL || motor_mutex == NULL) {
+      Serial.println("ERROR: Failed to create mutexes!");
+      while(1) delay(1000);
+    }
+
+    // Initialize direction control pins as OUTPUT
+    int dirPins[] = {MOTOR_FL_IN1, MOTOR_FL_IN2, MOTOR_FR_IN1, MOTOR_FR_IN2,
+                     MOTOR_RL_IN1, MOTOR_RL_IN2, MOTOR_RR_IN1, MOTOR_RR_IN2};
+    for(int p : dirPins) {
+      pinMode(p, OUTPUT);
+      digitalWrite(p, LOW);
+    }
+    
+    // Setup Hardware PWM channels
+    ledcSetup(PWM_CHANNEL_FL, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcSetup(PWM_CHANNEL_FR, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcSetup(PWM_CHANNEL_RL, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcSetup(PWM_CHANNEL_RR, PWM_FREQUENCY, PWM_RESOLUTION);
+    
+    ledcAttachPin(MOTOR_FL_PWM, PWM_CHANNEL_FL);
+    ledcAttachPin(MOTOR_FR_PWM, PWM_CHANNEL_FR);
+    ledcAttachPin(MOTOR_RL_PWM, PWM_CHANNEL_RL);
+    ledcAttachPin(MOTOR_RR_PWM, PWM_CHANNEL_RR);
+    
+    ledcWrite(PWM_CHANNEL_FL, 0);
+    ledcWrite(PWM_CHANNEL_FR, 0);
+    ledcWrite(PWM_CHANNEL_RL, 0);
+    ledcWrite(PWM_CHANNEL_RR, 0);
+    Serial.println("Hardware PWM configured");
+
+    pinMode(ENC_FL_A, INPUT); pinMode(ENC_FL_B, INPUT);
+    pinMode(ENC_FR_A, INPUT); pinMode(ENC_FR_B, INPUT);
+    pinMode(ENC_RL_A, INPUT_PULLUP); pinMode(ENC_RL_B, INPUT_PULLUP);
+    pinMode(ENC_RR_A, INPUT_PULLUP); pinMode(ENC_RR_B, INPUT_PULLUP);
+
+    attachInterrupt(digitalPinToInterrupt(ENC_FL_A), isrFL, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ENC_FR_A), isrFR, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
+    Serial.println("Encoders initialized");
+    
+    // Mark sync as complete - allows tasks to start
+    ros_sync_complete = true;
+    
     Serial.println("Firmware: FreeRTOS (NO IMU - IMU on Jetson)");
     Serial.println("Using Hardware PWM");
-    Serial.println("ROS Connected Successfully!");
+    
+    // Step 7: Create FreeRTOS tasks AFTER hardware init
+    delay(50);  // Small delay before creating tasks
+    
+    xTaskCreatePinnedToCore(controlTask, "ControlTask", 4096, NULL, 3, NULL, 1);  // Core 1, priority 3
+    xTaskCreatePinnedToCore(odomTask, "OdomTask", 4096, NULL, 2, NULL, 0);        // Core 0, priority 2
+    xTaskCreatePinnedToCore(rosTask, "RosTask", 8192, NULL, 1, NULL, 0);          // Core 0, priority 1
+    
+    Serial.println("FreeRTOS tasks created!");
+    Serial.println("NOTE: IMU must be connected to Jetson and mpu9250_node running!");
   } else {
     Serial.println("\n\nElderly Bot ESP32 Ready!");
-    Serial.println("WARNING: ROS Connection Failed - Will retry in rosTask");
+    Serial.println("ERROR: ROS Connection Failed!");
+    Serial.println("Hardware will NOT initialize - check ROS connection and retry");
+    
+    // Don't initialize hardware or create tasks if sync failed
+    while(1) delay(1000);  // Halt - wait for reset
   }
-  
-  // Create FreeRTOS tasks (NO IMU task)
-  xTaskCreatePinnedToCore(controlTask, "ControlTask", 4096, NULL, 3, NULL, 1);  // Core 1, priority 3
-  xTaskCreatePinnedToCore(odomTask, "OdomTask", 4096, NULL, 2, NULL, 0);        // Core 0, priority 2
-  xTaskCreatePinnedToCore(rosTask, "RosTask", 8192, NULL, 1, NULL, 0);          // Core 0, priority 1
-  
-  Serial.println("FreeRTOS tasks created!");
-  Serial.println("NOTE: IMU must be connected to Jetson and mpu9250_node running!");
-  
-  // Allow tasks to start
-  delay(100);
 }
 
 void loop() {
