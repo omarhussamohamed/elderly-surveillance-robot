@@ -24,7 +24,7 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 ### Motors & Encoders
 - **Motor**: JGB37-520, 12V, 110 RPM, 90:1 gearbox
 - **Encoder**: Quadrature, 11 PPR, 90:1 reduction, 4-edge counting
-- **Total Resolution**: 3960 ticks per wheel revolution
+- **Total Resolution**: 4900 ticks per wheel revolution
 
 ### Sensors
 - **Lidar**: RPLidar A1 (mounted 0.30m above ground)
@@ -45,112 +45,20 @@ map
              └── imu_link
 ```
 
-### Node Responsibilities
+## Quick Links
 
-**ESP32 (Arduino)**
-- Encoder reading via interrupts
-- Wheel velocity PID control (100 Hz)
-- Skid-steer kinematics
-- IMU data publishing
-- Safety timeouts and velocity clamping
-
-**Jetson Nano (ROS)**
-- Sensor fusion (robot_localization EKF)
-- Mapping (gmapping)
-- Localization (AMCL)
-- Path planning (move_base)
-- Patrol logic
-
-## Installation
-
-### Prerequisites
-- Ubuntu 18.04
-- ROS Melodic
-- Arduino IDE (for ESP32 programming)
-
-### Quick Install
-
-```bash
-cd ~/catkin_ws/src/elderly_bot
-chmod +x install_dependencies.sh
-./install_dependencies.sh
-```
-
-This script installs:
-- ROS navigation stack
-- robot_localization
-- gmapping
-- explore_lite
-- rplidar_ros
-- rosserial
-- All required dependencies
-
-### Manual Installation
-
-If you prefer manual installation:
-
-```bash
-# Install ROS packages
-sudo apt-get install -y \
-    ros-melodic-navigation \
-    ros-melodic-robot-localization \
-    ros-melodic-gmapping \
-    ros-melodic-explore-lite \
-    ros-melodic-rplidar-ros \
-    ros-melodic-rosserial-arduino \
-    ros-melodic-rosserial-python
-
-# Build workspace
-cd ~/catkin_ws
-catkin_make
-source devel/setup.bash
-```
-
-### ESP32 Firmware Setup
-
-⚠️ **CRITICAL**: This firmware requires **ESP32 Arduino Core 2.0.17**. Do NOT use Core 3.x due to compatibility issues. See `firmware/ESP32_CORE_COMPATIBILITY.md` for details.
-
-1. **Install Arduino IDE** (if not already installed)
-   - Download from: https://www.arduino.cc/en/software
-
-2. **Add ESP32 Board Support**
-   - File → Preferences
-   - Add to "Additional Board Manager URLs":
-     ```
-     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-     ```
-   - Tools → Board → Board Manager
-   - Search "esp32"
-   - **Select version 2.0.17** from dropdown
-   - Click Install
-
-3. **Install Required Libraries**
-   - Sketch → Include Library → Manage Libraries
-   - Install: "Rosserial Arduino Library"
-   - Install: "MPU9250" by hideakitai
-
-4. **Generate ROS Library for Arduino**
-   ```bash
-   cd ~/Arduino/libraries
-   rm -rf ros_lib
-   rosrun rosserial_arduino make_libraries.py .
-   ```
-
-5. **Upload Firmware**
-   - Open: `~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32.ino`
-   - Select Board: "ESP32 Dev Module"
-   - **Verify Core Version**: Tools → Board → Board Manager → esp32 should show 2.0.17
-   - Select Port: `/dev/ttyUSB1` (or appropriate port)
-   - Upload
-
-**Troubleshooting ESP32 Issues**: If you experience compilation errors or crashes, see `firmware/FIRMWARE_TROUBLESHOOTING.md` for comprehensive troubleshooting. For detailed technical information about ESP32 Core compatibility, see `firmware/ESP32_CORE_COMPATIBILITY.md`.
+- **[QUICK_START.md](QUICK_START.md)**: Step-by-step setup guide
+- **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**: Complete system architecture and operation
+- **[HARDWARE_MAP.md](HARDWARE_MAP.md)**: Hardware configuration reference
+- **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)**: Final preparation checklist
 
 ## Hardware Setup
 
 ### Connections
 - **RPLidar**: Connect to `/dev/ttyUSB0`
-- **ESP32**: Connect to `/dev/ttyUSB1`
-- **IMU**: I2C (SDA=21, SCL=22)
+- **ESP32**: WiFi connection (see HARDWARE_MAP.md for credentials)
+- **IMU**: Connected directly to Jetson I2C (see docs/MPU9250_JETSON_SETUP.md)
 
 ### Serial Permissions
 ```bash
@@ -160,44 +68,7 @@ sudo usermod -a -G dialout $USER
 
 ## Usage
 
-### Mode 1: Autonomous Mapping
-
-Create a map of your environment:
-
-```bash
-# Terminal 1: Start mapping
-roslaunch elderly_bot mapping.launch
-
-# The robot will autonomously explore using explore_lite
-# Monitor progress in RViz
-
-# When exploration is complete, save the map:
-rosrun map_server map_saver -f ~/catkin_ws/src/elderly_bot/maps/house_map
-```
-
-**What happens:**
-- Robot autonomously explores unknown areas
-- gmapping builds a 2D occupancy grid map
-- explore_lite identifies and navigates to frontier regions
-- EKF fuses wheel odometry and IMU for accurate pose estimation
-
-### Mode 2: Navigation & Patrol
-
-Navigate using the saved map:
-
-```bash
-# Terminal 1: Start navigation
-roslaunch elderly_bot navigation.launch map_file:=~/catkin_ws/src/elderly_bot/maps/house_map.yaml
-
-# Terminal 2: Start patrol
-rosrun elderly_bot patrol_client.py
-```
-
-**What happens:**
-- AMCL localizes robot on the saved map
-- move_base plans paths to patrol waypoints
-- Robot cycles through waypoints indefinitely
-- Dynamic obstacle avoidance enabled
+See **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)** for detailed operational modes and usage instructions.
 
 ### Testing Hardware Only
 
@@ -218,58 +89,7 @@ rostopic pub /cmd_vel geometry_msgs/Twist "linear: {x: 0.1}" -r 10
 
 ## Configuration
 
-### Patrol Waypoints
-
-Edit patrol goals in `config/patrol_goals.yaml`:
-
-```yaml
-patrol_goals:
-  - name: "Living Room"
-    x: 2.0
-    y: 1.5
-    yaw: 0.0
-  
-  - name: "Kitchen"
-    x: 5.0
-    y: 1.0
-    yaw: 1.57
-```
-
-**To find coordinates:**
-1. Launch navigation mode
-2. Use "2D Pose Estimate" in RViz to move robot
-3. Note coordinates from `/amcl_pose` topic
-4. Update `patrol_goals.yaml`
-
-### Velocity Limits
-
-Edit in `config/dwa_local_planner.yaml`:
-
-```yaml
-max_vel_x: 0.25        # m/s
-max_vel_theta: 1.0     # rad/s
-```
-
-### PID Tuning (ESP32)
-
-Edit in `firmware/elderly_bot_esp32.ino`:
-
-```cpp
-float kp = 25.0;
-float ki = 5.0;
-float kd = 0.5;
-```
-
-### Motor Direction Inversion
-
-If motors spin in wrong direction, edit in firmware:
-
-```cpp
-bool invert_fl = false;  // Front-Left
-bool invert_fr = true;   // Front-Right
-bool invert_rl = false;  // Rear-Left
-bool invert_rr = true;   // Rear-Right
-```
+See **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)** for detailed configuration instructions.
 
 ## Package Structure
 
@@ -285,10 +105,9 @@ elderly_bot/
 │   ├── local_costmap.yaml
 │   └── patrol_goals.yaml       # Patrol waypoints
 ├── firmware/
-│   ├── elderly_bot_esp32.ino          # ESP32 Arduino firmware
-│   ├── ESP32_CORE_COMPATIBILITY.md     # ESP32 Core compatibility guide
-│   ├── FIRMWARE_CHANGES.md             # Firmware changelog
-│   └── FIRMWARE_TROUBLESHOOTING.md     # Troubleshooting guide
+│   ├── elderly_bot_esp32_wifi.ino      # Unified ESP32 firmware (WiFi rosserial)
+│   ├── motor_and_encoder_HW_test.ino   # Motor behavior ground truth
+│   └── motor_and_encoder_SW_test.ino   # Software test firmware
 ├── launch/
 │   ├── bringup.launch          # Hardware interfaces
 │   ├── mapping.launch          # Autonomous mapping mode
@@ -297,6 +116,7 @@ elderly_bot/
 │   ├── house_map.yaml
 │   └── house_map.pgm
 ├── scripts/
+│   ├── mpu9250_node.py         # Jetson IMU driver
 │   └── patrol_client.py        # Patrol action client
 ├── CMakeLists.txt
 ├── package.xml
@@ -331,11 +151,11 @@ elderly_bot/
 - Test lidar: `roslaunch rplidar_ros view_rplidar.launch`
 
 ### ESP32 communication issues
-- Check baud rate (115200)
+- Check WiFi connection (see HARDWARE_MAP.md for credentials)
 - Verify rosserial connection: `rostopic list`
-- Check Arduino serial monitor for errors
-- Ensure ros_lib is up to date
-- See `firmware/FIRMWARE_TROUBLESHOOTING.md` for detailed troubleshooting
+- Check ESP32 serial output for errors
+- Ensure ros_lib is generated on Jetson
+- See `ROSSERIAL_GUIDE.md` for detailed rosserial troubleshooting
 
 ## Safety Features
 

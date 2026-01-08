@@ -18,7 +18,7 @@ Use this checklist to deploy the Elderly Bot system on your Jetson Nano.
 - [ ] 4× JGB37-520 motors with encoders
 - [ ] 2× L298N motor drivers
 - [ ] 12V battery for motors
-- [ ] 5V power for ESP32
+- [ ] ESP32 powered via Jetson Nano 5V rail
 - [ ] USB cables (2×)
 - [ ] Jumper wires for connections
 
@@ -72,10 +72,10 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 
 ### ESP32 Wiring
 
-**⚠️ IMPORTANT: Pin assignments are defined in `firmware/elderly_bot_esp32.ino` and are the single source of truth.**
+**⚠️ IMPORTANT: Pin assignments are defined in `HARDWARE_MAP.md` and are the single source of truth.**
 
 #### Motor Driver #1 (L298N)
-| ESP32 Pin | Function | L298N Pin | Defined in elderly_bot_esp32.ino |
+| ESP32 Pin | Function | L298N Pin | Defined in HARDWARE_MAP.md |
 |-----------|----------|-----------|---------------------|
 | 13 | FL PWM | ENA | MOTOR_FL_PWM |
 | 12 | FL IN1 | IN1 | MOTOR_FL_IN1 |
@@ -85,7 +85,7 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 | 25 | FR IN2 | IN4 | MOTOR_FR_IN2 |
 
 #### Motor Driver #2 (L298N)
-| ESP32 Pin | Function | L298N Pin | Defined in elderly_bot_esp32.ino |
+| ESP32 Pin | Function | L298N Pin | Defined in HARDWARE_MAP.md |
 |-----------|----------|-----------|---------------------|
 | 2 | RL PWM | ENA | MOTOR_RL_PWM |
 | 32 | RL IN1 | IN1 | MOTOR_RL_IN1 |
@@ -95,7 +95,7 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 | 17 | RR IN2 | IN4 | MOTOR_RR_IN2 |
 
 #### Encoders
-| ESP32 Pin | Function | Notes | Defined in elderly_bot_esp32.ino |
+| ESP32 Pin | Function | Notes | Defined in HARDWARE_MAP.md |
 |-----------|----------|-------|---------------------|
 | 34 | FL Encoder A | Input only | ENC_FL_A |
 | 35 | FL Encoder B | Input only | ENC_FL_B |
@@ -117,13 +117,13 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 ### Power Connections
 - [ ] 12V battery → Motor drivers VCC
 - [ ] Motor drivers GND → Common ground
-- [ ] 5V regulator → ESP32 VIN
+- [ ] Jetson Nano 5V rail → ESP32 VIN (⚠️ WARNING: Monitor current draw)
 - [ ] ESP32 GND → Common ground
 - [ ] Jetson Nano powered separately
 
-### USB Connections
-- [ ] RPLidar → Jetson USB port (will be /dev/ttyUSB0)
-- [ ] ESP32 → Jetson USB port (will be /dev/ttyUSB1)
+### Connections
+- [ ] RPLidar → Jetson USB port (will be /dev/ttyUSB1)
+- [ ] ESP32 → WiFi connection to Jetson (192.168.1.16:11411)
 
 ## Step 5: Program ESP32
 
@@ -137,7 +137,7 @@ rosrun rosserial_arduino make_libraries.py .
 
 ### Upload Firmware
 1. Open Arduino IDE
-2. File → Open → `~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32.ino`
+2. File → Open → `~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32_wifi.ino`
 3. Tools → Board → "ESP32 Dev Module" (or "NodeMCU-32S" if available)
 4. Tools → Port → Select ESP32 port
 5. Upload

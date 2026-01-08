@@ -178,7 +178,7 @@ If MPU9250 AD0 pin is HIGH, address is 0x69:
 
 Since IMU is now on Jetson, you can remove IMU code from ESP32:
 
-### Remove from `elderly_bot_esp32.ino`:
+### Firmware Configuration:
 
 1. **Remove IMU includes:**
 ```cpp

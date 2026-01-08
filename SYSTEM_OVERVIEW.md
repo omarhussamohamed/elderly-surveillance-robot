@@ -13,7 +13,8 @@ elderly_bot/
 ├── README.md                         # Comprehensive documentation
 ├── QUICK_START.md                    # Quick start guide
 ├── SYSTEM_OVERVIEW.md               # This file
-├── .gitignore                       # Git ignore rules
+├── HARDWARE_MAP.md                  # Hardware configuration reference
+├── ROSSERIAL_GUIDE.md               # rosserial setup and troubleshooting
 │
 ├── config/                          # Configuration files (YAML)
 │   ├── amcl.yaml                   # AMCL localization parameters
@@ -26,10 +27,9 @@ elderly_bot/
 │   └── patrol_goals.yaml           # Patrol waypoints
 │
 ├── firmware/                        # ESP32 Arduino firmware
-│   ├── elderly_bot_esp32.ino        # Complete ESP32 firmware
-│   ├── ESP32_CORE_COMPATIBILITY.md # ESP32 Core version compatibility guide
-│   ├── FIRMWARE_CHANGES.md         # Firmware changelog
-│   └── FIRMWARE_TROUBLESHOOTING.md # Comprehensive troubleshooting guide
+│   ├── elderly_bot_esp32_wifi.ino   # Unified ESP32 firmware (WiFi rosserial)
+│   ├── motor_and_encoder_HW_test.ino # Hardware test firmware
+│   └── motor_and_encoder_SW_test.ino # Software test firmware
 │
 ├── launch/                          # ROS launch files
 │   ├── bringup.launch              # Hardware interfaces
@@ -44,6 +44,7 @@ elderly_bot/
 │   └── navigation.rviz             # Navigation visualization
 │
 ├── scripts/                         # Python scripts
+│   ├── mpu9250_node.py             # Jetson IMU driver
 │   └── patrol_client.py            # Patrol action client
 │
 └── install_dependencies.sh          # Dependency installation script
@@ -53,31 +54,33 @@ elderly_bot/
 
 ### Hardware Layer
 - **Jetson Nano**: Main computer (Ubuntu 18.04 + ROS Melodic)
-- **ESP32**: Motor controller (Arduino + rosserial)
+- **ESP32**: Motor controller (Arduino + rosserial over WiFi)
 - **RPLidar A1**: 360° laser scanner
-- **MPU-9250**: IMU (gyro + accel)
+- **MPU-9250**: IMU (gyro + accel) - connected directly to Jetson
 - **4× Motors**: JGB37-520 with encoders
 - **2× L298N**: Motor drivers
 
 ### Software Stack
 
-#### ESP32 Responsibilities
+#### ESP32 Responsibilities (Dual-Core Architecture)
+- **Core 0**: WiFi rosserial communication, odometry publishing
+- **Core 1**: Motor control, encoder reading, PWM updates
+- Differential drive kinematics (left = linear.x - angular.z, right = linear.x + angular.z)
 - Quadrature encoder reading (interrupt-driven)
-- 4-wheel independent PID control @ 100 Hz
-- Skid-steer kinematics
-- IMU data acquisition
-- Safety timeouts and velocity clamping
-- Publishes: `/wheel_odom`, `/imu/data`
-- Subscribes: `/cmd_vel`
+- Hardware PWM motor control with minimum power thresholds
+- Safety timeouts (800ms) and motor shutdown on timeout
+- Publishes: `/wheel_odom` (10Hz)
+- Subscribes: `/cmd_vel` (rosserial over WiFi)
 
 #### Jetson Nano Responsibilities
+- IMU data acquisition (direct I2C connection)
 - Sensor fusion (robot_localization EKF)
 - SLAM (gmapping)
 - Localization (AMCL)
 - Path planning (move_base)
 - Autonomous exploration (explore_lite)
 - Patrol coordination
-- Publishes: `/odom`, `/scan`, `/map`
+- Publishes: `/odom`, `/scan`, `/imu/data`, `/map`
 
 ### TF Tree (Strictly Enforced)
 ```
@@ -182,11 +185,12 @@ rosrun elderly_bot patrol_client.py
 - Min linear: 0.05 m/s (overcome friction)
 
 ### Encoder Resolution
-- 3960 ticks per wheel revolution
+- 4900 ticks per wheel revolution
 - Provides ~0.05mm linear resolution
 
 ### Control Frequencies
-- ESP32 PID: 100 Hz
+- ESP32 motor control: 50 Hz (20ms intervals)
+- ESP32 odometry: 10 Hz (100ms intervals)
 - EKF fusion: 50 Hz
 - Local planner: 10 Hz
 - Global planner: 1 Hz
@@ -196,14 +200,14 @@ rosrun elderly_bot patrol_client.py
 ### Published by ESP32
 | Topic | Type | Rate | Description |
 |-------|------|------|-------------|
-| `/wheel_odom` | nav_msgs/Odometry | 100 Hz | Wheel odometry |
-| `/imu/data` | sensor_msgs/Imu | 100 Hz | IMU measurements |
+| `/wheel_odom` | nav_msgs/Odometry | 10 Hz | Wheel odometry (WiFi rosserial) |
 
 ### Published by Jetson
 | Topic | Type | Rate | Description |
 |-------|------|------|-------------|
 | `/scan` | sensor_msgs/LaserScan | 5-10 Hz | Lidar scan |
 | `/odom` | nav_msgs/Odometry | 50 Hz | Fused odometry |
+| `/imu/data` | sensor_msgs/Imu | 50 Hz | IMU measurements (direct I2C) |
 | `/map` | nav_msgs/OccupancyGrid | 0.5 Hz | Occupancy map |
 
 ### Subscribed
@@ -277,6 +281,12 @@ cd ~/catkin_ws
 catkin_make
 source devel/setup.bash
 ```
+
+## Key Documentation Files
+
+- **[HARDWARE_MAP.md](HARDWARE_MAP.md)**: Complete hardware configuration reference
+- **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
+- **[QUICK_START.md](QUICK_START.md)**: Step-by-step setup guide
 
 ## Testing Checklist
 

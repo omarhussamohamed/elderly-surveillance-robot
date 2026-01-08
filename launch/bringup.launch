@@ -1,21 +1,21 @@
 <?xml version="1.0"?>
 <!--
   Elderly Bot Bringup Launch File
-  
+
   Starts:
-  - rosserial connection to ESP32
+  - rosserial WiFi connection to ESP32
   - RPLidar node
   - Static TF transforms
-  
+
   This launch file brings up the core hardware interfaces.
 -->
 <launch>
   <!-- ========== PARAMETERS ========== -->
-  
-  <!-- Serial port for ESP32 -->
-  <arg name="esp32_port" default="/dev/ttyUSB0" />
-  <arg name="esp32_baud" default="115200" />
-  
+
+  <!-- ESP32 WiFi connection parameters -->
+  <arg name="esp32_ip" default="192.168.1.16" />
+  <arg name="esp32_port" default="11411" />
+
   <!-- Serial port for RPLidar -->
   <arg name="lidar_port" default="/dev/ttyUSB1" />
   <arg name="lidar_baud" default="115200" />
@@ -29,16 +29,16 @@
   <param name="robot_description" 
          command="echo 'Elderly Bot - 4WD Indoor Monitoring Robot'" />
   
-  <!-- ========== ROSSERIAL NODE (ESP32) ========== -->
-  
-  <node name="esp32_serial_node" 
-        pkg="rosserial_python" 
-        type="serial_node.py"
+  <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
+
+  <node name="esp32_serial_node"
+        pkg="rosserial_python"
+        type="socket_node.py"
         output="screen"
         respawn="true"
         respawn_delay="5">
+    <param name="host" value="$(arg esp32_ip)" />
     <param name="port" value="$(arg esp32_port)" />
-    <param name="baud" value="$(arg esp32_baud)" />
   </node>
   
   <!-- ========== RPLIDAR NODE ========== -->

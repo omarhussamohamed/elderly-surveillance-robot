@@ -1,7 +1,5 @@
 # Elderly Bot - Quick Start Guide
 
-# key: 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
-
 ## 1. Installation (One-Time Setup)
 
 ```bash
@@ -22,25 +20,28 @@ Log out and log back in (for serial port permissions).
    - Search "esp32"
    - **Select version 2.0.17**
    - Install
-3. Install libraries: Rosserial Arduino Library, MPU9250
-4. Generate ROS library:
+3. Install libraries: Rosserial Arduino Library
+4. Generate ROS library on Jetson:
    ```bash
+   # On Jetson Nano
    cd ~/Arduino/libraries
    rm -rf ros_lib
    rosrun rosserial_arduino make_libraries.py .
    ```
-5. Open `firmware/elderly_bot_esp32.ino`
-6. Select Board: "ESP32 Dev Module"
-7. **Verify**: Tools → Board → Board Manager shows esp32 2.0.17
-8. Upload to ESP32
+5. Copy ros_lib to Arduino IDE (see ROSSERIAL_GUIDE.md for details)
+6. Open `firmware/elderly_bot_esp32_wifi.ino`
+7. Select Board: "ESP32 Dev Module"
+8. **Verify**: Tools → Board → Board Manager shows esp32 2.0.17
+9. Upload to ESP32
 
-**If you get errors**: See `firmware/FIRMWARE_TROUBLESHOOTING.md` for troubleshooting help
+**If you get errors**: See `ROSSERIAL_GUIDE.md` for comprehensive troubleshooting
 
 ## 3. Hardware Connections
 
 - **RPLidar** → `/dev/ttyUSB0`
-- **ESP32** → `/dev/ttyUSB1`
-- **Power**: 12V to motors, 5V to ESP32 and Jetson
+- **ESP32** → WiFi connection (see HARDWARE_MAP.md for SSID/password)
+- **MPU-9250 IMU** → Jetson I2C (direct connection)
+- **Power**: 12V to motors, ESP32 powered via Jetson's 5V rail
 
 ## 4. Test Hardware
 
@@ -149,6 +150,12 @@ rostopic echo /move_base/result
 - Check connection: `ls -l /dev/ttyUSB*`
 - Test directly: `roslaunch rplidar_ros view_rplidar.launch`
 
+## Key Documentation Files
+
+- **[HARDWARE_MAP.md](HARDWARE_MAP.md)**: Complete hardware configuration reference
+- **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
+- **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**: System architecture and operation modes
+
 ## File Locations
 
 - **Firmware**: `~/catkin_ws/src/elderly_bot/firmware/`
@@ -158,11 +165,11 @@ rostopic echo /move_base/result
 
 ## Next Steps
 
-- Fine-tune PID parameters in ESP32 firmware
+- Test motor responsiveness with different cmd_vel commands
 - Adjust navigation parameters in config files
 - Add more patrol waypoints
-- Implement custom behaviors
+- Verify IMU data quality
 
-For detailed information, see README.md
+For detailed information, see SYSTEM_OVERVIEW.md
 
 
