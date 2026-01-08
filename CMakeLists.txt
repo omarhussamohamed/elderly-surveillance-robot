@@ -76,6 +76,7 @@ include_directories(
 # Install Python scripts
 catkin_install_python(PROGRAMS
   scripts/patrol_client.py
+  scripts/mpu9250_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

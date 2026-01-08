@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!--
+  MPU9250 IMU Launch File (Jetson Direct Connection)
+  
+  This launch file starts the MPU9250 ROS node when the IMU is connected
+  directly to the Jetson I2C bus instead of through the ESP32.
+  
+  Hardware Setup:
+  - MPU9250 SDA → Jetson I2C2 SDA (Pin 3 on J21)
+  - MPU9250 SCL → Jetson I2C2 SCL (Pin 5 on J21)
+  - MPU9250 VCC → Jetson 3.3V
+  - MPU9250 GND → Jetson GND
+-->
+<launch>
+  <!-- MPU9250 Node Parameters -->
+  <arg name="frame_id" default="imu_link" />
+  <arg name="publish_rate" default="50" />  <!-- Hz -->
+  <arg name="i2c_bus" default="1" />  <!-- I2C bus number (/dev/i2c-1 or /dev/i2c-2) -->
+  <arg name="i2c_address" default="0x68" />  <!-- MPU9250 I2C address -->
+  
+  <!-- MPU9250 Node -->
+  <node name="mpu9250_node" 
+        pkg="elderly_bot" 
+        type="mpu9250_node.py"
+        output="screen"
+        respawn="true"
+        respawn_delay="5">
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="publish_rate" value="$(arg publish_rate)" />
+    <param name="i2c_bus" value="$(arg i2c_bus)" />
+    <param name="i2c_address" value="$(arg i2c_address)" />
+  </node>
+  
+  <!-- Static transform from base_link to imu_link (if not already published) -->
+  <node pkg="tf" 
+        type="static_transform_publisher" 
+        name="base_link_to_imu_link"
+        args="0 0 0.05 0 0 0 base_link imu_link 100" />
+  
+</launch>
+

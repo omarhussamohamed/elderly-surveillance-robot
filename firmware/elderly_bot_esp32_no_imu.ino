@@ -1,9 +1,25 @@
+/*
+ * ESP32 Firmware WITHOUT IMU Support
+ * 
+ * Use this version if MPU9250 is connected directly to Jetson I2C.
+ * This simplifies the ESP32 firmware to only handle motor control and odometry.
+ * 
+ * To use:
+ * 1. Rename this file to elderly_bot_esp32.ino
+ * 2. Remove or comment out all IMU-related code
+ * 3. Flash to ESP32
+ * 
+ * Benefits:
+ * - Smaller firmware size
+ * - Less RAM usage
+ * - Simpler code (easier to debug)
+ * - Reduced serial communication load
+ * - IMU runs independently on Jetson
+ */
+
 #include <ros.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
-#include <sensor_msgs/Imu.h>
-#include <Wire.h>
-#include <MPU9250.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -11,7 +27,6 @@
 #define ROS_SERIAL_BUFFER_SIZE 1024
 
 // Rate control (Hz)
-#define IMU_PUBLISH_RATE 50        // 50Hz IMU data
 #define ODOM_PUBLISH_RATE 20       // 20Hz odometry
 #define CONTROL_LOOP_RATE 50       // 50Hz control loop
 
@@ -40,9 +55,6 @@
 #define ENC_RR_A 23
 #define ENC_RR_B 5
 
-#define IMU_SDA 21
-#define IMU_SCL 22
-
 // ==================== GLOBALS ====================
 ros::NodeHandle nh;
 
@@ -56,8 +68,6 @@ float error_sum_fl=0, error_sum_fr=0, error_sum_rl=0, error_sum_rr=0;
 float prev_error_fl=0, prev_error_fr=0, prev_error_rl=0, prev_error_rr=0;
 
 float odom_x = 0, odom_y = 0, odom_theta = 0;
-MPU9250 mpu;
-bool imu_ready = false;
 
 // TWEAKED PID GAINS FOR STABILITY
 float kp = 5.0, ki = 2.0, kd = 0.1; 
@@ -65,16 +75,10 @@ const float WHEEL_RADIUS = 0.0325;
 const float TRACK_WIDTH = 0.26;
 const int TICKS_PER_REV = 4900; 
 
-// Rate limiting timestamps (microseconds)
-unsigned long last_imu_pub_time = 0;
-unsigned long last_odom_pub_time = 0;
-unsigned long last_control_time = 0;
 unsigned long last_cmd_time = 0;
 
 nav_msgs::Odometry odom_msg;
-sensor_msgs::Imu imu_msg;
 ros::Publisher odom_pub("wheel_odom", &odom_msg);
-ros::Publisher imu_pub("imu/data", &imu_msg);
 
 // Mutex for shared data
 SemaphoreHandle_t encoder_mutex;
@@ -136,7 +140,7 @@ void setMotorSpeed(int motor, int pwm_value) {
       digitalWrite(in2, LOW);
     }
 
-    // Store PWM value for software PWM (ALL motors use software PWM)
+    // Store PWM value for software PWM
     motor_speeds[motor] = pwm_value;
     xSemaphoreGive(motor_mutex);
   }
@@ -259,42 +263,7 @@ void odomTask(void *pvParameters) {
   }
 }
 
-// Task 3: IMU Publisher (50Hz)
-void imuTask(void *pvParameters) {
-  const TickType_t xFrequency = pdMS_TO_TICKS(1000 / IMU_PUBLISH_RATE);
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  
-  for(;;) {
-    if(imu_ready && mpu.update()) {
-      imu_msg.header.stamp = nh.now();
-      
-      // Angular velocity (rad/s) - gyroscope data
-      imu_msg.angular_velocity.x = mpu.getGyroX();
-      imu_msg.angular_velocity.y = mpu.getGyroY();
-      imu_msg.angular_velocity.z = mpu.getGyroZ();
-      
-      // Linear acceleration (m/s²) - accelerometer data
-      imu_msg.linear_acceleration.x = mpu.getAccX() * 9.80665;
-      imu_msg.linear_acceleration.y = mpu.getAccY() * 9.80665;
-      imu_msg.linear_acceleration.z = mpu.getAccZ() * 9.80665;
-      
-      // Set covariance matrices (diagonal)
-      imu_msg.angular_velocity_covariance[0] = 0.02;
-      imu_msg.angular_velocity_covariance[4] = 0.02;
-      imu_msg.angular_velocity_covariance[8] = 0.02;
-      
-      imu_msg.linear_acceleration_covariance[0] = 0.04;
-      imu_msg.linear_acceleration_covariance[4] = 0.04;
-      imu_msg.linear_acceleration_covariance[8] = 0.04;
-      
-      imu_pub.publish(&imu_msg);
-    }
-    
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
-  }
-}
-
-// Task 4: ROS Communication (handles spinOnce)
+// Task 3: ROS Communication (handles spinOnce)
 void rosTask(void *pvParameters) {
   for(;;) {
     nh.spinOnce();
@@ -312,7 +281,7 @@ void setup() {
   }
   
   Serial.println("\n\nElderly Bot ESP32 Starting...");
-  Serial.println("Firmware: Redesigned with FreeRTOS");
+  Serial.println("Firmware: FreeRTOS (NO IMU - IMU on Jetson)");
   
   // Create mutexes
   encoder_mutex = xSemaphoreCreateMutex();
@@ -344,21 +313,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
 
-  // Initialize I2C for IMU
-  Wire.begin(IMU_SDA, IMU_SCL);
-  Wire.setClock(400000); // 400kHz I2C clock
-  
-  // Initialize MPU9250 (hideakitai library - no begin() needed, just initialize Wire and calibrate)
-  Serial.print("Initializing MPU9250...");
-  delay(100); // Brief delay for I2C to stabilize
-  
-  // For hideakitai MPU9250 library v0.4.8, initialization happens automatically
-  // Just check if sensor responds and calibrate
-  mpu.calibrateAccelGyro();
-  imu_ready = true;
-  Serial.println(" OK - IMU calibrated!");
-
-  // Initialize ROS with proper baud rate BEFORE creating tasks
+  // Initialize ROS (NO IMU initialization)
   Serial.print("Initializing ROS...");
   nh.getHardware()->setBaud(115200);
   nh.initNode();
@@ -368,25 +323,23 @@ void setup() {
   
   nh.subscribe(cmd_vel_sub);
   nh.advertise(odom_pub);
-  nh.advertise(imu_pub);
   
   // Initialize message frame_ids
   odom_msg.header.frame_id = "odom";
   odom_msg.child_frame_id = "base_footprint";
-  imu_msg.header.frame_id = "imu_link";
   
   Serial.println(" OK");
   Serial.println("Creating FreeRTOS tasks...");
   
-  // Create FreeRTOS tasks with priorities (higher number = higher priority)
+  // Create FreeRTOS tasks (NO IMU task)
   xTaskCreatePinnedToCore(controlTask, "ControlTask", 4096, NULL, 3, NULL, 1);  // Core 1, priority 3
   xTaskCreatePinnedToCore(odomTask, "OdomTask", 4096, NULL, 2, NULL, 0);        // Core 0, priority 2
-  xTaskCreatePinnedToCore(imuTask, "ImuTask", 4096, NULL, 2, NULL, 0);          // Core 0, priority 2
-  xTaskCreatePinnedToCore(rosTask, "RosTask", 8192, NULL, 1, NULL, 0);          // Core 0, priority 1 (larger stack for ROS)
+  xTaskCreatePinnedToCore(rosTask, "RosTask", 8192, NULL, 1, NULL, 0);          // Core 0, priority 1
   
   Serial.println("Tasks created!");
   Serial.println("Elderly Bot Ready!");
   Serial.println("Waiting for ROS connection...");
+  Serial.println("NOTE: IMU must be connected to Jetson and mpu9250_node running!");
   
   // Allow tasks to start
   delay(100);
@@ -394,6 +347,6 @@ void setup() {
 
 void loop() {
   // Empty - everything runs in FreeRTOS tasks
-  // This loop still runs on Core 1, but at lowest priority
   vTaskDelay(pdMS_TO_TICKS(1000)); // Sleep to reduce CPU usage
 }
+
