@@ -30,6 +30,14 @@
 #define ODOM_PUBLISH_RATE 20       // 20Hz odometry
 #define CONTROL_LOOP_RATE 50       // 50Hz control loop
 
+// Hardware PWM settings
+#define PWM_FREQUENCY 5000         // 5kHz PWM frequency
+#define PWM_RESOLUTION 8           // 8-bit resolution (0-255)
+#define PWM_CHANNEL_FL 0           // LEDC channel for FL motor
+#define PWM_CHANNEL_FR 1           // LEDC channel for FR motor
+#define PWM_CHANNEL_RL 2           // LEDC channel for RL motor
+#define PWM_CHANNEL_RR 3           // LEDC channel for RR motor
+
 // ==================== PINOUT (FINAL VERIFIED) ====================
 #define MOTOR_FL_PWM 13
 #define MOTOR_FL_IN1 12
@@ -38,10 +46,10 @@
 #define MOTOR_FR_IN1 26
 #define MOTOR_FR_IN2 25
 
-#define MOTOR_RL_PWM 2  
+#define MOTOR_RL_PWM 21  
 #define MOTOR_RL_IN1 32
 #define MOTOR_RL_IN2 15
-#define MOTOR_RR_PWM 4  
+#define MOTOR_RR_PWM 22 
 #define MOTOR_RR_IN1 16
 #define MOTOR_RR_IN2 17
 
@@ -103,44 +111,54 @@ void IRAM_ATTR isrRR(){
 }
 
 // ==================== MOTOR LOGIC ====================
-// Software PWM for ALL motors (hardware PWM causes enable pin issues)
-void software_pwm_loop() {
-  unsigned long now = micros();
-  unsigned long us_in_period = now % 1000; // 1kHz frequency
-  
-  // All motors use software PWM
-  long fl_thresh = map(abs(motor_speeds[0]), 0, 255, 0, 1000);
-  long fr_thresh = map(abs(motor_speeds[1]), 0, 255, 0, 1000);
-  long rl_thresh = map(abs(motor_speeds[2]), 0, 255, 0, 1000);
-  long rr_thresh = map(abs(motor_speeds[3]), 0, 255, 0, 1000);
-  
-  digitalWrite(MOTOR_FL_PWM, (us_in_period < fl_thresh) ? HIGH : LOW);
-  digitalWrite(MOTOR_FR_PWM, (us_in_period < fr_thresh) ? HIGH : LOW);
-  digitalWrite(MOTOR_RL_PWM, (us_in_period < rl_thresh) ? HIGH : LOW);
-  digitalWrite(MOTOR_RR_PWM, (us_in_period < rr_thresh) ? HIGH : LOW);
-}
+// Hardware PWM using ESP32 LEDC channels
 
 void setMotorSpeed(int motor, int pwm_value) {
   if(xSemaphoreTake(motor_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
     int in1, in2;
-    if(motor == 0) { in1=MOTOR_FL_IN1; in2=MOTOR_FL_IN2; }
-    else if(motor == 1) { in1=MOTOR_FR_IN1; in2=MOTOR_FR_IN2; }
-    else if(motor == 2) { in1=MOTOR_RL_IN1; in2=MOTOR_RL_IN2; }
-    else { in1=MOTOR_RR_IN1; in2=MOTOR_RR_IN2; }
+    int pwm_channel;
+    
+    // Determine pins and PWM channel for each motor
+    if(motor == 0) { 
+      in1=MOTOR_FL_IN1; 
+      in2=MOTOR_FL_IN2; 
+      pwm_channel = PWM_CHANNEL_FL;
+    }
+    else if(motor == 1) { 
+      in1=MOTOR_FR_IN1; 
+      in2=MOTOR_FR_IN2; 
+      pwm_channel = PWM_CHANNEL_FR;
+    }
+    else if(motor == 2) { 
+      in1=MOTOR_RL_IN1; 
+      in2=MOTOR_RL_IN2; 
+      pwm_channel = PWM_CHANNEL_RL;
+    }
+    else { 
+      in1=MOTOR_RR_IN1; 
+      in2=MOTOR_RR_IN2; 
+      pwm_channel = PWM_CHANNEL_RR;
+    }
 
     // Direction control for all motors
     if (pwm_value > 0) {
       digitalWrite(in1, (motor < 2 ? LOW : HIGH)); 
       digitalWrite(in2, (motor < 2 ? HIGH : LOW));
+      // Set hardware PWM duty cycle (absolute value)
+      ledcWrite(pwm_channel, abs(pwm_value));
     } else if (pwm_value < 0) {
       digitalWrite(in1, (motor < 2 ? HIGH : LOW)); 
       digitalWrite(in2, (motor < 2 ? LOW : HIGH));
+      // Set hardware PWM duty cycle (absolute value)
+      ledcWrite(pwm_channel, abs(pwm_value));
     } else {
       digitalWrite(in1, LOW); 
       digitalWrite(in2, LOW);
+      // Stop PWM (duty cycle = 0)
+      ledcWrite(pwm_channel, 0);
     }
 
-    // Store PWM value for software PWM
+    // Store PWM value for reference
     motor_speeds[motor] = pwm_value;
     xSemaphoreGive(motor_mutex);
   }
@@ -229,8 +247,7 @@ void controlTask(void *pvParameters) {
     
     controlLoop();
     
-    // Software PWM must run continuously
-    software_pwm_loop();
+    // Hardware PWM runs automatically - no need to call software_pwm_loop()
     
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
@@ -282,6 +299,7 @@ void setup() {
   
   Serial.println("\n\nElderly Bot ESP32 Starting...");
   Serial.println("Firmware: FreeRTOS (NO IMU - IMU on Jetson)");
+  Serial.println("Using Hardware PWM");
   
   // Create mutexes
   encoder_mutex = xSemaphoreCreateMutex();
@@ -292,16 +310,36 @@ void setup() {
     while(1) delay(1000); // Halt
   }
 
-  // All motor pins as OUTPUT (software PWM, no hardware PWM setup)
-  int outPins[] = {MOTOR_FL_IN1, MOTOR_FL_IN2, MOTOR_FL_PWM, MOTOR_FR_IN1, MOTOR_FR_IN2, MOTOR_FR_PWM,
-                   MOTOR_RL_IN1, MOTOR_RL_IN2, MOTOR_RL_PWM, MOTOR_RR_IN1, MOTOR_RR_IN2, MOTOR_RR_PWM};
-  for(int p : outPins) pinMode(p, OUTPUT);
+  // Initialize direction control pins as OUTPUT
+  int dirPins[] = {MOTOR_FL_IN1, MOTOR_FL_IN2, MOTOR_FR_IN1, MOTOR_FR_IN2,
+                   MOTOR_RL_IN1, MOTOR_RL_IN2, MOTOR_RR_IN1, MOTOR_RR_IN2};
+  for(int p : dirPins) {
+    pinMode(p, OUTPUT);
+    digitalWrite(p, LOW);
+  }
   
-  // Initialize all PWM pins to LOW (software PWM)
-  digitalWrite(MOTOR_FL_PWM, LOW);
-  digitalWrite(MOTOR_FR_PWM, LOW);
-  digitalWrite(MOTOR_RL_PWM, LOW);
-  digitalWrite(MOTOR_RR_PWM, LOW);
+  // Setup Hardware PWM channels for motor PWM pins
+  Serial.print("Configuring Hardware PWM...");
+  
+  // Configure PWM channels
+  ledcSetup(PWM_CHANNEL_FL, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_FR, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_RL, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_RR, PWM_FREQUENCY, PWM_RESOLUTION);
+  
+  // Attach PWM pins to channels
+  ledcAttachPin(MOTOR_FL_PWM, PWM_CHANNEL_FL);
+  ledcAttachPin(MOTOR_FR_PWM, PWM_CHANNEL_FR);
+  ledcAttachPin(MOTOR_RL_PWM, PWM_CHANNEL_RL);
+  ledcAttachPin(MOTOR_RR_PWM, PWM_CHANNEL_RR);
+  
+  // Initialize all PWM channels to 0 (motors stopped)
+  ledcWrite(PWM_CHANNEL_FL, 0);
+  ledcWrite(PWM_CHANNEL_FR, 0);
+  ledcWrite(PWM_CHANNEL_RL, 0);
+  ledcWrite(PWM_CHANNEL_RR, 0);
+  
+  Serial.println(" OK");
 
   pinMode(ENC_FL_A, INPUT); pinMode(ENC_FL_B, INPUT);
   pinMode(ENC_FR_A, INPUT); pinMode(ENC_FR_B, INPUT);
