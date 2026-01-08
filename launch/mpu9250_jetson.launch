@@ -16,7 +16,7 @@
   <arg name="frame_id" default="imu_link" />
   <arg name="publish_rate" default="50" />  <!-- Hz -->
   <arg name="i2c_bus" default="1" />  <!-- I2C bus number (/dev/i2c-1 or /dev/i2c-2) -->
-  <arg name="i2c_address" default="0x68" />  <!-- MPU9250 I2C address -->
+  <arg name="i2c_address" default="104" />  <!-- MPU9250 I2C address (0x68 = 104 decimal) -->
   
   <!-- MPU9250 Node -->
   <node name="mpu9250_node" 

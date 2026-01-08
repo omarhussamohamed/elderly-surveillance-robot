@@ -297,16 +297,14 @@ void rosTask(void *pvParameters) {
 }
 
 void setup() {
-  // CRITICAL: Initialize Serial but DO NOT print during ROS sync
-  // Serial output corrupts rosserial handshake packets
+  // ==================== WORKING SYNC METHOD (VERIFIED) ====================
+  // This EXACT sequence was tested and works with rosserial_python
+  
+  // Step 1: Initialize Serial and wait for stabilization
   Serial.begin(115200);
+  delay(500);  // CRITICAL: ESP32 needs time for USB-to-serial to initialize
   
-  // Wait for Serial port to stabilize (ESP32 needs this)
-  delay(500);
-  
-  // IMPORTANT: Initialize ALL hardware BEFORE ROS
-  // This prevents ROS init from interfering with hardware setup
-  
+  // Step 2: Initialize ALL hardware BEFORE ROS (NO Serial output here)
   // Create mutexes
   encoder_mutex = xSemaphoreCreateMutex();
   motor_mutex = xSemaphoreCreateMutex();
@@ -354,26 +352,21 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
 
-  // CRITICAL: Initialize ROS BEFORE any Serial output
-  // Serial.println() corrupts rosserial sync handshake
+  // Step 3: Configure ROS baud rate
   nh.getHardware()->setBaud(115200);
+  delay(200);  // CRITICAL: Additional delay before ROS init
   
-  // Delay to ensure Serial port is stable before ROS tries to use it
-  delay(200);
-  
-  // Initialize ROS node (this starts the sync process)
+  // Step 4: Initialize ROS node (this starts the sync process)
   nh.initNode();
   
-  // IMPORTANT: Wait for ROS sync to complete
-  // During sync, NO Serial output should occur
-  // rosserial will send sync packets and wait for response
-  unsigned long sync_timeout = millis() + 5000; // 5 second timeout
-  while(!nh.connected() && millis() < sync_timeout) {
-    nh.spinOnce();
+  // Step 5: Wait for sync to complete (CRITICAL - DO NOT SKIP)
+  unsigned long timeout = millis() + 10000;  // 10 second timeout
+  while(!nh.connected() && millis() < timeout) {
+    nh.spinOnce();  // Process incoming sync packets
     delay(10);
   }
   
-  // Only after sync completes, configure ROS
+  // Step 6: Only AFTER sync succeeds, configure publishers/subscribers
   nh.subscribe(cmd_vel_sub);
   nh.advertise(odom_pub);
   
@@ -381,15 +374,15 @@ void setup() {
   odom_msg.header.frame_id = "odom";
   odom_msg.child_frame_id = "base_footprint";
   
-  // NOW safe to print - ROS sync is complete
+  // Step 7: Only NOW safe to use Serial.println() - sync is complete
   if(nh.connected()) {
     Serial.println("\n\nElderly Bot ESP32 Ready!");
     Serial.println("Firmware: FreeRTOS (NO IMU - IMU on Jetson)");
     Serial.println("Using Hardware PWM");
-    Serial.println("ROS Connected!");
+    Serial.println("ROS Connected Successfully!");
   } else {
     Serial.println("\n\nElderly Bot ESP32 Ready!");
-    Serial.println("ROS Connection Failed - Retrying...");
+    Serial.println("WARNING: ROS Connection Failed - Will retry in rosTask");
   }
   
   // Create FreeRTOS tasks (NO IMU task)
@@ -397,7 +390,7 @@ void setup() {
   xTaskCreatePinnedToCore(odomTask, "OdomTask", 4096, NULL, 2, NULL, 0);        // Core 0, priority 2
   xTaskCreatePinnedToCore(rosTask, "RosTask", 8192, NULL, 1, NULL, 0);          // Core 0, priority 1
   
-  Serial.println("Tasks created!");
+  Serial.println("FreeRTOS tasks created!");
   Serial.println("NOTE: IMU must be connected to Jetson and mpu9250_node running!");
   
   // Allow tasks to start

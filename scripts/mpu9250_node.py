@@ -24,15 +24,22 @@ import math
 import sys
 
 try:
-    # Option 1: Using smbus directly (manual I2C communication)
-    import smbus
-    
-    # Option 2: Using MPU9250 library (if available)
-    # from mpu9250 import MPU9250
-    
-except ImportError as e:
+    # Try smbus2 first (Python 3, modern)
+    try:
+        import smbus2 as smbus
+        rospy.loginfo("Using smbus2")
+    except ImportError:
+        # Fall back to smbus (Python 2, older)
+        try:
+            import smbus
+            rospy.loginfo("Using smbus")
+        except ImportError:
+            rospy.logerr("Failed to import smbus. Install with:")
+            rospy.logerr("  sudo apt-get install python3-smbus i2c-tools")
+            rospy.logerr("  OR: pip3 install smbus2")
+            sys.exit(1)
+except Exception as e:
     rospy.logerr("Failed to import required libraries: %s", str(e))
-    rospy.logerr("Install with: sudo apt-get install python3-smbus i2c-tools")
     sys.exit(1)
 
 
@@ -62,8 +69,19 @@ class MPU9250Node:
         # Parameters
         self.frame_id = rospy.get_param('~frame_id', 'imu_link')
         self.publish_rate = rospy.get_param('~publish_rate', 50.0)  # Hz
-        self.i2c_bus_num = rospy.get_param('~i2c_bus', 1)
-        self.i2c_address = rospy.get_param('~i2c_address', 0x68)
+        self.i2c_bus_num = int(rospy.get_param('~i2c_bus', 1))  # Ensure integer
+        i2c_addr_str = rospy.get_param('~i2c_address', '0x68')
+        
+        # Convert I2C address to integer (handle both string and int)
+        if isinstance(i2c_addr_str, str):
+            if i2c_addr_str.startswith('0x') or i2c_addr_str.startswith('0X'):
+                self.i2c_address = int(i2c_addr_str, 16)
+            else:
+                self.i2c_address = int(i2c_addr_str)
+        else:
+            self.i2c_address = int(i2c_addr_str)
+        
+        rospy.loginfo("I2C bus: %d, Address: 0x%02X", self.i2c_bus_num, self.i2c_address)
         
         # Initialize I2C
         try:
@@ -71,6 +89,7 @@ class MPU9250Node:
             rospy.loginfo("Initialized I2C bus %d", self.i2c_bus_num)
         except Exception as e:
             rospy.logfatal("Failed to initialize I2C bus %d: %s", self.i2c_bus_num, str(e))
+            rospy.logfatal("Make sure I2C is enabled: sudo raspi-config (Interface Options -> I2C)")
             sys.exit(1)
         
         # Initialize MPU9250
@@ -121,55 +140,102 @@ class MPU9250Node:
         """
         Read 16-bit signed value from two consecutive registers.
         """
-        high = self.bus.read_byte_data(self.i2c_address, addr)
-        low = self.bus.read_byte_data(self.i2c_address, addr + 1)
-        val = (high << 8) + low
-        if val >= 0x8000:
-            return -((65535 - val) + 1)
-        else:
-            return val
+        try:
+            # Read 2 bytes starting from addr (more efficient than two separate reads)
+            data = self.bus.read_i2c_block_data(self.i2c_address, addr, 2)
+            high = data[0]
+            low = data[1]
+            val = (high << 8) | low
+            # Convert to signed 16-bit
+            if val >= 0x8000:
+                return -((65535 - val) + 1)
+            else:
+                return val
+        except Exception as e:
+            rospy.logwarn("Error reading word from 0x%02X: %s", addr, str(e))
+            return 0
     
     def _read_accel_data(self):
         """
         Read accelerometer data.
         Returns (x, y, z) in m/s²
+        ACCEL_XOUT_H is at register 0x3B
         """
-        accel_x = self._read_word_2c(self.ACCEL_XOUT_H) / 16384.0  # ±2g range
-        accel_y = self._read_word_2c(self.ACCEL_XOUT_H + 2) / 16384.0
-        accel_z = self._read_word_2c(self.ACCEL_XOUT_H + 4) / 16384.0
-        
-        # Convert from g to m/s²
-        accel_x *= 9.80665
-        accel_y *= 9.80665
-        accel_z *= 9.80665
-        
-        # Apply calibration offset
-        accel_x -= self.accel_offset[0]
-        accel_y -= self.accel_offset[1]
-        accel_z -= self.accel_offset[2]
-        
-        return accel_x, accel_y, accel_z
+        try:
+            # Read all 6 accelerometer registers at once (0x3B-0x40)
+            data = self.bus.read_i2c_block_data(int(self.i2c_address), int(self.ACCEL_XOUT_H), 6)
+            accel_x = (data[0] << 8) | data[1]
+            accel_y = (data[2] << 8) | data[3]
+            accel_z = (data[4] << 8) | data[5]
+            
+            # Convert to signed 16-bit
+            if accel_x >= 0x8000:
+                accel_x = -((65535 - accel_x) + 1)
+            if accel_y >= 0x8000:
+                accel_y = -((65535 - accel_y) + 1)
+            if accel_z >= 0x8000:
+                accel_z = -((65535 - accel_z) + 1)
+            
+            # Scale for ±2g range (16384 LSB/g)
+            accel_x = accel_x / 16384.0
+            accel_y = accel_y / 16384.0
+            accel_z = accel_z / 16384.0
+            
+            # Convert from g to m/s²
+            accel_x *= 9.80665
+            accel_y *= 9.80665
+            accel_z *= 9.80665
+            
+            # Apply calibration offset
+            accel_x -= self.accel_offset[0]
+            accel_y -= self.accel_offset[1]
+            accel_z -= self.accel_offset[2]
+            
+            return accel_x, accel_y, accel_z
+        except Exception as e:
+            rospy.logwarn("Error reading accelerometer: %s", str(e))
+            return 0.0, 0.0, 0.0
     
     def _read_gyro_data(self):
         """
         Read gyroscope data.
         Returns (x, y, z) in rad/s
+        GYRO_XOUT_H is at register 0x43
         """
-        gyro_x = self._read_word_2c(self.GYRO_XOUT_H) / 131.0  # ±250°/s range
-        gyro_y = self._read_word_2c(self.GYRO_XOUT_H + 2) / 131.0
-        gyro_z = self._read_word_2c(self.GYRO_XOUT_H + 4) / 131.0
-        
-        # Convert from °/s to rad/s
-        gyro_x = math.radians(gyro_x)
-        gyro_y = math.radians(gyro_y)
-        gyro_z = math.radians(gyro_z)
-        
-        # Apply calibration offset
-        gyro_x -= self.gyro_offset[0]
-        gyro_y -= self.gyro_offset[1]
-        gyro_z -= self.gyro_offset[2]
-        
-        return gyro_x, gyro_y, gyro_z
+        try:
+            # Read all 6 gyroscope registers at once (0x43-0x48)
+            data = self.bus.read_i2c_block_data(int(self.i2c_address), int(self.GYRO_XOUT_H), 6)
+            gyro_x = (data[0] << 8) | data[1]
+            gyro_y = (data[2] << 8) | data[3]
+            gyro_z = (data[4] << 8) | data[5]
+            
+            # Convert to signed 16-bit
+            if gyro_x >= 0x8000:
+                gyro_x = -((65535 - gyro_x) + 1)
+            if gyro_y >= 0x8000:
+                gyro_y = -((65535 - gyro_y) + 1)
+            if gyro_z >= 0x8000:
+                gyro_z = -((65535 - gyro_z) + 1)
+            
+            # Scale for ±250°/s range (131 LSB/°/s)
+            gyro_x = gyro_x / 131.0
+            gyro_y = gyro_y / 131.0
+            gyro_z = gyro_z / 131.0
+            
+            # Convert from °/s to rad/s
+            gyro_x = math.radians(gyro_x)
+            gyro_y = math.radians(gyro_y)
+            gyro_z = math.radians(gyro_z)
+            
+            # Apply calibration offset
+            gyro_x -= self.gyro_offset[0]
+            gyro_y -= self.gyro_offset[1]
+            gyro_z -= self.gyro_offset[2]
+            
+            return gyro_x, gyro_y, gyro_z
+        except Exception as e:
+            rospy.logwarn("Error reading gyroscope: %s", str(e))
+            return 0.0, 0.0, 0.0
     
     def _publish_imu(self):
         """
