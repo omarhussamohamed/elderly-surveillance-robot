@@ -38,7 +38,7 @@ unzip elderly_bot.zip
 ### Option B: Git (if using version control)
 ```bash
 cd ~/catkin_ws/src
-git clone <your-repo-url> elderly_bot
+git clone https://github.com/omarhussamohamed/elderly_bot.git elderly_bot
 ```
 
 ### Option C: Direct Copy (if on same network)

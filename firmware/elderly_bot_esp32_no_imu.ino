@@ -283,31 +283,38 @@ void odomTask(void *pvParameters) {
 // Task 3: ROS Communication (handles spinOnce)
 void rosTask(void *pvParameters) {
   for(;;) {
+    // Keep trying to connect if not connected
+    if(!nh.connected()) {
+      nh.initNode();
+      nh.subscribe(cmd_vel_sub);
+      nh.advertise(odom_pub);
+      delay(100);
+    }
+    
     nh.spinOnce();
     vTaskDelay(pdMS_TO_TICKS(10)); // ~100Hz ROS communication
   }
 }
 
 void setup() {
+  // CRITICAL: Initialize Serial but DO NOT print during ROS sync
+  // Serial output corrupts rosserial handshake packets
   Serial.begin(115200);
   
-  // Wait for Serial to be ready (non-blocking timeout)
-  unsigned long start = millis();
-  while(!Serial && (millis() - start < 2000)) {
-    delay(10);
-  }
+  // Wait for Serial port to stabilize (ESP32 needs this)
+  delay(500);
   
-  Serial.println("\n\nElderly Bot ESP32 Starting...");
-  Serial.println("Firmware: FreeRTOS (NO IMU - IMU on Jetson)");
-  Serial.println("Using Hardware PWM");
+  // IMPORTANT: Initialize ALL hardware BEFORE ROS
+  // This prevents ROS init from interfering with hardware setup
   
   // Create mutexes
   encoder_mutex = xSemaphoreCreateMutex();
   motor_mutex = xSemaphoreCreateMutex();
   
   if(encoder_mutex == NULL || motor_mutex == NULL) {
-    Serial.println("ERROR: Failed to create mutexes!");
-    while(1) delay(1000); // Halt
+    // Can't use Serial here - will corrupt ROS sync
+    // Just halt and wait for watchdog
+    while(1) delay(1000);
   }
 
   // Initialize direction control pins as OUTPUT
@@ -319,8 +326,6 @@ void setup() {
   }
   
   // Setup Hardware PWM channels for motor PWM pins
-  Serial.print("Configuring Hardware PWM...");
-  
   // Configure PWM channels
   ledcSetup(PWM_CHANNEL_FL, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcSetup(PWM_CHANNEL_FR, PWM_FREQUENCY, PWM_RESOLUTION);
@@ -338,8 +343,6 @@ void setup() {
   ledcWrite(PWM_CHANNEL_FR, 0);
   ledcWrite(PWM_CHANNEL_RL, 0);
   ledcWrite(PWM_CHANNEL_RR, 0);
-  
-  Serial.println(" OK");
 
   pinMode(ENC_FL_A, INPUT); pinMode(ENC_FL_B, INPUT);
   pinMode(ENC_FR_A, INPUT); pinMode(ENC_FR_B, INPUT);
@@ -351,14 +354,26 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
 
-  // Initialize ROS (NO IMU initialization)
-  Serial.print("Initializing ROS...");
+  // CRITICAL: Initialize ROS BEFORE any Serial output
+  // Serial.println() corrupts rosserial sync handshake
   nh.getHardware()->setBaud(115200);
+  
+  // Delay to ensure Serial port is stable before ROS tries to use it
+  delay(200);
+  
+  // Initialize ROS node (this starts the sync process)
   nh.initNode();
   
-  // Small delay to allow ROS sync packets
-  delay(100);
+  // IMPORTANT: Wait for ROS sync to complete
+  // During sync, NO Serial output should occur
+  // rosserial will send sync packets and wait for response
+  unsigned long sync_timeout = millis() + 5000; // 5 second timeout
+  while(!nh.connected() && millis() < sync_timeout) {
+    nh.spinOnce();
+    delay(10);
+  }
   
+  // Only after sync completes, configure ROS
   nh.subscribe(cmd_vel_sub);
   nh.advertise(odom_pub);
   
@@ -366,8 +381,16 @@ void setup() {
   odom_msg.header.frame_id = "odom";
   odom_msg.child_frame_id = "base_footprint";
   
-  Serial.println(" OK");
-  Serial.println("Creating FreeRTOS tasks...");
+  // NOW safe to print - ROS sync is complete
+  if(nh.connected()) {
+    Serial.println("\n\nElderly Bot ESP32 Ready!");
+    Serial.println("Firmware: FreeRTOS (NO IMU - IMU on Jetson)");
+    Serial.println("Using Hardware PWM");
+    Serial.println("ROS Connected!");
+  } else {
+    Serial.println("\n\nElderly Bot ESP32 Ready!");
+    Serial.println("ROS Connection Failed - Retrying...");
+  }
   
   // Create FreeRTOS tasks (NO IMU task)
   xTaskCreatePinnedToCore(controlTask, "ControlTask", 4096, NULL, 3, NULL, 1);  // Core 1, priority 3
@@ -375,8 +398,6 @@ void setup() {
   xTaskCreatePinnedToCore(rosTask, "RosTask", 8192, NULL, 1, NULL, 0);          // Core 0, priority 1
   
   Serial.println("Tasks created!");
-  Serial.println("Elderly Bot Ready!");
-  Serial.println("Waiting for ROS connection...");
   Serial.println("NOTE: IMU must be connected to Jetson and mpu9250_node running!");
   
   // Allow tasks to start
