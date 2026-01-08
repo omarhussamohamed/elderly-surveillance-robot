@@ -1,17 +1,7 @@
 /*
  * ESP32 Firmware WITHOUT IMU Support - WiFi Version
- * 
- * Use this version if MPU9250 is connected directly to Jetson I2C.
- * This version uses WiFi for rosserial communication.
- * 
- * Connection method: Uses proven RosWiFiHardware from elderly_bot_esp32.ino
- * Efficiency: Simple loop-based timing (no FreeRTOS tasks overhead)
- * Data optimization: Reduced publish rates, minimal message sizes
- * 
- * To use:
- * 1. Update WiFi credentials below (SSID, PASSWORD, ROS_SERVER_IP)
- * 2. Upload to ESP32
- * 3. On Jetson, run: rosrun rosserial_python serial_node.py tcp
+ * * STRUCTURE: Uses WiFi structure from source (ShellBack)
+ * LOGIC: Uses efficient loop and Hardware PWM from target
  */
 
 #include <WiFi.h>
@@ -20,78 +10,53 @@
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
 
-// ==================== ROS WiFi Hardware (Proven from elderly_bot_esp32.ino) ====================
+// ==================== ROS WiFi Hardware (FROM SOURCE) ====================
 class RosWiFiHardware {
 public:
   WiFiClient* client;
   IPAddress server;
   uint16_t port;
+  unsigned long baud_;
 
-  RosWiFiHardware() : client(nullptr), server(), port(0) {}
-  RosWiFiHardware(WiFiClient* c, IPAddress s, uint16_t p) : client(c), server(s), port(p) {}
+  RosWiFiHardware() : client(nullptr), server(), port(0), baud_(0) {}
+  RosWiFiHardware(WiFiClient* c, IPAddress s, uint16_t p) : client(c), server(s), port(p), baud_(0) {}
 
-  void setConnection(IPAddress s, uint16_t p) {
-    server = s;
-    port = p;
-  }
-
-  void init() {
+  void setConnection(IPAddress s, uint16_t p) { server = s; port = p; }
+  
+  void init() { 
     if (client && !client->connected()) {
       client->connect(server, port);
     }
   }
 
-  int read() {
-    return (client && client->connected() && client->available()) ? client->read() : -1;
+  int read() { 
+    return (client && client->connected() && client->available()) ? client->read() : -1; 
   }
 
-  void write(uint8_t* data, int length) {
+  void write(uint8_t* data, int length) { 
     if (client && client->connected()) {
-      client->write(data, length);
+      client->write(data, length); 
     }
   }
 
-  unsigned long time() {
-    return millis();
-  }
+  unsigned long time() { return millis(); }
 
-  bool connected() {
-    return client && client->connected();
-  }
-
-  bool connect() {
-    if (!client) return false;
-    if (client->connected()) return true;
-
-    Serial.print("Connecting to ROS server ");
-    Serial.print(server);
-    Serial.print(":");
-    Serial.println(port);
-
-    if (client->connect(server, port)) {
-      Serial.println("ROS TCP connection successful!");
-      return true;
-    } else {
-      Serial.println("ROS connection failed.");
-      return false;
-    }
-  }
+  // Added for compatibility with the Target's loop logic
+  bool connected() { return (client && client->connected()); }
 };
 
-// ==================== WiFi CONFIGURATION ====================
-// **CRITICAL**: Update these with your WiFi network credentials
+// ==================== WiFi CONFIGURATION (FROM SOURCE) ====================
 const char* ssid = "ShellBack";
 const char* password = "hhmo@1974";
-
-// ROS Server IP (Jetson Nano IP address on your WiFi network)
-IPAddress server(192, 168, 1, 100);  // Change to your Jetson's IP
+IPAddress server(192, 168, 1, 16); 
 const uint16_t serverPort = 11411;
 
-// ==================== SETTINGS ====================
-// Optimized timing intervals (milliseconds) - efficient, not resource-hungry
+// ==================== SETTINGS (FROM TARGET) ====================
+// Optimized timing intervals (milliseconds)
 #define CONTROL_LOOP_INTERVAL 20   // 50Hz control loop (20ms)
-#define ODOM_PUBLISH_INTERVAL 100  // 10Hz odometry (100ms) - reduced to save bandwidth
+#define ODOM_PUBLISH_INTERVAL 100  // 10Hz odometry (100ms)
 #define SAFETY_TIMEOUT 800         // Stop motors if no cmd_vel for 800ms
+#define ROS_SERIAL_BUFFER_SIZE 1024 // From Source
 
 // Hardware PWM settings
 #define PWM_FREQUENCY 5000         // 5kHz PWM frequency
@@ -101,7 +66,10 @@ const uint16_t serverPort = 11411;
 #define PWM_CHANNEL_RL 2           // LEDC channel for RL motor
 #define PWM_CHANNEL_RR 3           // LEDC channel for RR motor
 
-// ==================== PINOUT (FINAL VERIFIED) ====================
+#define MIN_PWM 45             // Minimum power to overcome gearbox friction
+#define MAX_PWM 255            // Maximum 8-bit PWM value
+
+// ==================== PINOUT (FROM TARGET) ====================
 #define MOTOR_FL_PWM 13
 #define MOTOR_FL_IN1 12
 #define MOTOR_FL_IN2 14
@@ -116,7 +84,7 @@ const uint16_t serverPort = 11411;
 #define MOTOR_RR_IN1 16
 #define MOTOR_RR_IN2 17
 
-// Encoders (Corrected Pins)
+// Encoders
 #define ENC_FL_A 34
 #define ENC_FL_B 35
 #define ENC_FR_A 36
@@ -127,13 +95,11 @@ const uint16_t serverPort = 11411;
 #define ENC_RR_B 5
 
 // ==================== GLOBALS ====================
-// *** PROVEN WiFi Hardware Setup (from elderly_bot_esp32.ino) ***
 WiFiClient client;
 RosWiFiHardware ros_wifi_hw(&client, server, serverPort);
 
-// *** Increased buffer size to 1024 to avoid "message larger than buffer" errors ***
-// Template: NodeHandle<Hardware, MaxSubscribers, MaxPublishers, InputBuffer, OutputBuffer>
-ros::NodeHandle_<RosWiFiHardware, 10, 10, 512, 1024> nh;
+// Using Source's NodeHandle sizing for stability
+ros::NodeHandle_<RosWiFiHardware, 25, 25, ROS_SERIAL_BUFFER_SIZE, ROS_SERIAL_BUFFER_SIZE> nh;
 
 volatile long encoder_fl = 0, encoder_fr = 0, encoder_rl = 0, encoder_rr = 0;
 long prev_encoder_fl = 0, prev_encoder_fr = 0, prev_encoder_rl = 0, prev_encoder_rr = 0;
@@ -147,7 +113,7 @@ float prev_error_fl = 0, prev_error_fr = 0, prev_error_rl = 0, prev_error_rr = 0
 float odom_x = 0, odom_y = 0, odom_theta = 0;
 
 // TWEAKED PID GAINS FOR STABILITY
-float kp = 5.0, ki = 2.0, kd = 0.1;
+float kp = 4.5, ki = 1.5, kd = 0.05;
 const float WHEEL_RADIUS = 0.0325;
 const float TRACK_WIDTH = 0.26;
 const int TICKS_PER_REV = 4900;
@@ -171,39 +137,36 @@ void IRAM_ATTR isrRR() {
   digitalRead(ENC_RR_A) == digitalRead(ENC_RR_B) ? encoder_rr-- : encoder_rr++;
 }
 
-// ==================== MOTOR LOGIC ====================
-// Hardware PWM using ESP32 LEDC channels
-
+// ==================== IMPROVED MOTOR LOGIC ====================
 void setMotorSpeed(int motor, int pwm_value) {
-  pwm_value = constrain(pwm_value, -255, 255);
-
-  int in1, in2;
-  int pwm_channel;
+  // 1. Identify Pins
+  int in1, in2, pwm_chan;
   switch (motor) {
-    case 0: in1 = MOTOR_FL_IN1; in2 = MOTOR_FL_IN2; pwm_channel = PWM_CHANNEL_FL; break;
-    case 1: in1 = MOTOR_FR_IN1; in2 = MOTOR_FR_IN2; pwm_channel = PWM_CHANNEL_FR; break;
-    case 2: in1 = MOTOR_RL_IN1; in2 = MOTOR_RL_IN2; pwm_channel = PWM_CHANNEL_RL; break;
-    case 3: in1 = MOTOR_RR_IN1; in2 = MOTOR_RR_IN2; pwm_channel = PWM_CHANNEL_RR; break;
+    case 0: in1 = MOTOR_FL_IN1; in2 = MOTOR_FL_IN2; pwm_chan = PWM_CHANNEL_FL; break;
+    case 1: in1 = MOTOR_FR_IN1; in2 = MOTOR_FR_IN2; pwm_chan = PWM_CHANNEL_FR; break;
+    case 2: in1 = MOTOR_RL_IN1; in2 = MOTOR_RL_IN2; pwm_chan = PWM_CHANNEL_RL; break;
+    case 3: in1 = MOTOR_RR_IN1; in2 = MOTOR_RR_IN2; pwm_chan = PWM_CHANNEL_RR; break;
     default: return;
   }
 
-  // Direction control
-  if (pwm_value > 5) {
-    digitalWrite(in1, (motor < 2 ? LOW : HIGH));
-    digitalWrite(in2, (motor < 2 ? HIGH : LOW));
-    ledcWrite(pwm_channel, abs(pwm_value));
-  } else if (pwm_value < -5) {
-    digitalWrite(in1, (motor < 2 ? HIGH : LOW));
-    digitalWrite(in2, (motor < 2 ? LOW : HIGH));
-    ledcWrite(pwm_channel, abs(pwm_value));
+  // 2. Deadzone Compensation: Helps motors move at low cmd_vel
+  if (pwm_value != 0 && abs(pwm_value) < MIN_PWM) {
+    pwm_value = (pwm_value > 0) ? MIN_PWM : -MIN_PWM;
+  }
+
+  // 3. Apply Direction (Standardized)
+  if (pwm_value > 0) {
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+  } else if (pwm_value < 0) {
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
   } else {
     digitalWrite(in1, LOW);
     digitalWrite(in2, LOW);
-    ledcWrite(pwm_channel, 0);
-    pwm_value = 0;
   }
 
-  motor_speeds[motor] = abs(pwm_value);
+  ledcWrite(pwm_chan, abs(pwm_value));
 }
 
 int computePID(float target, float current, float &error_sum, float &prev_error, float dt) {
@@ -240,14 +203,12 @@ void updateOdometry(float dt) {
 }
 
 void publishOdometry() {
-  // Minimize message size - only set essential fields
   odom_msg.header.stamp = nh.now();
   odom_msg.pose.pose.position.x = odom_x;
   odom_msg.pose.pose.position.y = odom_y;
   odom_msg.pose.pose.orientation.z = sin(odom_theta * 0.5);
   odom_msg.pose.pose.orientation.w = cos(odom_theta * 0.5);
   
-  // Calculate velocities for twist
   float v_left = (current_vel_fl + current_vel_rl) / 2.0;
   float v_right = (current_vel_fr + current_vel_rr) / 2.0;
   float v_linear = (v_left + v_right) / 2.0;
@@ -256,15 +217,13 @@ void publishOdometry() {
   odom_msg.twist.twist.linear.x = v_linear;
   odom_msg.twist.twist.angular.z = v_angular;
   
-  // Note: Covariance matrices are left at default (zeros) to minimize message size
   odom_pub.publish(&odom_msg);
 }
 
 void controlLoop() {
-  float dt = CONTROL_LOOP_INTERVAL / 1000.0;  // Convert ms to seconds
+  float dt = CONTROL_LOOP_INTERVAL / 1000.0;
   float ticks_to_m = (2.0 * PI * WHEEL_RADIUS) / TICKS_PER_REV;
 
-  // Read encoder values atomically
   noInterrupts();
   long enc_fl = encoder_fl, enc_fr = encoder_fr;
   long enc_rl = encoder_rl, enc_rr = encoder_rr;
@@ -301,10 +260,19 @@ ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmdVelCallback);
 // ==================== SETUP ====================
 void setup() {
   Serial.begin(115200);
-  delay(2000);  // Allow Serial to stabilize
-  Serial.println("\n\n=== Elderly Bot ESP32 WiFi Firmware (NO IMU) ===");
+  delay(100);
+  Serial.println("Elderly Bot ESP32 Starting...");
+  
+  // Connect to WiFi (Using Source Logic)
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi connected!");
 
-  // Initialize motor control pins
+  // Initialize motor control pins (Hardware PWM)
   int outPins[] = {MOTOR_FL_IN1, MOTOR_FL_IN2, MOTOR_FL_PWM,
                    MOTOR_FR_IN1, MOTOR_FR_IN2, MOTOR_FR_PWM,
                    MOTOR_RL_IN1, MOTOR_RL_IN2, MOTOR_RL_PWM,
@@ -337,88 +305,49 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENC_RL_A), isrRL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENC_RR_A), isrRR, CHANGE);
 
-  // Connect to WiFi
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(ssid);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected! IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("Signal strength (RSSI): ");
-  Serial.print(WiFi.RSSI());
-  Serial.println(" dBm");
-
-  // ROS setup - CRITICAL: Use exact pattern from elderly_bot_esp32.ino
+  // ROS setup (Using Source Logic)
   *nh.getHardware() = ros_wifi_hw;
   nh.initNode();
-  nh.advertise(odom_pub);
   nh.subscribe(cmd_vel_sub);
+  nh.advertise(odom_pub);
 
   odom_msg.header.frame_id = "odom";
   odom_msg.child_frame_id = "base_footprint";
 
-  Serial.println("\n=== Attempting to connect to ROS server ===");
-  Serial.print("ROS Server IP: ");
-  Serial.println(server);
-  Serial.print("Port: ");
-  Serial.println(serverPort);
-  
-  // Try to connect immediately
-  if (ros_wifi_hw.connect()) {
-    Serial.println("Connected to ROS server! Initializing ROS node...");
-    delay(500);  // Allow connection to stabilize
-  } else {
-    Serial.println("WARNING: Could not connect to ROS server!");
-    Serial.println("Please ensure:");
-    Serial.println("  1. Jetson IP is correct (current: " + String(server[0]) + "." + String(server[1]) + "." + String(server[2]) + "." + String(server[3]) + ")");
-    Serial.println("  2. ROS TCP server is running:");
-    Serial.println("     rosrun rosserial_python serial_node.py tcp");
-    Serial.println("  3. roscore is running");
-    Serial.println("\nWill retry every 2 seconds...");
-  }
+  Serial.println("ROS node initialized!");
 }
 
-// ==================== LOOP (Efficient - no FreeRTOS overhead) ====================
+// ==================== LOOP ====================
 void loop() {
   unsigned long now = millis();
 
-  // Reconnect to ROS if disconnected
+  // Connection management
   if (!ros_wifi_hw.connected()) {
+    // Reconnection logic handled by nh.spinOnce in next iteration or simple retry
+    // The source code relied on init() inside setup, but nh.spinOnce handles reconnects
+    // if the hardware class init is robust.
     if (now - last_ros_connect > 2000) {
-      Serial.print("Attempting to connect to ROS server... ");
-      if (ros_wifi_hw.connect()) {
-        Serial.println("Connected!");
-        delay(500);  // Allow connection to stabilize
-      } else {
-        Serial.println("Failed. Will retry...");
-      }
-      last_ros_connect = now;
-    }
-  } else {
-    // Call spinOnce to process incoming messages (cmd_vel)
-    nh.spinOnce();
-
-    // Control loop (50Hz = every 20ms)
-    if (now - last_control_time >= CONTROL_LOOP_INTERVAL) {
-      controlLoop();
-      last_control_time = now;
-    }
-
-    // Safety timeout: stop motors if no command received
-    if (now - last_cmd_time > SAFETY_TIMEOUT) {
-      target_vel_fl = target_vel_fr = target_vel_rl = target_vel_rr = 0;
-    }
-
-    // Publish odometry (10Hz = every 100ms) - reduced rate to save bandwidth
-    if (now - last_odom_time >= ODOM_PUBLISH_INTERVAL) {
-      publishOdometry();
-      last_odom_time = now;
+       ros_wifi_hw.init();
+       last_ros_connect = now;
     }
   }
 
-  delay(1);  // Small delay to prevent watchdog issues
+  nh.spinOnce();
+
+  // Control loop (50Hz = every 20ms)
+  if (now - last_control_time >= CONTROL_LOOP_INTERVAL) {
+    controlLoop();
+    last_control_time = now;
+  }
+
+  // Safety timeout
+  if (now - last_cmd_time > SAFETY_TIMEOUT) {
+    target_vel_fl = target_vel_fr = target_vel_rl = target_vel_rr = 0;
+  }
+
+  // Publish odometry (10Hz = every 100ms)
+  if (now - last_odom_time >= ODOM_PUBLISH_INTERVAL) {
+    publishOdometry();
+    last_odom_time = now;
+  }
 }
