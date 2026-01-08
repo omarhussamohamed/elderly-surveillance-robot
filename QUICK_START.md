@@ -1,5 +1,7 @@
 # Elderly Bot - Quick Start Guide
 
+# key: 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
+
 ## 1. Installation (One-Time Setup)
 
 ```bash
