@@ -32,13 +32,12 @@
   <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
 
   <node name="esp32_serial_node"
-        pkg="rosserial_server"
-        type="socket_node"
+        pkg="rosserial_python"
+        type="serial_node.py"
         output="screen"
         respawn="true"
-        respawn_delay="5">
-    <param name="host" value="$(arg esp32_ip)" />
-    <param name="port" value="$(arg esp32_port)" />
+        respawn_delay="5"
+        args="tcp">
   </node>
 
   <!-- Message info service for rosserial custom messages -->
