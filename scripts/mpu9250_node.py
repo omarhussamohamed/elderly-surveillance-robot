@@ -124,12 +124,22 @@ class MPU9250Node:
         self.temp_pub = rospy.Publisher('imu/temperature', Temperature, queue_size=10)
         self.mag_pub = rospy.Publisher('imu/mag', MagneticField, queue_size=10)
         
-        # Calibration (optional - can be done at startup or dynamically)
+        # Calibration offsets (hardware-tested values)
+        # Gyroscope static drift (rad/s) - subtracted from raw readings
+        self.gyro_offset = [-0.157, -0.143, -0.021]
+        
+        # Accelerometer offset (m/s²) - can be adjusted if needed
         self.accel_offset = [0.0, 0.0, 0.0]
-        self.gyro_offset = [0.0, 0.0, 0.0]
+        
+        # Magnetometer hard-iron bias (Tesla) - subtracted from raw readings
+        self.mag_offset = [-0.00004252, 0.00004791, 0.00002824]
         
         rospy.loginfo("MPU9250 node started. Publishing to /imu/data_raw at %d Hz", 
                      int(self.publish_rate))
+        rospy.loginfo("Gyro calibration: X=%.3f, Y=%.3f, Z=%.3f rad/s", 
+                     self.gyro_offset[0], self.gyro_offset[1], self.gyro_offset[2])
+        rospy.loginfo("Mag calibration: X=%.8f, Y=%.8f, Z=%.8f T", 
+                     self.mag_offset[0], self.mag_offset[1], self.mag_offset[2])
         
         # Main loop
         rate = rospy.Rate(self.publish_rate)
@@ -385,6 +395,11 @@ class MPU9250Node:
             mag_y = mag_y * 0.15e-6
             mag_z = mag_z * 0.15e-6
             
+            # Apply hard-iron bias calibration
+            mag_x -= self.mag_offset[0]
+            mag_y -= self.mag_offset[1]
+            mag_z -= self.mag_offset[2]
+            
             return mag_x, mag_y, mag_z
             
         except Exception as e:
@@ -431,8 +446,10 @@ class MPU9250Node:
             imu_msg.angular_velocity_covariance[4] = 0.02  # y
             imu_msg.angular_velocity_covariance[8] = 0.02  # z
             
-            # Orientation (not computed - let robot_localization handle it)
-            imu_msg.orientation_covariance[0] = -1  # Unknown
+            # Orientation covariance (raw data has no orientation, set to 0 - filter will compute)
+            # Note: Setting to 0 (not -1) signals that orientation data can be computed
+            # The imu_filter_madgwick will fill in the actual orientation
+            imu_msg.orientation_covariance[0] = 0.0
             
             # Publish IMU message
             self.imu_pub.publish(imu_msg)
