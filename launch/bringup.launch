@@ -17,8 +17,8 @@
   <arg name="esp32_port" default="11411" />
 
   <!-- Serial port for RPLidar -->
-  <arg name="lidar_port" default="/dev/ttyUSB1" />
-  <arg name="lidar_baud" default="256000" />
+  <arg name="lidar_port" default="/dev/ttyUSB0" />
+  <arg name="lidar_baud" default="115200" />
   
   <!-- IMU source: "esp32" or "jetson" -->
   <!-- "esp32": IMU on ESP32 (default, via rosserial) -->

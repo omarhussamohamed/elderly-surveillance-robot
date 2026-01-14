@@ -76,7 +76,7 @@
     <!-- Sensor Configuration -->
     <param name="use_mag" value="true" />  <!-- Enable magnetometer fusion for absolute heading -->
     <param name="use_magnetic_field_msg" value="true" />  <!-- Use sensor_msgs/MagneticField -->
-    <param name="publish_tf" value="true" />  <!-- Publish TF transform (imu_link → base_link) -->
+    <param name="publish_tf" value="false" />  <!-- Disable TF - using static transform instead -->
     <param name="reverse_tf" value="false" />  <!-- TF direction: imu_link is child of base_link -->
     
     <!-- Frame IDs -->
