@@ -119,7 +119,8 @@ class MPU9250Node:
             rospy.logwarn("AK8963 magnetometer initialization failed - continuing without mag data")
         
         # Publishers
-        self.imu_pub = rospy.Publisher('imu/data', Imu, queue_size=10)
+        # Publish raw IMU data for sensor fusion (e.g., imu_filter_madgwick)
+        self.imu_pub = rospy.Publisher('imu/data_raw', Imu, queue_size=10)
         self.temp_pub = rospy.Publisher('imu/temperature', Temperature, queue_size=10)
         self.mag_pub = rospy.Publisher('imu/mag', MagneticField, queue_size=10)
         
@@ -127,7 +128,7 @@ class MPU9250Node:
         self.accel_offset = [0.0, 0.0, 0.0]
         self.gyro_offset = [0.0, 0.0, 0.0]
         
-        rospy.loginfo("MPU9250 node started. Publishing to /imu/data at %d Hz", 
+        rospy.loginfo("MPU9250 node started. Publishing to /imu/data_raw at %d Hz", 
                      int(self.publish_rate))
         
         # Main loop

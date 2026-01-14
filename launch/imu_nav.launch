@@ -1,0 +1,150 @@
+<?xml version="1.0"?>
+<!--
+  IMU Navigation Pipeline Launch File
+  
+  This launch file implements the standard ROS IMU processing pipeline:
+  1. mpu9250_node.py → Publishes raw IMU data to /imu/data_raw
+  2. imu_filter_madgwick → Fuses raw IMU + magnetometer → Publishes to /imu/data
+  
+  Data Flow:
+  /imu/data_raw (raw accel + gyro) ─┐
+                                     ├─> imu_filter_madgwick ─> /imu/data (fused orientation)
+  /imu/mag (magnetometer)           ─┘
+  /imu/temperature (thermal monitoring)
+  
+  Hardware Setup:
+  - MPU9250 connected to Jetson I2C bus (default: bus 1, address 0x68)
+  - SDA → Jetson I2C SDA (Pin 3 on J21)
+  - SCL → Jetson I2C SCL (Pin 5 on J21)
+  - VCC → 3.3V, GND → GND
+-->
+<launch>
+  <!-- ========================================= -->
+  <!-- MPU9250 Raw Data Node Parameters -->
+  <!-- ========================================= -->
+  <arg name="frame_id" default="imu_link" />
+  <arg name="publish_rate" default="100" />  <!-- Hz - Higher rate for better fusion -->
+  <arg name="i2c_bus" default="1" />  <!-- I2C bus number (/dev/i2c-1) -->
+  <arg name="i2c_address" default="104" />  <!-- MPU9250 I2C address (0x68 = 104 decimal) -->
+  
+  <!-- ========================================= -->
+  <!-- Madgwick Filter Parameters -->
+  <!-- ========================================= -->
+  <arg name="madgwick_gain" default="0.1" />  <!-- Fusion gain (0.0-1.0, higher = trust gyro more) -->
+  <arg name="madgwick_zeta" default="0.0" />  <!-- Gyro bias drift gain -->
+  <arg name="madgwick_mag_bias_x" default="0.0" />  <!-- Magnetometer bias calibration -->
+  <arg name="madgwick_mag_bias_y" default="0.0" />
+  <arg name="madgwick_mag_bias_z" default="0.0" />
+  
+  <!-- ========================================= -->
+  <!-- 1. MPU9250 Raw Data Publisher -->
+  <!-- ========================================= -->
+  <node name="mpu9250_node" 
+        pkg="elderly_bot" 
+        type="mpu9250_node.py"
+        output="screen"
+        respawn="true"
+        respawn_delay="5">
+    <param name="frame_id" value="$(arg frame_id)" />
+    <param name="publish_rate" value="$(arg publish_rate)" />
+    <param name="i2c_bus" value="$(arg i2c_bus)" />
+    <param name="i2c_address" value="$(arg i2c_address)" />
+    
+    <!-- Topics published:
+         - /imu/data_raw (sensor_msgs/Imu) - Raw accelerometer + gyroscope
+         - /imu/mag (sensor_msgs/MagneticField) - Raw magnetometer
+         - /imu/temperature (sensor_msgs/Temperature) - Internal temperature
+    -->
+  </node>
+  
+  <!-- ========================================= -->
+  <!-- 2. IMU Orientation Filter (Madgwick) -->
+  <!-- ========================================= -->
+  <node name="imu_filter" 
+        pkg="imu_filter_madgwick" 
+        type="imu_filter_node"
+        output="screen"
+        respawn="true"
+        respawn_delay="2">
+    
+    <!-- Input Topics -->
+    <remap from="/imu/data_raw" to="/imu/data_raw" />
+    <remap from="/imu/mag" to="/imu/mag" />
+    
+    <!-- Output Topic -->
+    <remap from="/imu/data" to="/imu/data" />
+    
+    <!-- Sensor Configuration -->
+    <param name="use_mag" value="true" />  <!-- Enable magnetometer fusion for absolute heading -->
+    <param name="use_magnetic_field_msg" value="true" />  <!-- Use sensor_msgs/MagneticField -->
+    <param name="publish_tf" value="true" />  <!-- Publish TF transform (imu_link → base_link) -->
+    <param name="reverse_tf" value="false" />  <!-- TF direction: imu_link is child of base_link -->
+    
+    <!-- Frame IDs -->
+    <param name="fixed_frame" value="odom" />  <!-- Fixed reference frame -->
+    <param name="world_frame" value="enu" />  <!-- World frame convention (East-North-Up) -->
+    
+    <!-- Filter Parameters -->
+    <param name="gain" value="$(arg madgwick_gain)" />  <!-- Filter gain (default: 0.1) -->
+    <param name="zeta" value="$(arg madgwick_zeta)" />  <!-- Gyro drift compensation -->
+    
+    <!-- Magnetometer Calibration (adjust after mag calibration) -->
+    <param name="mag_bias/x" value="$(arg madgwick_mag_bias_x)" />
+    <param name="mag_bias/y" value="$(arg madgwick_mag_bias_y)" />
+    <param name="mag_bias/z" value="$(arg madgwick_mag_bias_z)" />
+    
+    <!-- Orientation Initialization -->
+    <param name="stateless" value="false" />  <!-- Use previous state for continuity -->
+    <param name="remove_gravity_vector" value="true" />  <!-- Remove gravity from linear acceleration -->
+    
+    <!-- Output Configuration -->
+    <param name="publish_debug_topics" value="false" />  <!-- Set true for debugging -->
+  </node>
+  
+  <!-- ========================================= -->
+  <!-- 3. Static Transform: base_link → imu_link -->
+  <!-- ========================================= -->
+  <!-- 
+    Adjust these values to match your robot's IMU mounting position:
+    args="x y z yaw pitch roll parent_frame child_frame period_ms"
+    
+    Current: IMU is 5cm above base_link, no rotation
+  -->
+  <node pkg="tf" 
+        type="static_transform_publisher" 
+        name="base_link_to_imu_link"
+        args="0 0 0.05 0 0 0 base_link imu_link 100" />
+  
+  <!-- ========================================= -->
+  <!-- Notes & Troubleshooting -->
+  <!-- ========================================= -->
+  <!--
+    Topic Outputs:
+    - /imu/data_raw   → Raw IMU (no orientation)
+    - /imu/data       → Fused IMU (with orientation from Madgwick)
+    - /imu/mag        → Raw magnetometer
+    - /imu/temperature → Temperature sensor
+    
+    Verification Commands:
+    rostopic list | grep imu
+    rostopic hz /imu/data_raw /imu/data /imu/mag
+    rostopic echo /imu/data
+    
+    Magnetometer Calibration:
+    1. roslaunch elderly_bot imu_nav.launch
+    2. Move robot in figure-8 pattern for 30 seconds
+    3. Record min/max values from /imu/mag
+    4. Calculate bias: (min + max) / 2 for each axis
+    5. Update madgwick_mag_bias_x/y/z parameters
+    
+    Filter Tuning:
+    - Increase 'gain' → More responsive, less smooth (trust gyro more)
+    - Decrease 'gain' → More smooth, slower response (trust accel/mag more)
+    - Default 0.1 is good starting point
+    
+    Common Issues:
+    - If orientation drifts: Calibrate magnetometer, check for magnetic interference
+    - If orientation jitters: Reduce gain, check sensor mounting (vibrations)
+    - If no /imu/data output: Check /imu/data_raw is publishing, verify imu_filter_madgwick package installed
+  -->
+</launch>
