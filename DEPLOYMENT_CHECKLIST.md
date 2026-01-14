@@ -122,7 +122,7 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 - [ ] Jetson Nano powered separately
 
 ### Connections
-- [ ] RPLidar → Jetson USB port (will be /dev/ttyUSB1)
+- [ ] RPLidar → Jetson USB port (will be /dev/ttyUSB0)
 - [ ] ESP32 → WiFi connection to Jetson (192.168.1.16:11411)
 
 ## Step 5: Program ESP32
@@ -165,7 +165,8 @@ roslaunch rplidar_ros view_rplidar.launch
 roscore
 
 # Terminal 2
-rosrun rosserial_python serial_node.py /dev/ttyUSB1
+# ESP32 uses WiFi, not USB serial
+# No serial_node.py needed - rosserial connects via TCP
 
 # Terminal 3
 rostopic list

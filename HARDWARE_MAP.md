@@ -100,6 +100,11 @@ This document contains the **exact hardware configuration** extracted from `elde
 - **Thread Safety**: Mutex-protected shared cmd_vel structure
 - **Motor Control**: Implements differential drive kinematics (left = linear.x - angular.z, right = linear.x + angular.z)
 
+## USB Port Assignments
+
+- **RPLidar A1**: `/dev/ttyUSB0`
+- **ESP32**: WiFi connection (192.168.1.16:11411) - no USB required
+
 ## Dependencies
 
 - **ESP32 Arduino Core**: Compatible with WiFi and FreeRTOS
