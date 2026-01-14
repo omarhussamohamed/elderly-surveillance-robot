@@ -43,8 +43,8 @@
         pkg="elderly_bot" 
         type="mpu9250_node.py"
         output="screen"
-        respawn="true"
-        respawn_delay="5">
+        respawn="false"
+        launch-prefix="bash -c 'sleep 2; $0 $@'">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="publish_rate" value="$(arg publish_rate)" />
     <param name="i2c_bus" value="$(arg i2c_bus)" />
