@@ -142,6 +142,12 @@ class MPU9250Node:
         else:
             rospy.logwarn("Gyro calibration failed - using zero offsets")
         
+        # Wait for ROS time to be initialized (prevents TF extrapolation errors)
+        rospy.loginfo("Waiting for ROS time to be initialized...")
+        while rospy.Time.now().to_sec() == 0.0 and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+        rospy.loginfo("ROS time initialized")
+        
         rospy.loginfo("MPU9250 node started. Publishing to /imu/data_raw at %d Hz", 
                      int(self.publish_rate))
         rospy.loginfo("Mag calibration: X=%.8f, Y=%.8f, Z=%.8f T", 
