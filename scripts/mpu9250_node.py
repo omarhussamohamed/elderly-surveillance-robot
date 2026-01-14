@@ -126,7 +126,7 @@ class MPU9250Node:
         
         # Calibration offsets (hardware-tested values)
         # Gyroscope static drift (rad/s) - subtracted from raw readings
-        self.gyro_offset = [-0.157, -0.143, -0.021]
+        self.gyro_offset = [0.152, 0.144, 0.018]
         
         # Accelerometer offset (m/s²) - can be adjusted if needed
         self.accel_offset = [0.0, 0.0, 0.0]
@@ -446,10 +446,11 @@ class MPU9250Node:
             imu_msg.angular_velocity_covariance[4] = 0.02  # y
             imu_msg.angular_velocity_covariance[8] = 0.02  # z
             
-            # Orientation covariance (raw data has no orientation, set to 0 - filter will compute)
-            # Note: Setting to 0 (not -1) signals that orientation data can be computed
-            # The imu_filter_madgwick will fill in the actual orientation
-            imu_msg.orientation_covariance[0] = 0.0
+            # Orientation covariance - small positive diagonal keeps filter stable
+            # Diagonal values signal low uncertainty for a well-calibrated sensor
+            imu_msg.orientation_covariance[0] = 0.01  # x
+            imu_msg.orientation_covariance[4] = 0.01  # y
+            imu_msg.orientation_covariance[8] = 0.01  # z
             
             # Publish IMU message
             self.imu_pub.publish(imu_msg)
