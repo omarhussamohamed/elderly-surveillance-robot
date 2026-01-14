@@ -32,8 +32,8 @@
   <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
 
   <node name="esp32_serial_node"
-        pkg="rosserial_python"
-        type="socket_node.py"
+        pkg="rosserial_server"
+        type="socket_node"
         output="screen"
         respawn="true"
         respawn_delay="5">
