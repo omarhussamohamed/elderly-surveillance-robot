@@ -285,12 +285,9 @@ void IRAM_ATTR isrRR() {
    cmd_vel_mutex = xSemaphoreCreateMutex();
    // Connect to WiFi
    WiFi.begin(ssid, password);
-   Serial.print("Connecting to WiFi");
    while(WiFi.status() != WL_CONNECTED) {
      delay(100);
-     Serial.print(".");
    }
-   Serial.println("\nWiFi connected!");
    // Initialize all Outputs (EXACT from ground truth)
    int pins[] = {FL_IN1, FL_IN2, FR_IN1, FR_IN2, RL_IN1, RL_IN2, RR_IN1, RR_IN2, FL_PWM, FR_PWM, RL_PWM, RR_PWM};
    for(int p : pins) {
@@ -346,7 +343,7 @@ void IRAM_ATTR isrRR() {
    unsigned long now = millis();
    // Connection management
    if (!ros_wifi_hw.connected()) {
-     if (now - last_ros_connect > 2000) {
+     if (now - last_ros_connect > 1000) {
         ros_wifi_hw.init();
         last_ros_connect = now;
      }
