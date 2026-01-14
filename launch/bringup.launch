@@ -37,8 +37,7 @@
         output="screen"
         respawn="true"
         respawn_delay="5"
-        args="tcp $(arg esp32_port)">
-    <param name="tcp_nodelay" value="true" />
+        args="tcp">
   </node>
 
   <!-- Message info service for rosserial custom messages -->
