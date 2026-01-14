@@ -7,7 +7,16 @@ Instead of reading MPU9250 data through the ESP32, connect it directly to the Je
 ✅ **Reliability**: Direct I2C connection, no serial communication dependency  
 ✅ **Bandwidth**: Removes IMU data from ESP32 communication (reduces USB/UART load)  
 ✅ **Processing**: Jetson has better resources for IMU fusion and calibration  
-✅ **Separation**: Motor control (ESP32) and sensing (Jetson) are independent  
+✅ **Separation**: Motor control (ESP32) and sensing (Jetson) are independent
+
+### Sensor Features
+
+The MPU9250 node now publishes:
+- **IMU data** (`sensor_msgs/Imu`): Accelerometer (m/s²) + Gyroscope (rad/s) at `/imu/data`
+- **Magnetometer data** (`sensor_msgs/MagneticField`): 3-axis compass from internal AK8963 at `/imu/mag`
+- **Temperature** (`sensor_msgs/Temperature`): Internal temperature sensor (°C) at `/imu/temperature`
+
+The magnetometer improves yaw estimation and orientation accuracy for localization, while temperature data is useful for sensor monitoring and calibration.  
 
 ---
 
@@ -116,10 +125,19 @@ rosrun elderly_bot mpu9250_node.py
 
 # Terminal 3: Check topics
 rostopic list
-# Should see: /imu/data
+# Should see: 
+#   /imu/data
+#   /imu/mag
+#   /imu/temperature
 
 rostopic echo /imu/data
-# Should show IMU data publishing at 50 Hz
+# Should show IMU data (accel + gyro) publishing at 50 Hz
+
+rostopic echo /imu/mag
+# Should show magnetometer data in Tesla
+
+rostopic echo /imu/temperature
+# Should show temperature in Celsius
 ```
 
 ### Option 2: Using Launch File
@@ -272,6 +290,33 @@ sudo i2cdetect -y 1
 3. Check GND connection
 4. Try different I2C bus: i2cdetect -y 2
 5. Check if MPU9250 AD0 pin is HIGH (address 0x69) or LOW (0x68)
+```
+
+### Magnetometer Not Working
+
+```bash
+# Check logs for magnetometer initialization
+rosrun elderly_bot mpu9250_node.py
+
+# Look for:
+# - "AK8963 magnetometer initialized successfully" (good)
+# - "AK8963 magnetometer initialization failed" (problem)
+
+# If failed:
+1. Magnetometer might be unresponsive - try power cycling
+2. Check if AK8963 appears at address 0x0C: sudo i2cdetect -y 1
+3. Node will continue without mag data if initialization fails
+```
+
+### Temperature Readings Seem Wrong
+
+```bash
+# MPU9250 temperature sensor has ±3°C accuracy
+# Reading should be close to ambient temperature
+# If way off:
+1. Check if sensor is under mechanical stress
+2. Verify calibration (temp = (raw/333.87) + 21.0)
+3. Temperature can be affected by self-heating after prolonged operation
 ```
 
 ### Permission Denied
