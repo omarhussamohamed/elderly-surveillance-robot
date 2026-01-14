@@ -66,15 +66,18 @@
  ros::NodeHandle_<RosWiFiHardware, 25, 25, ROS_SERIAL_BUFFER_SIZE, ROS_SERIAL_BUFFER_SIZE> nh;
  // Ground truth encoder counters - EXACT from motor_and_encoder_HW_test.ino
  volatile long counts[4] = {0, 0, 0, 0}; // FL, FR, RL, RR
+// Encoder debounce timing (microseconds)
+volatile unsigned long last_interrupt_time[4] = {0, 0, 0, 0}; // FL, FR, RL, RR
+const unsigned long DEBOUNCE_MICROS = 100; // 100 microseconds - proven optimal, eliminates static creep
  // Odometry state
  float odom_x = 0, odom_y = 0, odom_theta = 0;
  // Current velocities for odom twist
  float current_linear = 0.0;
  float current_angular = 0.0;
  // Physical constants
- const float WHEEL_RADIUS = 0.0325;
+ const float WHEEL_RADIUS = 0.0194;  // Final calibration: 19.4mm radius (38.8mm diameter) - corrected for 1.046m test
  const float TRACK_WIDTH = 0.26;
- const int TICKS_PER_REV = 4900;
+ const int TICKS_PER_REV = 990;
  // Timing
  unsigned long last_control_time = 0, last_cmd_time = 0, last_odom_time = 0, last_ros_connect = 0;
  // Shared structure for cmd_vel (rosserial writes, motor task reads atomically)
@@ -97,10 +100,39 @@
  ros::Publisher odom_pub("wheel_odom", &odom_msg);
  // ==================== GROUND TRUTH ENCODER ISRs (EXACT from motor_and_encoder_HW_test.ino) ====================
  // These ensure Forward = Positive across all 4 wheels
- void IRAM_ATTR isrFL() { digitalRead(FL_ENC_A) == digitalRead(FL_ENC_B) ? counts[0]-- : counts[0]++; }
- void IRAM_ATTR isrFR() { digitalRead(FR_ENC_A) == digitalRead(FR_ENC_B) ? counts[1]-- : counts[1]++; }
- void IRAM_ATTR isrRL() { digitalRead(RL_ENC_A) == digitalRead(RL_ENC_B) ? counts[2]-- : counts[2]++; }
- void IRAM_ATTR isrRR() { digitalRead(RR_ENC_A) == digitalRead(RR_ENC_B) ? counts[3]-- : counts[3]++; }
+// Software debounce added to prevent noise-induced false counts
+
+void IRAM_ATTR isrFL() {
+  unsigned long current_time = micros();
+  if (current_time - last_interrupt_time[0] > DEBOUNCE_MICROS) {
+    digitalRead(FL_ENC_A) == digitalRead(FL_ENC_B) ? counts[0]-- : counts[0]++;
+    last_interrupt_time[0] = current_time;
+  }
+}
+
+void IRAM_ATTR isrFR() {
+  unsigned long current_time = micros();
+  if (current_time - last_interrupt_time[1] > DEBOUNCE_MICROS) {
+    digitalRead(FR_ENC_A) == digitalRead(FR_ENC_B) ? counts[1]-- : counts[1]++;
+    last_interrupt_time[1] = current_time;
+  }
+}
+
+void IRAM_ATTR isrRL() {
+  unsigned long current_time = micros();
+  if (current_time - last_interrupt_time[2] > DEBOUNCE_MICROS) {
+    digitalRead(RL_ENC_A) == digitalRead(RL_ENC_B) ? counts[2]-- : counts[2]++;
+    last_interrupt_time[2] = current_time;
+  }
+}
+
+void IRAM_ATTR isrRR() {
+  unsigned long current_time = micros();
+  if (current_time - last_interrupt_time[3] > DEBOUNCE_MICROS) {
+    digitalRead(RR_ENC_A) == digitalRead(RR_ENC_B) ? counts[3]-- : counts[3]++;
+    last_interrupt_time[3] = current_time;
+  }
+}
  // ==================== GROUND TRUTH MOTOR CONTROL (EXACT from motor_and_encoder_HW_test.ino) ====================
  void setLeftDirection(bool forward) {
    if (forward) {
@@ -280,6 +312,16 @@
    attachInterrupt(digitalPinToInterrupt(FR_ENC_A), isrFR, CHANGE);
    attachInterrupt(digitalPinToInterrupt(RL_ENC_A), isrRL, CHANGE);
    attachInterrupt(digitalPinToInterrupt(RR_ENC_A), isrRR, CHANGE);
+   
+   // Reset encoder counts and odometry to zero on startup
+   for (int i = 0; i < 4; i++) {
+     counts[i] = 0;
+     last_interrupt_time[i] = 0;
+   }
+   odom_x = 0.0;
+   odom_y = 0.0;
+   odom_theta = 0.0;
+   
    // ROS setup (Core 0)
    *nh.getHardware() = ros_wifi_hw;
    nh.initNode();

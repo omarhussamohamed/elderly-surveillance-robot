@@ -24,11 +24,18 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 ### Motors & Encoders
 - **Motor**: JGB37-520, 12V, 110 RPM, 90:1 gearbox
 - **Encoder**: Quadrature, 11 PPR, 90:1 reduction, 4-edge counting
-- **Total Resolution**: 4900 ticks per wheel revolution
+- **Total Resolution**: 990 ticks per wheel revolution
+- **Calibrated Wheel Radius**: 19.4mm (effective, under load)
+- **Debouncing**: 100µs software filter for noise rejection
+- See [docs/ENCODER_CALIBRATION.md](docs/ENCODER_CALIBRATION.md)
 
 ### Sensors
 - **Lidar**: RPLidar A1 (mounted 0.30m above ground)
-- **IMU**: MPU-9250 (gyroscope + accelerometer)
+- **IMU**: MPU-9250 (gyroscope + accelerometer + magnetometer)
+  - Connected via I2C to Jetson Nano
+  - Dynamic gyro calibration on startup
+  - Magnetometer for absolute heading
+  - See [docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)
 
 ### Motor Drivers
 - 2× L298N dual H-bridge motor drivers
@@ -52,13 +59,19 @@ map
 - **[HARDWARE_MAP.md](HARDWARE_MAP.md)**: Hardware configuration reference
 - **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
 - **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)**: Final preparation checklist
+- **[docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)**: IMU sensor fusion and calibration
+- **[docs/ENCODER_CALIBRATION.md](docs/ENCODER_CALIBRATION.md)**: Encoder debouncing and odometry tuning
+- **[docs/MPU9250_JETSON_SETUP.md](docs/MPU9250_JETSON_SETUP.md)**: IMU hardware setup guide
 
 ## Hardware Setup
 
 ### Connections
 - **RPLidar**: Connect to `/dev/ttyUSB0`
 - **ESP32**: WiFi connection (see HARDWARE_MAP.md for credentials)
-- **IMU**: Connected directly to Jetson I2C (see docs/MPU9250_JETSON_SETUP.md)
+- **IMU**: Connected directly to Jetson I2C bus 1 (see docs/MPU9250_JETSON_SETUP.md)
+  - SDA → Pin 3 on J21 header
+  - SCL → Pin 5 on J21 header
+  - VCC → 3.3V, GND → GND
 
 ### Serial Permissions
 ```bash
