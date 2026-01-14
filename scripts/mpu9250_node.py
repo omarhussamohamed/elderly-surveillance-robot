@@ -124,9 +124,9 @@ class MPU9250Node:
         self.temp_pub = rospy.Publisher('imu/temperature', Temperature, queue_size=10)
         self.mag_pub = rospy.Publisher('imu/mag', MagneticField, queue_size=10)
         
-        # Calibration offsets (hardware-tested values)
+        # Calibration offsets - will be set dynamically on startup
         # Gyroscope static drift (rad/s) - subtracted from raw readings
-        self.gyro_offset = [0.152, 0.144, 0.018]
+        self.gyro_offset = [0.0, 0.0, 0.0]
         
         # Accelerometer offset (m/s²) - can be adjusted if needed
         self.accel_offset = [0.0, 0.0, 0.0]
@@ -134,10 +134,16 @@ class MPU9250Node:
         # Magnetometer hard-iron bias (Tesla) - subtracted from raw readings
         self.mag_offset = [-0.00004252, 0.00004791, 0.00002824]
         
+        # Perform dynamic gyroscope calibration
+        rospy.loginfo("Starting dynamic gyroscope calibration (100 samples)...")
+        if self._calibrate_gyro():
+            rospy.loginfo("Gyro calibration complete: X=%.4f, Y=%.4f, Z=%.4f rad/s", 
+                         self.gyro_offset[0], self.gyro_offset[1], self.gyro_offset[2])
+        else:
+            rospy.logwarn("Gyro calibration failed - using zero offsets")
+        
         rospy.loginfo("MPU9250 node started. Publishing to /imu/data_raw at %d Hz", 
                      int(self.publish_rate))
-        rospy.loginfo("Gyro calibration: X=%.3f, Y=%.3f, Z=%.3f rad/s", 
-                     self.gyro_offset[0], self.gyro_offset[1], self.gyro_offset[2])
         rospy.loginfo("Mag calibration: X=%.8f, Y=%.8f, Z=%.8f T", 
                      self.mag_offset[0], self.mag_offset[1], self.mag_offset[2])
         
@@ -169,6 +175,85 @@ class MPU9250Node:
         except Exception as e:
             rospy.logerr("Error initializing MPU9250: %s", str(e))
             return False
+    
+    def _calibrate_gyro(self):
+        """
+        Perform dynamic gyroscope calibration on startup.
+        Reads 100 samples and averages them to determine static drift offset.
+        Robot MUST be stationary during this process.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            rospy.loginfo("Keep robot STATIONARY for gyroscope calibration...")
+            rospy.sleep(0.5)  # Give user time to see message
+            
+            num_samples = 100
+            gyro_sum = [0.0, 0.0, 0.0]
+            valid_samples = 0
+            
+            for i in range(num_samples):
+                # Read raw gyro data without offset
+                gyro_x, gyro_y, gyro_z = self._read_gyro_raw()
+                
+                # Check if reading is valid (not all zeros)
+                if abs(gyro_x) > 0.0001 or abs(gyro_y) > 0.0001 or abs(gyro_z) > 0.0001 or valid_samples > 0:
+                    gyro_sum[0] += gyro_x
+                    gyro_sum[1] += gyro_y
+                    gyro_sum[2] += gyro_z
+                    valid_samples += 1
+                
+                rospy.sleep(0.01)  # 10ms between samples (~100Hz)
+            
+            if valid_samples < 50:
+                rospy.logerr("Gyro calibration failed: insufficient valid samples (%d)", valid_samples)
+                return False
+            
+            # Calculate average (this is the static drift)
+            self.gyro_offset[0] = gyro_sum[0] / valid_samples
+            self.gyro_offset[1] = gyro_sum[1] / valid_samples
+            self.gyro_offset[2] = gyro_sum[2] / valid_samples
+            
+            rospy.loginfo("Calibration successful with %d samples", valid_samples)
+            return True
+            
+        except Exception as e:
+            rospy.logerr("Error during gyro calibration: %s", str(e))
+            return False
+    
+    def _read_gyro_raw(self):
+        """
+        Read raw gyroscope data WITHOUT applying calibration offset.
+        Used during calibration process.
+        Returns (x, y, z) in rad/s
+        """
+        try:
+            # Read all 6 gyroscope registers at once (0x43-0x48)
+            data = self.bus.read_i2c_block_data(int(self.i2c_address), int(self.GYRO_XOUT_H), 6)
+            gyro_x = (data[0] << 8) | data[1]
+            gyro_y = (data[2] << 8) | data[3]
+            gyro_z = (data[4] << 8) | data[5]
+            
+            # Convert to signed 16-bit
+            if gyro_x >= 0x8000:
+                gyro_x = -((65535 - gyro_x) + 1)
+            if gyro_y >= 0x8000:
+                gyro_y = -((65535 - gyro_y) + 1)
+            if gyro_z >= 0x8000:
+                gyro_z = -((65535 - gyro_z) + 1)
+            
+            # Scale for ±250°/s range (131 LSB/°/s)
+            gyro_x = gyro_x / 131.0
+            gyro_y = gyro_y / 131.0
+            gyro_z = gyro_z / 131.0
+            
+            # Convert from °/s to rad/s
+            gyro_x = math.radians(gyro_x)
+            gyro_y = math.radians(gyro_y)
+            gyro_z = math.radians(gyro_z)
+            
+            return gyro_x, gyro_y, gyro_z
+        except Exception as e:
+            return 0.0, 0.0, 0.0
     
     def _read_word_2c(self, addr):
         """
