@@ -41,7 +41,7 @@
   <!-- ========================================= -->
   <node name="mpu9250_node" 
         pkg="elderly_bot" 
-        type="$(find elderly_bot)/scripts/mpu9250_node.py"
+        type="mpu9250_node.py"
         output="screen"
         respawn="false">
     <param name="frame_id" value="$(arg frame_id)" />
