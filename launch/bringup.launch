@@ -72,21 +72,22 @@
         name="base_link_to_laser"
         args="0 0 0.23 3.14159 0 0 base_link laser 100" />
   
-  <!-- base_link to imu_link (IMU mounted flat on robot) -->
-  <node pkg="tf" 
-        type="static_transform_publisher" 
-        name="base_link_to_imu_link"
-        args="0 0 0.05 0 0 0 base_link imu_link 100" />
+  <!-- ========== IMU PIPELINE (Jetson with Sensor Fusion) ========== -->
+  <!-- Includes: MPU9250 raw data + imu_filter_madgwick + static TF -->
+  <!-- Publishes: /imu/data_raw, /imu/mag, /imu/temperature, /imu/data (fused) -->
   
-  <!-- ========== IMU SOURCE SELECTION ========== -->
+  <include file="$(find elderly_bot)/launch/imu_nav.launch" />
   
-  <!-- Option 1: IMU on Jetson (recommended for reliability) -->
-  <group if="$(eval imu_source == 'jetson')">
-    <include file="$(find elderly_bot)/launch/mpu9250_jetson.launch" />
-  </group>
+  <!-- ========== ROBOT LOCALIZATION EKF ========== -->
+  <!-- Fuses /wheel_odom + /imu/data → /odometry/filtered -->
   
-  <!-- Option 2: IMU on ESP32 (default, via rosserial) -->
-  <!-- IMU data will come from ESP32 automatically via rosserial -->
+  <node pkg="robot_localization" 
+        type="ekf_localization_node" 
+        name="ekf_localization"
+        output="screen"
+        clear_params="true">
+    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
+  </node>
   
   
   <!-- ========== DIAGNOSTICS ========== -->
