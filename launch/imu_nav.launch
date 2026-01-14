@@ -41,10 +41,9 @@
   <!-- ========================================= -->
   <node name="mpu9250_node" 
         pkg="elderly_bot" 
-        type="mpu9250_node.py"
+        type="$(find elderly_bot)/scripts/mpu9250_node.py"
         output="screen"
-        respawn="false"
-        launch-prefix="bash -c 'sleep 2; $0 $@'">
+        respawn="false">
     <param name="frame_id" value="$(arg frame_id)" />
     <param name="publish_rate" value="$(arg publish_rate)" />
     <param name="i2c_bus" value="$(arg i2c_bus)" />
