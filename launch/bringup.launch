@@ -37,7 +37,7 @@
         output="screen"
         respawn="true"
         respawn_delay="5"
-        args="tcp">
+        args="tcp $(arg esp32_port)">
   </node>
 
   <!-- Message info service for rosserial custom messages -->
@@ -92,16 +92,6 @@
         clear_params="true">
     <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
   </node>
-  
-  
-  <!-- ========== DIAGNOSTICS ========== -->
-  
-  <!-- Monitor for sensor data loss -->
-  <node name="sensor_monitor" 
-        pkg="rostopic" 
-        type="rostopic"
-        args="hz /scan 5" 
-        output="screen" />
   
 </launch>
 

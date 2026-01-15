@@ -125,6 +125,28 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 - [ ] RPLidar → Jetson USB port (will be /dev/ttyUSB0)
 - [ ] ESP32 → WiFi connection to Jetson (192.168.1.16:11411)
 
+## Step 4: Network Configuration
+
+### Configure Jetson Firewall
+```bash
+# CRITICAL: Allow rosserial TCP port for ESP32 WiFi connection
+sudo ufw allow 11411/tcp
+
+# Verify rule is active
+sudo ufw status
+# Should show: 11411/tcp ALLOW Anywhere
+```
+
+### Verify Network Setup
+```bash
+# Check Jetson IP address (should be 192.168.1.16)
+hostname -I
+
+# If IP is different, either:
+# 1. Configure static IP 192.168.1.16 on Jetson, OR
+# 2. Update ESP32 firmware with correct IP
+```
+
 ## Step 5: Program ESP32
 
 ### Setup Arduino IDE
@@ -321,16 +343,19 @@ Robot should cycle through all patrol waypoints.
 
 ### ESP32 Not Connecting
 ```bash
-# Check USB connection
-ls -l /dev/ttyUSB*
+# Check firewall - MOST COMMON ISSUE
+sudo ufw status
+sudo ufw allow 11411/tcp
 
-# Check permissions
-groups
-# Should include 'dialout'
+# Check if rosserial is listening
+sudo netstat -tuln | grep 11411
 
-# If not, add user and reboot
-sudo usermod -a -G dialout $USER
-sudo reboot
+# Verify network connectivity
+ping 192.168.1.16  # From ESP32's network
+
+# Check Jetson IP matches ESP32 firmware
+hostname -I
+# Should show 192.168.1.16
 ```
 
 ### Lidar Not Working

@@ -105,6 +105,24 @@ This document contains the **exact hardware configuration** extracted from `elde
 - **RPLidar A1**: `/dev/ttyUSB0`
 - **ESP32**: WiFi connection (192.168.1.16:11411) - no USB required
 
+## Network Configuration
+
+### Jetson Nano Firewall
+**CRITICAL**: Port 11411 must be open for rosserial TCP communication
+
+```bash
+# Allow rosserial port (required for ESP32 WiFi connection)
+sudo ufw allow 11411/tcp
+
+# Verify firewall status
+sudo ufw status
+```
+
+### WiFi Network Requirements
+- **SSID**: ShellBack
+- **ESP32 and Jetson must be on the same WiFi network**
+- **Jetson IP Address**: 192.168.1.16 (static, matches ESP32 firmware)
+
 ## Dependencies
 
 - **ESP32 Arduino Core**: Compatible with WiFi and FreeRTOS

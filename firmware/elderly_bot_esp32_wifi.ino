@@ -286,7 +286,7 @@ void IRAM_ATTR isrRR() {
    // Connect to WiFi
    WiFi.begin(ssid, password);
    while(WiFi.status() != WL_CONNECTED) {
-     delay(100);
+     delay(500);
    }
    // Initialize all Outputs (EXACT from ground truth)
    int pins[] = {FL_IN1, FL_IN2, FR_IN1, FR_IN2, RL_IN1, RL_IN2, RR_IN1, RR_IN2, FL_PWM, FR_PWM, RL_PWM, RR_PWM};
@@ -336,7 +336,6 @@ void IRAM_ATTR isrRR() {
      &motorTaskHandle, // Handle
      1 // Core 1
    );
-   Serial.println("Unified ESP32 Firmware Ready - Dual Core!");
  }
  // ==================== LOOP (Core 0 - ROS/WiFi/Odometry Only) ====================
  void loop() {
