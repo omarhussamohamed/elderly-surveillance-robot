@@ -29,6 +29,12 @@
   <param name="robot_description" 
          command="echo 'Elderly Bot - 4WD Indoor Monitoring Robot'" />
   
+  <!-- ========== ROSBRIDGE (for Foxglove/web visualization) ========== -->
+  
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="port" value="9090" />
+  </include>
+  
   <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
 
   <node name="esp32_serial_node"

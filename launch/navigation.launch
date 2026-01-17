@@ -17,6 +17,7 @@
   <!-- ========== PARAMETERS ========== -->
   
   <arg name="map_file" default="$(find elderly_bot)/maps/house_map.yaml" />
+  <arg name="rviz" default="false" doc="Set to true to enable RViz visualization" />
   
   <!-- ========== BRINGUP HARDWARE ========== -->
   
@@ -87,11 +88,13 @@
   
   <!-- ========== RVIZ VISUALIZATION ========== -->
   <!-- Note: Starts with default config. Manually add displays for /map, /scan, /tf, costmaps -->
+  <!-- Enable with: roslaunch elderly_bot navigation.launch rviz:=true -->
   
   <node name="rviz" 
         pkg="rviz" 
         type="rviz" 
-        required="false" />
+        required="false"
+        if="$(arg rviz)" />
   
 </launch>
 
