@@ -38,7 +38,7 @@
  // ==================== WiFi CONFIGURATION ====================
  const char* ssid = "ShellBack";
  const char* password = "hhmo@1974";
- IPAddress server(192, 168, 1, 16);
+ IPAddress server(192, 168, 1, 29);
  const uint16_t serverPort = 11411;
  // ==================== GROUND TRUTH MOTOR SETTINGS (FROM motor_and_encoder_HW_test.ino) ====================
  // Pin definitions - EXACT from ground truth

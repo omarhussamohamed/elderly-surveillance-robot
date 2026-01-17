@@ -86,11 +86,11 @@
   </node>
   
   <!-- ========== RVIZ VISUALIZATION ========== -->
+  <!-- Note: Starts with default config. Manually add displays for /map, /scan, /tf, costmaps -->
   
   <node name="rviz" 
         pkg="rviz" 
         type="rviz" 
-        args="-d $(find elderly_bot)/rviz/navigation.rviz"
         required="false" />
   
 </launch>
