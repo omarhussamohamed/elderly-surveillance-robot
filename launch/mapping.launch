@@ -18,17 +18,9 @@
 -->
 <launch>
   <!-- ========== BRINGUP HARDWARE ========== -->
+  <!-- Includes: rosserial, lidar, IMU pipeline, EKF -->
   
   <include file="$(find elderly_bot)/launch/bringup.launch" />
-  
-  <!-- ========== ROBOT LOCALIZATION (EKF) ========== -->
-  
-  <node pkg="robot_localization" 
-        type="ekf_localization_node" 
-        name="ekf_localization"
-        output="screen">
-    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
-  </node>
   
   <!-- ========== GMAPPING (SLAM) ========== -->
   
