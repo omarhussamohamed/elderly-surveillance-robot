@@ -27,7 +27,7 @@
   
   <!-- Robot geometry parameters -->
   <param name="robot_description" 
-         command="echo 'Elderly Bot - 4WD Indoor Monitoring Robot'" />
+         command="cat $(find elderly_bot)/urdf/elderly_bot.urdf" />
   
   <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
 
