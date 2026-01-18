@@ -168,7 +168,7 @@
   <joint name="base_link_to_laser" type="fixed">
     <parent link="base_link"/>
     <child link="laser"/>
-    <!-- Lidar mounted on top of robot box at 21cm height, facing backward (180° yaw) -->
+    <!-- Lidar on top of 21cm box, facing backward (180° yaw) -->
     <origin xyz="0 0 0.21" rpy="0 0 3.14159265359"/>
   </joint>
 
@@ -196,12 +196,10 @@
   <joint name="base_link_to_imu_link" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <!-- 180° roll rotation to align MPU9250 axes with ROS REP-105 (ENU) convention
-         MPU9250 native (NED): X=forward, Y=right, Z=down
-         ROS REP-105 (ENU): X=forward, Y=left, Z=up
-         Fix: 180° roll around X-axis flips Y (right→left) and Z (down→up)
-         Result: X stays forward, Y becomes left, Z becomes up -->
-    <origin xyz="0 0 0" rpy="3.14159265359 0 0"/>
+    <!-- 180° pitch rotation to fix Z-axis orientation
+         Attempting pitch rotation to correct Z pointing down
+         Target: imu_link Z-axis (blue) pointing up -->
+    <origin xyz="0 0 0" rpy="0 3.14159265359 0"/>
   </joint>
 
   <link name="imu_link">
