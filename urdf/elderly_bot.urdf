@@ -196,10 +196,7 @@
   <joint name="base_link_to_imu_link" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <!-- 180° pitch rotation to fix Z-axis orientation
-         Attempting pitch rotation to correct Z pointing down
-         Target: imu_link Z-axis (blue) pointing up -->
-    <origin xyz="0 0 0" rpy="0 3.14159265359 0"/>
+    <origin xyz="0 0 0" rpy="3.14159265359 3.14159265359 0"/>
   </joint>
 
   <link name="imu_link">
