@@ -17,7 +17,7 @@
   <joint name="base_footprint_to_base_link" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <origin xyz="0 0 0.075" rpy="0 0 0"/>
+    <origin xyz="0 0 0.0825" rpy="0 0 0"/>
   </joint>
 
   <link name="base_link">
@@ -55,7 +55,7 @@
   <link name="front_left_wheel">
     <visual>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
       <material name="wheel_color">
@@ -64,7 +64,7 @@
     </visual>
     <collision>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
     </collision>
@@ -85,7 +85,7 @@
   <link name="front_right_wheel">
     <visual>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
       <material name="wheel_color">
@@ -94,7 +94,7 @@
     </visual>
     <collision>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
     </collision>
@@ -115,7 +115,7 @@
   <link name="rear_left_wheel">
     <visual>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
       <material name="wheel_color">
@@ -124,7 +124,7 @@
     </visual>
     <collision>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
     </collision>
@@ -145,7 +145,7 @@
   <link name="rear_right_wheel">
     <visual>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
       <material name="wheel_color">
@@ -154,7 +154,7 @@
     </visual>
     <collision>
       <geometry>
-        <cylinder radius="0.0388" length="0.025"/>
+        <cylinder radius="0.0325" length="0.025"/>
       </geometry>
       <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
     </collision>
@@ -196,7 +196,7 @@
   <joint name="base_link_to_imu_link" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <origin xyz="0 0 0" rpy="3.14159265359 3.14159265359 0"/>
+    <origin xyz="0 0 0" rpy="3.14159265359 0 0"/>
   </joint>
 
   <link name="imu_link">

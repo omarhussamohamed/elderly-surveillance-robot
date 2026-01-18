@@ -81,7 +81,7 @@
     
     <!-- Frame IDs -->
     <param name="fixed_frame" value="odom" />  <!-- Fixed reference frame -->
-    <param name="world_frame" value="enu" />  <!-- World frame convention (East-North-Up) -->
+    <param name="world_frame" value="ned" />  <!-- World frame convention (North-East-Down) for MPU9250 -->
     
     <!-- Filter Parameters -->
     <param name="gain" value="$(arg madgwick_gain)" />  <!-- Filter gain (default: 0.1) -->

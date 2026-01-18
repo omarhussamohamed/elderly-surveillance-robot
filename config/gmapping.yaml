@@ -70,12 +70,12 @@ lasamplerange: 0.005
 lasamplestep: 0.005
 
 # ========== SCAN MATCHING ==========
-# Minimum score for accepting a scan match (less strict for better matching)
-minimumScore: 20
+# Minimum score for accepting a scan match (balanced for reliable matching)
+minimumScore: 50
 
 # Linear and angular search range for scan matching
-linearUpdate: 0.05   # Minimum linear travel before update (meters)
-angularUpdate: 0.05  # Minimum angular travel before update (radians)
+linearUpdate: 0.2    # Minimum linear travel before update (meters)
+angularUpdate: 0.2   # Minimum angular travel before update (radians)
 
 # Temporal update
 temporalUpdate: -1.0  # Disabled (use distance-based updates only)
