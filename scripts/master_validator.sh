@@ -266,9 +266,10 @@ stage3_linear_test() {
     echo -e "${YELLOW}Press ENTER when ready...${NC}"
     read -r
     
-    # Calculate duration for 1.0m at 0.12 m/s = 8.33 seconds
-    DURATION=8.33
-    VELOCITY=0.12
+    # Calculate duration for 1.0m at 0.35 m/s = 2.86 seconds
+    # Increased from 0.12 m/s to overcome motor stiction
+    DURATION=2.86
+    VELOCITY=0.35
     EXPECTED_DISTANCE=1.0
     
     print_info "Commanding: linear.x = ${VELOCITY} m/s for ${DURATION} seconds"
@@ -430,10 +431,11 @@ stage4_rotation_test() {
     print_pass "Starting Yaw: ${START_YAW}°"
     
     # Calculate rotation duration
-    # 360° = 2π radians at 0.25 rad/s = 25.13 seconds
-    ANGULAR_VEL=0.25
+    # 360° = 2π radians at 0.50 rad/s = 12.57 seconds
+    # Increased from 0.25 rad/s to overcome motor stiction
+    ANGULAR_VEL=0.50
     TARGET_ROTATION=6.283185307  # 2π radians
-    DURATION=25.13
+    DURATION=12.57
     
     print_info "Commanding: angular.z = ${ANGULAR_VEL} rad/s for ${DURATION} seconds"
     print_info "Target rotation: 360° (${TARGET_ROTATION} radians)"

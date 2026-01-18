@@ -195,11 +195,12 @@
   <joint name="base_link_to_imu_link" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <!-- 180° yaw rotation to align MPU9250 axes with ROS REP-105 (ENU) convention
-         MPU9250 native: X=forward, Y=right, Z=down (NED)
-         ROS REP-105: X=forward, Y=left, Z=up (ENU)
-         Fix: 180° yaw converts Y-right to Y-left, maintains X-forward -->
-    <origin xyz="0 0 0" rpy="0 0 3.14159265359"/>
+    <!-- 180° roll rotation to align MPU9250 axes with ROS REP-105 (ENU) convention
+         MPU9250 native (NED): X=forward, Y=right, Z=down
+         ROS REP-105 (ENU): X=forward, Y=left, Z=up
+         Fix: 180° roll around X-axis flips Y (right→left) and Z (down→up)
+         Result: X stays forward, Y becomes left, Z becomes up -->
+    <origin xyz="0 0 0" rpy="3.14159265359 0 0"/>
   </joint>
 
   <link name="imu_link">
