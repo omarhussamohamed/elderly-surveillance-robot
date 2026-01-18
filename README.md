@@ -59,6 +59,7 @@ map
 - **[HARDWARE_MAP.md](HARDWARE_MAP.md)**: Hardware configuration reference
 - **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
 - **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)**: Final preparation checklist
+- **[DRIFT_FIX_APPLIED.md](DRIFT_FIX_APPLIED.md)**: ⭐ **Official solution for map ghosting/rotation drift** ⭐
 - **[docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)**: IMU sensor fusion and calibration
 - **[docs/ENCODER_CALIBRATION.md](docs/ENCODER_CALIBRATION.md)**: Encoder debouncing and odometry tuning
 - **[docs/MPU9250_JETSON_SETUP.md](docs/MPU9250_JETSON_SETUP.md)**: IMU hardware setup guide

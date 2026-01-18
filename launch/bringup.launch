@@ -38,6 +38,9 @@
         respawn="true"
         respawn_delay="5"
         args="tcp $(arg esp32_port)">
+    <!-- TCP optimization parameters -->
+    <param name="tcp_nodelay" value="1" />
+    <param name="baud" value="115200" />
   </node>
 
   <!-- Message info service for rosserial custom messages -->
