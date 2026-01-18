@@ -57,7 +57,7 @@ stt: 0.02   # Angular -> Angular
 
 # ========== PARTICLE FILTER ==========
 # Number of particles in the filter
-particles: 30
+particles: 50
 
 # Resampling thresholds
 resampleThreshold: 0.5
@@ -70,12 +70,12 @@ lasamplerange: 0.005
 lasamplestep: 0.005
 
 # ========== SCAN MATCHING ==========
-# Minimum score for accepting a scan match (stricter with zero drift)
-minimumScore: 50
+# Minimum score for accepting a scan match (less strict for better matching)
+minimumScore: 30
 
 # Linear and angular search range for scan matching
-linearUpdate: 0.2    # Minimum linear travel before update (meters)
-angularUpdate: 0.25  # Minimum angular travel before update (radians)
+linearUpdate: 0.1    # Minimum linear travel before update (meters)
+angularUpdate: 0.1   # Minimum angular travel before update (radians)
 
 # Temporal update
 temporalUpdate: -1.0  # Disabled (use distance-based updates only)
