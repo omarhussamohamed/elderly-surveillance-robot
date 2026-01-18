@@ -75,9 +75,9 @@ const unsigned long DEBOUNCE_MICROS = 100; // 100 microseconds - proven optimal,
  float current_linear = 0.0;
  float current_angular = 0.0;
  // Physical constants
- const float WHEEL_RADIUS = 0.0194;  // Final calibration: 19.4mm radius (38.8mm diameter) - corrected for 1.046m test
+ const float WHEEL_RADIUS = 0.0325;  // 32.5mm radius (65mm diameter) - STRICT KINEMATIC SPECIFICATION
  const float TRACK_WIDTH = 0.26;
- const int TICKS_PER_REV = 990;
+ const int TICKS_PER_REV = 3960;  // JGB37-520: 11 PPR × 90 gear ratio × 4 edges = 3960
  // Timing
  unsigned long last_control_time = 0, last_cmd_time = 0, last_odom_time = 0, last_ros_connect = 0;
  // Shared structure for cmd_vel (rosserial writes, motor task reads atomically)
@@ -230,8 +230,8 @@ void IRAM_ATTR isrRR() {
    long enc_fl = counts[0], enc_fr = counts[1];
    long enc_rl = counts[2], enc_rr = counts[3];
    interrupts();
-   // Convert encoder ticks to velocity (m/s)
-   float ticks_to_m = (2.0 * M_PI * WHEEL_RADIUS) / TICKS_PER_REV;
+   // Convert encoder ticks to velocity (m/s) - STRICT FLOAT MATH
+   float ticks_to_m = (2.0 * M_PI * WHEEL_RADIUS) / (float)TICKS_PER_REV;
    float vel_fl = enc_fl * ticks_to_m / dt;
    float vel_fr = enc_fr * ticks_to_m / dt;
    float vel_rl = enc_rl * ticks_to_m / dt;

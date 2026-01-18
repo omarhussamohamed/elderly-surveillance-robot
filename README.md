@@ -60,6 +60,8 @@ map
 - **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
 - **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)**: Final preparation checklist
 - **[DRIFT_FIX_APPLIED.md](DRIFT_FIX_APPLIED.md)**: ⭐ **Official solution for map ghosting/rotation drift** ⭐
+- **[KINEMATIC_FIX_APPLIED.md](KINEMATIC_FIX_APPLIED.md)**: 🎯 **Fix for 1cm→1m odometry scaling** 🎯
+- **[ESP32_FIRMWARE_UPLOAD.txt](ESP32_FIRMWARE_UPLOAD.txt)**: ESP32 firmware update instructions
 - **[docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)**: IMU sensor fusion and calibration
 - **[docs/ENCODER_CALIBRATION.md](docs/ENCODER_CALIBRATION.md)**: Encoder debouncing and odometry tuning
 - **[docs/MPU9250_JETSON_SETUP.md](docs/MPU9250_JETSON_SETUP.md)**: IMU hardware setup guide

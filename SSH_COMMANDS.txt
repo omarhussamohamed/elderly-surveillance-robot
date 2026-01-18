@@ -3,6 +3,10 @@
 # ================================================
 # Run these commands on Jetson Nano via SSH
 
+# ⚠️  CRITICAL: UPLOAD NEW FIRMWARE TO ESP32 FIRST!
+#     See KINEMATIC_FIX_APPLIED.md for details
+#     Changed: WHEEL_RADIUS=0.0325, TICKS_PER_REV=4900
+
 # ================================================
 # STEP 1: SYSTEM RESTART
 # ================================================

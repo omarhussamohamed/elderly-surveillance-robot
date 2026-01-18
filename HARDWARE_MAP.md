@@ -57,9 +57,21 @@ This document contains the **exact hardware configuration** extracted from `elde
 
 ## Physical Constants
 
-- **Wheel Radius**: `0.0325 meters`
+- **Wheel Radius**: `0.0325 meters` (32.5mm, from 65mm diameter wheels)
 - **Track Width**: `0.26 meters`
-- **Encoder Ticks per Revolution**: `4900`
+- **Encoder Ticks per Revolution**: `3960`
+
+## Motor Specifications (JGB37-520)
+
+- **Model**: JGB37-520
+- **Voltage**: 12V DC
+- **No-Load Speed**: 110 RPM
+- **Gear Ratio**: 90:1
+- **Encoder**: Hall effect quadrature encoder
+  - **PPR (Pulses Per Revolution)**: 11
+  - **Edges per Revolution**: 4 (quadrature decoding)
+  - **Total Ticks per Revolution**: 11 × 90 × 4 = **3960**
+- **Calculation**: `ticks_to_m = (2.0 × π × 0.0325) / 3960.0 = 0.0000515 m/tick`
 
 ## Timing Constants
 

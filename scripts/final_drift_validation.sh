@@ -35,10 +35,11 @@ echo ""
 # ================================================
 
 echo -e "${YELLOW}[2/6] Verifying /wheel_odom rate (should be ~10Hz)...${NC}"
-WHEEL_HZ=$(timeout 5 rostopic hz /wheel_odom 2>&1 | grep "average rate" | awk '{print $3}')
+WHEEL_HZ=$(timeout 5 rostopic hz /wheel_odom 2>&1 | grep "average rate" | tail -n 1 | awk '{print $3}')
 if [ ! -z "$WHEEL_HZ" ]; then
     echo -e "${GREEN}✓ /wheel_odom publishing at ${WHEEL_HZ} Hz${NC}"
-    if (( $(echo "$WHEEL_HZ < 8" | bc -l) )); then
+    WHEEL_CHECK=$(echo "$WHEEL_HZ < 8" | bc -l 2>/dev/null || echo "0")
+    if [ "$WHEEL_CHECK" = "1" ]; then
         echo -e "${RED}⚠️  WARNING: Rate too low! Check ESP32 connection${NC}"
     fi
 else
@@ -48,7 +49,7 @@ fi
 echo ""
 
 echo -e "${YELLOW}[3/6] Verifying /imu/data rate (should be ~100Hz)...${NC}"
-IMU_HZ=$(timeout 5 rostopic hz /imu/data 2>&1 | grep "average rate" | awk '{print $3}')
+IMU_HZ=$(timeout 5 rostopic hz /imu/data 2>&1 | grep "average rate" | tail -n 1 | awk '{print $3}')
 if [ ! -z "$IMU_HZ" ]; then
     echo -e "${GREEN}✓ /imu/data publishing at ${IMU_HZ} Hz${NC}"
 else
@@ -58,7 +59,7 @@ fi
 echo ""
 
 echo -e "${YELLOW}[4/6] Verifying /odometry/filtered rate (should be ~50Hz)...${NC}"
-EKF_HZ=$(timeout 5 rostopic hz /odometry/filtered 2>&1 | grep "average rate" | awk '{print $3}')
+EKF_HZ=$(timeout 5 rostopic hz /odometry/filtered 2>&1 | grep "average rate" | tail -n 1 | awk '{print $3}')
 if [ ! -z "$EKF_HZ" ]; then
     echo -e "${GREEN}✓ EKF publishing at ${EKF_HZ} Hz${NC}"
 else

@@ -36,11 +36,11 @@ if ! rostopic list &>/dev/null; then
     exit 1
 fi
 
-# Parameters (adjust based on your robot's calibration)
-FORWARD_SPEED=0.15  # m/s
-ROTATE_SPEED=0.3    # rad/s
-FORWARD_TIME=6.67   # seconds to travel 1m at 0.15 m/s
-ROTATE_TIME=5.24    # seconds to rotate 90° at 0.3 rad/s
+# Parameters (adjusted for 4WD skid-steer friction)
+FORWARD_SPEED=0.12  # m/s (slower for better control)
+ROTATE_SPEED=0.25   # rad/s (slower rotation)
+FORWARD_TIME=8.5    # seconds to travel 1m at 0.12 m/s (with friction margin)
+ROTATE_TIME=6.3     # seconds to rotate 90° at 0.25 rad/s
 
 echo -e "${GREEN}Starting autonomous square...${NC}"
 echo ""
@@ -48,17 +48,15 @@ echo ""
 for side in {1..4}; do
     echo -e "${YELLOW}Side $side/4: Moving forward 1 meter...${NC}"
     
-    # Move forward
-    rostopic pub -1 /cmd_vel geometry_msgs/Twist "linear:
+    # Move forward (continuous publishing at 10Hz)
+    timeout $FORWARD_TIME rostopic pub -r 10 /cmd_vel geometry_msgs/Twist "linear:
   x: $FORWARD_SPEED
   y: 0.0
   z: 0.0
 angular:
   x: 0.0
   y: 0.0
-  z: 0.0" &
-  
-    sleep $FORWARD_TIME
+  z: 0.0" > /dev/null 2>&1
     
     # Stop
     rostopic pub -1 /cmd_vel geometry_msgs/Twist "linear:
@@ -75,17 +73,15 @@ angular:
     if [ $side -lt 4 ]; then
         echo -e "${YELLOW}Rotating 90° left...${NC}"
         
-        # Rotate
-        rostopic pub -1 /cmd_vel geometry_msgs/Twist "linear:
+        # Rotate (continuous publishing at 10Hz)
+        timeout $ROTATE_TIME rostopic pub -r 10 /cmd_vel geometry_msgs/Twist "linear:
   x: 0.0
   y: 0.0
   z: 0.0
 angular:
   x: 0.0
   y: 0.0
-  z: $ROTATE_SPEED" &
-  
-        sleep $ROTATE_TIME
+  z: $ROTATE_SPEED" > /dev/null 2>&1
         
         # Stop
         rostopic pub -1 /cmd_vel geometry_msgs/Twist "linear:
