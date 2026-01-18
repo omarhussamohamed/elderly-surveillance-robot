@@ -1,5 +1,15 @@
 # Elderly Bot - Quick Start Guide
 
+## Prerequisites Checklist
+
+Before starting, ensure you have:
+- ✅ Jetson Nano with Ubuntu 18.04 + ROS Melodic
+- ✅ ESP32 with firmware uploaded (TICKS_PER_REV=3960)
+- ✅ RPLidar A1 connected to /dev/ttyUSB0
+- ✅ MPU9250 IMU on Jetson I2C bus
+- ✅ 4WD robot assembled with JGB37-520 motors
+- ✅ WiFi network configured (ESP32 and Jetson on same network)
+
 ## 1. Installation (One-Time Setup)
 
 ```bash
@@ -8,54 +18,114 @@ chmod +x install_dependencies.sh
 ./install_dependencies.sh
 ```
 
+**Required packages installed:**
+- ros-melodic-robot-state-publisher
+- ros-melodic-robot-localization
+- ros-melodic-imu-filter-madgwick
+- ros-melodic-gmapping
+- ros-melodic-amcl
+- ros-melodic-move-base
+- And more... (see install_dependencies.sh)
+
 Log out and log back in (for serial port permissions).
 
 ## 2. Program ESP32 (One-Time Setup)
 
-⚠️ **IMPORTANT**: Use ESP32 Arduino Core 2.0.17 ONLY (not 3.x)
+⚠️ **CRITICAL**: Firmware must have TICKS_PER_REV=3960 for correct kinematic scaling
 
-1. Open Arduino IDE
-2. Install ESP32 board support:
-   - Tools → Board → Board Manager
-   - Search "esp32"
-   - **Select version 2.0.17**
-   - Install
-3. Install libraries: Rosserial Arduino Library
-4. Generate ROS library on Jetson:
-   ```bash
-   # On Jetson Nano
-   cd ~/Arduino/libraries
-   rm -rf ros_lib
-   rosrun rosserial_arduino make_libraries.py .
-   ```
-5. Copy ros_lib to Arduino IDE (see ROSSERIAL_GUIDE.md for details)
-6. Open `firmware/elderly_bot_esp32_wifi.ino`
-7. Select Board: "ESP32 Dev Module"
-8. **Verify**: Tools → Board → Board Manager shows esp32 2.0.17
-9. Upload to ESP32
+### Upload Latest Firmware:
 
-**If you get errors**: See `ROSSERIAL_GUIDE.md` for comprehensive troubleshooting
+1. Open Arduino IDE on Windows
+2. Open `firmware/elderly_bot_esp32_wifi.ino`
+3. **VERIFY** line 81: `const int TICKS_PER_REV = 3960;`
+4. **VERIFY** line 78: `const float WHEEL_RADIUS = 0.0325;`
+5. Select Board: "ESP32 Dev Module"
+6. Select Port
+7. Upload
+
+**See [ESP32_FIRMWARE_UPLOAD.txt](ESP32_FIRMWARE_UPLOAD.txt) for detailed instructions**
 
 ## 3. Hardware Connections
 
-- **RPLidar** → `/dev/ttyUSB0`
-- **ESP32** → WiFi connection (see HARDWARE_MAP.md for SSID/password)
-- **MPU-9250 IMU** → Jetson I2C (direct connection)
-- **Power**: 12V to motors, ESP32 powered via Jetson's 5V rail
+- **RPLidar** → `/dev/ttyUSB0` (USB connection)
+- **ESP32** → WiFi connection to 192.168.1.29:11411 (see HARDWARE_MAP.md)
+- **MPU-9250 IMU** → Jetson I2C Bus 1:
+  - SDA → Pin 3 (I2C2_SDA)
+  - SCL → Pin 5 (I2C2_SCL)
+  - VCC → 3.3V, GND → GND
+- **Power**: 12V to motors, ESP32 powered separately or via Jetson 5V
 
-## 4. Test Hardware
+## 4. Verify System (MANDATORY AFTER ANY CHANGES)
+
+### Step 4.1: Start System
 
 ```bash
+# Kill any existing ROS processes
+rosnode kill -a
+killall -9 rosmaster roscore
+sleep 3
+
+# Start fresh
+roscore &
+sleep 3
 roslaunch elderly_bot bringup.launch
-
-# In another terminal, test:
-rostopic echo /scan
-rostopic echo /wheel_odom
-rostopic echo /imu/data
-
-# Test motors:
-rostopic pub /cmd_vel geometry_msgs/Twist "linear: {x: 0.1}" -r 10
 ```
+
+**Expected console output:**
+- `[INFO] Starting robot_state_publisher` ← Confirms TF fix applied
+- `[INFO] rosserial: Connected to ESP32`
+- `[INFO] Starting RPLidar node`
+- `[INFO] Starting IMU pipeline`
+
+### Step 4.2: Run TF Verification
+
+**In new terminal:**
+```bash
+cd ~/catkin_ws/src/elderly_bot
+chmod +x scripts/tf_verification_complete.sh
+bash scripts/tf_verification_complete.sh
+```
+
+**Expected results:**
+- ✅ Laser: 180° yaw rotation (NOT roll)
+- ✅ IMU: Near-zero rotation (or known mounting offset)
+- ✅ Gravity on Z-axis = +9.8 m/s²
+
+**If any test fails:** See [COMPLETE_TF_DEPLOYMENT.md](COMPLETE_TF_DEPLOYMENT.md)
+
+### Step 4.3: Run Master Validation Suite
+
+```bash
+chmod +x scripts/master_validator.sh
+bash scripts/master_validator.sh
+```
+
+**All 4 stages must PASS:**
+1. Communication: >8Hz wheel, >40Hz filtered odometry
+2. Drift: <0.1° over 3 minutes stationary
+3. Linear: 1.0m commanded = 1.0m traveled ±2cm
+4. Angular: 360° rotation returns to start ±5°
+
+**If any stage fails:** See troubleshooting in script output
+
+### Step 4.4: Visual Verification in RViz
+
+```bash
+rviz
+```
+
+**Setup TF display:**
+1. Add → TF
+2. Check "Show Axes"
+3. Marker Scale = 0.3
+4. Fixed Frame = "base_footprint"
+
+**Check axes alignment:**
+- ✅ base_link RED (X) → forward
+- ✅ laser RED → backward (180° opposite) ← Expected
+- ✅ imu_link RED → forward (parallel to base_link)
+- ✅ All GREEN (Y) arrows parallel → left
+- ✅ All BLUE (Z) arrows parallel → up
 
 ## 5. Create Map (MODE 1)
 

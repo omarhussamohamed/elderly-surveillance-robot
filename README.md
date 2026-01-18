@@ -23,11 +23,12 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 
 ### Motors & Encoders
 - **Motor**: JGB37-520, 12V, 110 RPM, 90:1 gearbox
-- **Encoder**: Quadrature, 11 PPR, 90:1 reduction, 4-edge counting
-- **Total Resolution**: 990 ticks per wheel revolution
-- **Calibrated Wheel Radius**: 19.4mm (effective, under load)
+- **Encoder**: Hall effect quadrature, 11 PPR × 90:1 × 4 edges = **3960 ticks/rev**
+- **Wheel Diameter**: 65mm (radius 32.5mm)
+- **Effective Radius**: 32.5mm (calibrated for 1:1 kinematic mapping)
+- **Distance per tick**: 0.0000515m
 - **Debouncing**: 100µs software filter for noise rejection
-- See [docs/ENCODER_CALIBRATION.md](docs/ENCODER_CALIBRATION.md)
+- See [HARDWARE_MAP.md](HARDWARE_MAP.md) and [KINEMATIC_FIX_APPLIED.md](KINEMATIC_FIX_APPLIED.md)
 
 ### Sensors
 - **Lidar**: RPLidar A1 (mounted 0.30m above ground)
@@ -45,26 +46,40 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 ### TF Tree
 ```
 map
- └── odom
-     └── base_footprint
-         └── base_link
-             ├── laser
-             └── imu_link
+ └── odom                    [published by AMCL or robot_localization]
+     └── base_footprint      [published by robot_localization EKF]
+         └── base_link       [published by robot_state_publisher]
+             ├── laser       [180° yaw rotation for backward-facing lidar]
+             └── imu_link    [aligned with robot frame]
 ```
+
+**TF Publishers:**
+- `robot_state_publisher`: Broadcasts all URDF transforms (base_footprint, base_link, laser, imu_link)
+- `robot_localization` EKF: Publishes odom → base_footprint transform
+- AMCL (navigation mode): Publishes map → odom transform
 
 ## Quick Links
 
+### Essential Documentation
 - **[QUICK_START.md](QUICK_START.md)**: Step-by-step setup guide
-- **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**: Complete system architecture and operation
+- **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**: Complete system architecture
 - **[HARDWARE_MAP.md](HARDWARE_MAP.md)**: Hardware configuration reference
-- **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial setup and troubleshooting
-- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)**: Final preparation checklist
-- **[DRIFT_FIX_APPLIED.md](DRIFT_FIX_APPLIED.md)**: ⭐ **Official solution for map ghosting/rotation drift** ⭐
+
+### Critical Fixes & Calibration
+- **[TF_FRAME_ALIGNMENT_FIX.md](TF_FRAME_ALIGNMENT_FIX.md)**: ⭐ **TF coordinate frame alignment fix** ⭐
+- **[COMPLETE_TF_DEPLOYMENT.md](COMPLETE_TF_DEPLOYMENT.md)**: 🚀 **Complete TF fix deployment procedure** 🚀
+- **[DRIFT_FIX_APPLIED.md](DRIFT_FIX_APPLIED.md)**: ✅ **Solution for map ghosting/rotation drift** ✅
 - **[KINEMATIC_FIX_APPLIED.md](KINEMATIC_FIX_APPLIED.md)**: 🎯 **Fix for 1cm→1m odometry scaling** 🎯
-- **[ESP32_FIRMWARE_UPLOAD.txt](ESP32_FIRMWARE_UPLOAD.txt)**: ESP32 firmware update instructions
-- **[docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)**: IMU sensor fusion and calibration
-- **[docs/ENCODER_CALIBRATION.md](docs/ENCODER_CALIBRATION.md)**: Encoder debouncing and odometry tuning
-- **[docs/MPU9250_JETSON_SETUP.md](docs/MPU9250_JETSON_SETUP.md)**: IMU hardware setup guide
+
+### Testing & Validation
+- **[PHYSICAL_VALIDATION_PROTOCOL.md](PHYSICAL_VALIDATION_PROTOCOL.md)**: Manual testing procedures
+- **[IMU_MOUNTING_FIX_REFERENCE.md](IMU_MOUNTING_FIX_REFERENCE.md)**: IMU orientation scenarios
+
+### Setup Guides
+- **[ROSSERIAL_GUIDE.md](ROSSERIAL_GUIDE.md)**: rosserial WiFi setup
+- **[ESP32_FIRMWARE_UPLOAD.txt](ESP32_FIRMWARE_UPLOAD.txt)**: Firmware upload instructions
+- **[docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)**: IMU sensor fusion
+- **[docs/MPU9250_JETSON_SETUP.md](docs/MPU9250_JETSON_SETUP.md)**: IMU hardware setup
 
 ## Hardware Setup
 

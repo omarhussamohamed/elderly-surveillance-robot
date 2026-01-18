@@ -1,6 +1,43 @@
 # Elderly Bot - Changelog
 
-## Recent Updates (January 2026)
+## Latest Updates (January 18, 2026)
+
+### TF Frame Alignment Fix (CRITICAL)
+
+#### Laser Frame Rotation Corrected
+- **Problem**: Lidar used 180° **roll** rotation instead of 180° **yaw**
+- **Impact**: Inverted X/Y axes causing frame misalignment and potential sensor fusion errors
+- **Fix**: Changed URDF `rpy="3.14159 0 0"` → `rpy="0 0 3.14159"`
+- **Files**: `urdf/elderly_bot.urdf`, `launch/bringup.launch`
+- **Result**: All coordinate frames now properly aligned per REP-105
+
+#### Robot State Publisher Added
+- **Added**: Systematic TF broadcaster from URDF
+- **Removed**: Duplicate static_transform_publisher nodes
+- **Benefit**: Single source of truth, eliminates TF conflicts
+- **File**: `launch/bringup.launch`
+
+#### IMU Mounting Diagnostic Tools
+- **Added**: `scripts/imu_mounting_diagnostic.sh` - Physical orientation testing
+- **Added**: `scripts/tf_verification_complete.sh` - Automated TF verification
+- **Added**: `IMU_MOUNTING_FIX_REFERENCE.md` - Common scenarios guide
+- **Documentation**: `TF_FRAME_ALIGNMENT_FIX.md`, `COMPLETE_TF_DEPLOYMENT.md`
+
+### Kinematic Scaling Correction (3960 Ticks/Rev)
+- **Problem**: Incorrect TICKS_PER_REV (4900) causing 1cm movement for 1m command
+- **Root Cause**: Wrong encoder specification (990 PPR instead of actual 11 PPR)
+- **Fix**: Corrected to 3960 ticks/rev (11 PPR × 90:1 gear ratio × 4 edges)
+- **Result**: 1:1 kinematic mapping, robot moves exactly 1.0m when commanded
+- **Files**: `firmware/elderly_bot_esp32_wifi.ino`, `HARDWARE_MAP.md`
+- **Documentation**: `KINEMATIC_FIX_APPLIED.md`, `FINAL_KINEMATIC_VERIFICATION.txt`
+
+### Validation & Testing Infrastructure
+- **Added**: `scripts/master_validator.sh` - 4-stage automated system validation
+- **Tests**: Communication audit, 3-min drift test, 1m linear test, 360° rotation test
+- **Added**: `PHYSICAL_VALIDATION_PROTOCOL.md` - Manual testing procedures
+- **Output**: Pass/fail dashboard with diagnostic hints
+
+## Previous Updates (January 2026)
 
 ### IMU System Enhancement
 
