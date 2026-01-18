@@ -29,6 +29,15 @@
   <param name="robot_description" 
          command="cat $(find elderly_bot)/urdf/elderly_bot.urdf" />
   
+  <!-- ========== ROBOT STATE PUBLISHER ========== -->
+  <!-- Publishes TF transforms from URDF robot_description -->
+  <node name="robot_state_publisher" 
+        pkg="robot_state_publisher" 
+        type="robot_state_publisher"
+        output="screen">
+    <param name="publish_frequency" value="50.0" />
+  </node>
+  
   <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
 
   <node name="esp32_serial_node"
@@ -65,19 +74,9 @@
   </node>
   
   <!-- ========== STATIC TRANSFORMS ========== -->
-  
-  <!-- base_footprint to base_link (base_link is elevated) -->
-  <node pkg="tf" 
-        type="static_transform_publisher" 
-        name="base_footprint_to_base_link"
-        args="0 0 0.07 0 0 0 base_footprint base_link 100" />
-  
-  <!-- base_link to laser (lidar mounted 0.30m above ground, 0.23m above base_link) -->
-  <!-- Lidar motor facing backward = 180 degree rotation around Z -->
-  <node pkg="tf" 
-        type="static_transform_publisher" 
-        name="base_link_to_laser"
-        args="0 0 0.23 3.14159 0 0 base_link laser 100" />
+  <!-- Note: base_footprint, base_link, laser transforms are now published -->
+  <!-- by robot_state_publisher from URDF. Only add static transforms here -->
+  <!-- that are NOT defined in the URDF. -->
   
   <!-- ========== IMU PIPELINE (Jetson with Sensor Fusion) ========== -->
   <!-- Includes: MPU9250 raw data + imu_filter_madgwick + static TF -->

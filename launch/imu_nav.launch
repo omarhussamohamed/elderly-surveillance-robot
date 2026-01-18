@@ -104,15 +104,12 @@
   <!-- 3. Static Transform: base_link → imu_link -->
   <!-- ========================================= -->
   <!-- 
-    Adjust these values to match your robot's IMU mounting position:
-    args="x y z yaw pitch roll parent_frame child_frame period_ms"
+    REMOVED: This transform is now published by robot_state_publisher
+    from the URDF file (elderly_bot.urdf).
     
-    Current: IMU is at base_link center height (stuck to base), no rotation
+    If you need to adjust IMU mounting, edit the URDF joint:
+    base_link_to_imu_link in urdf/elderly_bot.urdf
   -->
-  <node pkg="tf" 
-        type="static_transform_publisher" 
-        name="base_link_to_imu_link"
-        args="0 0 0 0 0 0 base_link imu_link 100" />
   
   <!-- ========================================= -->
   <!-- Notes & Troubleshooting -->
