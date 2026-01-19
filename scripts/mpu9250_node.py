@@ -316,6 +316,13 @@ class MPU9250Node:
             accel_y -= self.accel_offset[1]
             accel_z -= self.accel_offset[2]
             
+            # CRITICAL: Remap from MPU9250 NED to ROS ENU convention
+            # NED: X=forward, Y=right, Z=down
+            # ENU: X=forward, Y=left, Z=up
+            # Transform: X_enu=X_ned, Y_enu=-Y_ned, Z_enu=-Z_ned
+            accel_y = -accel_y
+            accel_z = -accel_z
+            
             return accel_x, accel_y, accel_z
         except Exception as e:
             rospy.logwarn("Error reading accelerometer: %s", str(e))
@@ -356,6 +363,13 @@ class MPU9250Node:
             gyro_x -= self.gyro_offset[0]
             gyro_y -= self.gyro_offset[1]
             gyro_z -= self.gyro_offset[2]
+            
+            # CRITICAL: Remap from MPU9250 NED to ROS ENU convention
+            # NED: X=forward, Y=right, Z=down
+            # ENU: X=forward, Y=left, Z=up
+            # Transform: X_enu=X_ned, Y_enu=-Y_ned, Z_enu=-Z_ned
+            gyro_y = -gyro_y
+            gyro_z = -gyro_z
             
             return gyro_x, gyro_y, gyro_z
         except Exception as e:
