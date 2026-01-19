@@ -147,3 +147,69 @@ sudo ufw status
 - Encoder ISRs ensure forward motion = positive encoder counts
 - PWM scaling prevents motor stalling with minimum threshold
 - Safety timeout stops motors if no cmd_vel received within 800ms
+
+---
+
+## MPU9250 IMU (Direct Jetson I2C Connection)
+
+### Hardware Wiring
+
+**Jetson Nano J21 Header:**
+```
+Pin 1:  3.3V        ← MPU9250 VCC
+Pin 3:  I2C2_SDA    ← MPU9250 SDA
+Pin 5:  I2C2_SCL    ← MPU9250 SCL
+Pin 6:  GND         ← MPU9250 GND
+```
+
+### Physical Mounting
+- **IMU Height**: 7cm from ground
+- **Relative to base_link**: z = -0.0125m (1.25cm below base_link at 8.25cm height)
+- **Axes**: MPU9250 native NED (X=forward, Y=right, Z=down) remapped to ROS ENU in software
+
+### I2C Configuration
+- **Bus**: I2C-1 (`/dev/i2c-1`)
+- **Address**: `0x68` (AD0 pin LOW)
+- **Verify connection**: `sudo i2cdetect -y 1` (should show device at 0x68)
+
+### Software Setup
+
+**Install I2C tools:**
+```bash
+sudo apt-get install -y i2c-tools python3-smbus
+```
+
+**Test connection:**
+```bash
+sudo i2cdetect -y 1
+# MPU9250 should appear at address 0x68
+```
+
+**Enable node:**
+```bash
+cd ~/catkin_ws/src/elderly_bot/scripts
+chmod +x mpu9250_node.py
+```
+
+### Topics Published
+- `/imu/data_raw` - Raw accelerometer + gyroscope (sensor_msgs/Imu)
+- `/imu/mag` - Magnetometer from internal AK8963 (sensor_msgs/MagneticField)
+- `/imu/temperature` - Internal temperature (sensor_msgs/Temperature)
+- `/imu/data` - Fused orientation from imu_filter_madgwick (sensor_msgs/Imu)
+
+### Calibration
+- **Gyroscope**: Auto-calibrates on startup (robot must be stationary for 1 second)
+- **Magnetometer**: Hard-iron bias already configured in `imu_nav.launch`
+- **No manual calibration needed** - dynamic gyro calibration adapts to temperature
+
+### NED to ENU Remapping
+MPU9250 outputs NED convention (Y=right, Z=down). Software remapping applied in `mpu9250_node.py`:
+```python
+# Transform: X_enu=X_ned, Y_enu=-Y_ned, Z_enu=-Z_ned
+accel_y = -accel_y
+accel_z = -accel_z
+gyro_y = -gyro_y
+gyro_z = -gyro_z
+```
+
+**Result**: URDF uses identity rotation (rpy="0 0 0"), axes match ROS ENU standard
