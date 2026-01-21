@@ -36,10 +36,12 @@ odom0: /wheel_odom
 
 # Which values to fuse from wheel odometry
 # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+# CRITICAL FIX: Do NOT fuse vyaw from wheel odometry - it accumulates drift from wheel slip
+# Only fuse position and linear velocity. IMU provides accurate yaw orientation.
 odom0_config: [true,  true,  false,  # position (x, y, z)
                false, false, true,   # orientation (roll, pitch, yaw)
-               true,  true,  false,  # linear velocity (vx, vy, vz)
-               false, false, true,   # angular velocity (vroll, vpitch, vyaw)
+               true,  false, false,  # linear velocity (vx, vy, vz) - only vx for diff drive
+               false, false, false,  # angular velocity (vroll, vpitch, vyaw) - DO NOT USE
                false, false, false]  # linear acceleration (ax, ay, az)
 
 # Differential mode (integrates velocities to get pose)

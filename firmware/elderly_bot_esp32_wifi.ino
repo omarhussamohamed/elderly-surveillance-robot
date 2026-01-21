@@ -192,9 +192,10 @@ void IRAM_ATTR isrRR() {
        xSemaphoreGive(cmd_vel_mutex);
      }
      if (has_new_cmd) {
-       // Calculate left/right speeds as specified: left = linear.x - angular.z, right = linear.x + angular.z
-       float left_speed = local_cmd_vel.linear_x - local_cmd_vel.angular_z;
-       float right_speed = local_cmd_vel.linear_x + local_cmd_vel.angular_z;
+       // Calculate left/right speeds using correct differential drive kinematics
+       // For differential drive: v_left = v - omega * (track_width/2), v_right = v + omega * (track_width/2)
+       float left_speed = local_cmd_vel.linear_x - (local_cmd_vel.angular_z * TRACK_WIDTH / 2.0);
+       float right_speed = local_cmd_vel.linear_x + (local_cmd_vel.angular_z * TRACK_WIDTH / 2.0);
        // Convert to PWM [0-255], using abs for power
        int left_pwr = constrain((int)(fabs(left_speed) * 255.0), 0, 255);
        int right_pwr = constrain((int)(fabs(right_speed) * 255.0), 0, 255);
@@ -259,6 +260,18 @@ void IRAM_ATTR isrRR() {
    odom_msg.pose.pose.position.y = odom_y;
    odom_msg.pose.pose.orientation.z = sin(odom_theta * 0.5);
    odom_msg.pose.pose.orientation.w = cos(odom_theta * 0.5);
+   
+   // Set realistic covariance for wheel odometry (EKF needs this)
+   // Diagonal covariance: [x, y, z, rot_x, rot_y, rot_z] for pose
+   odom_msg.pose.covariance[0] = 0.001;   // x position variance (1mm std)
+   odom_msg.pose.covariance[7] = 0.001;   // y position variance
+   odom_msg.pose.covariance[35] = 0.05;   // yaw variance (higher - wheel slip affects rotation)
+   
+   // Twist covariance: [vx, vy, vz, vroll, vpitch, vyaw]
+   odom_msg.twist.covariance[0] = 0.002;   // vx variance
+   odom_msg.twist.covariance[7] = 0.002;   // vy variance  
+   odom_msg.twist.covariance[35] = 0.1;    // vyaw variance (high - unreliable from wheels alone)
+   
    odom_msg.twist.twist.linear.x = current_linear;
    odom_msg.twist.twist.angular.z = current_angular;
    odom_pub.publish(&odom_msg);

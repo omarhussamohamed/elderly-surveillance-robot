@@ -46,18 +46,20 @@ lskip: 0
 # ========== MOTION MODEL ==========
 # Odometry error parameters for skid-steer robot
 # These are critical for accurate mapping with wheel slip
+# INCREASED from optimistic values to reflect 4WD skid-steer reality
 
 # Linear movement error
-srr: 0.01   # Linear -> Linear
-srt: 0.02   # Linear -> Angular
+srr: 0.05   # Linear -> Linear (was 0.01, increased for wheel slip)
+srt: 0.08   # Linear -> Angular (was 0.02, skid-steer has more cross-coupling)
 
 # Angular movement error  
-str: 0.01   # Angular -> Linear
-stt: 0.02   # Angular -> Angular
+str: 0.08   # Angular -> Linear (was 0.01, rotation causes lateral slip)
+stt: 0.10   # Angular -> Angular (was 0.02, rotation odometry less reliable)
 
 # ========== PARTICLE FILTER ==========
 # Number of particles in the filter
-particles: 80
+# INCREASED from 80 to 100 for better pose hypothesis diversity with increased motion uncertainty
+particles: 100
 
 # Resampling thresholds
 resampleThreshold: 0.5
@@ -71,7 +73,8 @@ lasamplestep: 0.005
 
 # ========== SCAN MATCHING ==========
 # Minimum score for accepting a scan match (balanced for reliable matching)
-minimumScore: 50
+# INCREASED from 50 to 100 to prevent false loop closures causing map ghosting/wall extensions
+minimumScore: 100
 
 # Linear and angular search range for scan matching
 linearUpdate: 0.2    # Minimum linear travel before update (meters)
