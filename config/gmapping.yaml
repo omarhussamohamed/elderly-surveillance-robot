@@ -12,7 +12,8 @@ transform_publish_period: 0.05
 
 # ========== MAP PARAMETERS ==========
 # Map resolution (meters per cell)
-map_update_interval: 2.0
+# STABILITY FIX: Increased from 2.0 to 3.0 for CPU relief (visualization only, not internal mapping)
+map_update_interval: 3.0
 
 # Maximum range of laser (RPLidar A1: ~12m, but use conservative value indoors)
 maxRange: 10.0
@@ -59,11 +60,14 @@ stt: 0.25   # Angular -> Angular (INCREASED 2.5× - rotation odometry extremely 
 
 # ========== PARTICLE FILTER ==========
 # Number of particles in the filter
-# INCREASED to 1000 for better hypothesis diversity during large angular motions
-particles: 1000
+# STABILITY FIX: Reduced from 1000 to 500 for Jetson Nano CPU performance
+# With reduced process noise + improved odometry, 500 particles provide sufficient diversity
+particles: 500
 
 # Resampling thresholds
-resampleThreshold: 0.5
+# STABILITY FIX: Reduced from 0.5 to 0.3 to resample less frequently
+# Prevents excessive resampling with noisy odometry, maintains particle diversity
+resampleThreshold: 0.3
 
 # ========== LIKELIHOOD ==========
 # Likelihood sampling parameters
@@ -74,19 +78,23 @@ lasamplestep: 0.005
 
 # ========== SCAN MATCHING ==========
 # Minimum score for accepting a scan match (balanced for reliable matching)
-# INCREASED from 50 to 100 to prevent false loop closures causing map ghosting/wall extensions
-minimumScore: 100
+# STABILITY FIX: Reduced from 100 to 50 to accept plain wall scans (low-feature environments)
+# With corrected odometry (midpoint integration + IMU vyaw fusion), false matches are minimal
+minimumScore: 50
 
 # Linear and angular search range for scan matching
-linearUpdate: 0.2    # Minimum linear travel before update (meters)
-angularUpdate: 0.05  # Minimum angular travel before update (REDUCED from 0.2 for frequent rotation updates)
+# STABILITY FIX: Reduced from 0.2m to 0.1m for 2× faster map updates during linear motion
+linearUpdate: 0.1    # Minimum linear travel before update (10cm - responsive mapping)
+angularUpdate: 0.05  # Minimum angular travel before update (2.9° - frequent rotation updates)
 
 # Temporal update
-temporalUpdate: -1.0  # Disabled (use distance-based updates only)
+# STABILITY FIX: Enabled with 1.0 sec as safety fallback for edge cases (slow spin, vibration)
+temporalUpdate: 1.0  # Force update every 1 second regardless of distance traveled
 
 # ========== OPTIMIZATION ==========
 # Number of iterations for scan matching optimization
-optIterations: 5
+# STABILITY FIX: Reduced from 5 to 3 for 40% faster scan matching (sufficient for delta=0.02)
+optIterations: 3
 
 # ========== INITIAL POSE ==========
 # Initial map size
@@ -99,7 +107,7 @@ ymax: 10.0
 # Occupancy threshold
 occ_thresh: 0.25
 
-# Map update interval
-map_update_interval: 2.0
+# Map update interval (redundant declaration - primary is at line 17)
+map_update_interval: 3.0
 
 
