@@ -71,6 +71,15 @@
     <param name="inverted" value="false" />
     <param name="angle_compensate" value="true" />
     <param name="scan_mode" value="Standard" />
+    
+    <!-- LASER MODEL FIX: Filter invalid/noisy points -->
+    <!-- Limit max distance to 8m (matches gmapping maxRange) -->
+    <!-- RPLidar returns garbage >8m (reflections, max-range artifacts) -->
+    <param name="max_distance" value="8.0" />  <!-- Filter points >8m -->
+    
+    <!-- Angle filtering (optional - uncomment if side reflections are issues) -->
+    <!-- <param name="angle_min" value="-3.14159" /> -->  <!-- -180° -->
+    <!-- <param name="angle_max" value="3.14159" /> -->   <!-- +180° -->
   </node>
   
   <!-- ========== STATIC TRANSFORMS ========== -->
