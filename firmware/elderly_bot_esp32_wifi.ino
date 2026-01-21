@@ -36,9 +36,9 @@
    bool connected() { return (client && client->connected()); }
  };
  // ==================== WiFi CONFIGURATION ====================
- const char* ssid = "ShellBack";
- const char* password = "hhmo@1974";
- IPAddress server(192,168,1,29);
+ const char* ssid = "Maryse's Iphone12";
+ const char* password = "Marysehani";
+ IPAddress server(172,20,10,6);
  const uint16_t serverPort = 11411;
  // ==================== GROUND TRUTH MOTOR SETTINGS (FROM motor_and_encoder_HW_test.ino) ====================
  // Pin definitions - EXACT from ground truth
@@ -279,15 +279,37 @@ void IRAM_ATTR isrRR() {
    odom_msg.pose.pose.orientation.w = cos(odom_theta * 0.5);
    
    // Set realistic covariance for wheel odometry (EKF needs this)
+   // ROTATION FIX: Dynamically scale yaw covariance based on linear velocity
+   // During pure rotation (low vx), wheel slip is extreme → high yaw covariance (distrust encoders)
+   // During linear motion, wheel odom is more reliable → lower yaw covariance
+   
+   float abs_linear = fabs(current_linear);
+   float abs_angular = fabs(current_angular);
+   
    // Diagonal covariance: [x, y, z, rot_x, rot_y, rot_z] for pose
    odom_msg.pose.covariance[0] = 0.001;   // x position variance (1mm std)
    odom_msg.pose.covariance[7] = 0.001;   // y position variance
-   odom_msg.pose.covariance[35] = 0.05;   // yaw variance (higher - wheel slip affects rotation)
+   
+   // Dynamic yaw covariance: High during rotation, low during linear motion
+   // If vx < 0.05 m/s AND rotating → pure rotation mode (high slip)
+   if (abs_linear < 0.05 && abs_angular > 0.1) {
+     odom_msg.pose.covariance[35] = 1.0;  // 1.0 rad² variance (VERY HIGH - extreme slip during pure rotation)
+   } else if (abs_linear < 0.1) {
+     odom_msg.pose.covariance[35] = 0.5;  // 0.5 rad² (high slip during slow motion)
+   } else {
+     odom_msg.pose.covariance[35] = 0.05; // 0.05 rad² (normal - forward motion more reliable)
+   }
    
    // Twist covariance: [vx, vy, vz, vroll, vpitch, vyaw]
    odom_msg.twist.covariance[0] = 0.002;   // vx variance
-   odom_msg.twist.covariance[7] = 0.002;   // vy variance  
-   odom_msg.twist.covariance[35] = 0.1;    // vyaw variance (high - unreliable from wheels alone)
+   odom_msg.twist.covariance[7] = 0.002;   // vy variance
+   
+   // Dynamic vyaw covariance: VERY high during pure rotation
+   if (abs_linear < 0.05 && abs_angular > 0.1) {
+     odom_msg.twist.covariance[35] = 2.0;  // Extremely unreliable from wheels during pure rotation
+   } else {
+     odom_msg.twist.covariance[35] = 0.5;  // High but not extreme during normal motion
+   }
    
    odom_msg.twist.twist.linear.x = current_linear;
    odom_msg.twist.twist.angular.z = current_angular;

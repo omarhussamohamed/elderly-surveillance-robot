@@ -50,16 +50,17 @@ lskip: 0
 
 # Linear movement error
 srr: 0.05   # Linear -> Linear (was 0.01, increased for wheel slip)
-srt: 0.08   # Linear -> Angular (was 0.02, skid-steer has more cross-coupling)
+srt: 0.15   # Linear -> Angular (INCREASED for stronger cross-coupling during turns)
 
-# Angular movement error  
-str: 0.08   # Angular -> Linear (was 0.01, rotation causes lateral slip)
-stt: 0.10   # Angular -> Angular (was 0.02, rotation odometry less reliable)
+# Angular movement error - CRITICAL FOR ROTATION
+# Pure rotation on skid-steer has EXTREME slip (all 4 wheels sliding laterally)
+str: 0.15   # Angular -> Linear (INCREASED - rotation causes severe lateral slip)
+stt: 0.25   # Angular -> Angular (INCREASED 2.5× - rotation odometry extremely unreliable)
 
 # ========== PARTICLE FILTER ==========
 # Number of particles in the filter
-# INCREASED to 500 to handle odometry distortion with sufficient hypothesis diversity
-particles: 500
+# INCREASED to 1000 for better hypothesis diversity during large angular motions
+particles: 1000
 
 # Resampling thresholds
 resampleThreshold: 0.5
@@ -78,7 +79,7 @@ minimumScore: 100
 
 # Linear and angular search range for scan matching
 linearUpdate: 0.2    # Minimum linear travel before update (meters)
-angularUpdate: 0.2   # Minimum angular travel before update (radians)
+angularUpdate: 0.05  # Minimum angular travel before update (REDUCED from 0.2 for frequent rotation updates)
 
 # Temporal update
 temporalUpdate: -1.0  # Disabled (use distance-based updates only)
