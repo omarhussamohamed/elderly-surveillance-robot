@@ -31,7 +31,7 @@
   <!-- Madgwick Filter Parameters -->
   <!-- ========================================= -->
   <arg name="madgwick_gain" default="0.1" />  <!-- Fusion gain (0.0-1.0, higher = trust gyro more) -->
-  <arg name="madgwick_zeta" default="0.015" />  <!-- Gyro bias drift correction (optimal balance) -->
+  <arg name="madgwick_zeta" default="0.05" />  <!-- Gyro bias drift correction (INCREASED for better stationary stability) -->
   <arg name="madgwick_mag_bias_x" default="-0.00004252" />  <!-- Magnetometer bias calibration -->
   <arg name="madgwick_mag_bias_y" default="0.00004791" />
   <arg name="madgwick_mag_bias_z" default="0.00002824" />

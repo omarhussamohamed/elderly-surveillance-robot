@@ -26,7 +26,7 @@ xmin: -50.0
 ymin: -50.0
 xmax: 50.0
 ymax: 50.0
-delta: 0.05  # 5cm resolution
+delta: 0.02  # 2cm resolution for sharper walls (was 0.05)
 
 # ========== LASER PARAMETERS ==========
 # Number of beams to skip in each scan (for computational efficiency)
@@ -34,7 +34,7 @@ delta: 0.05  # 5cm resolution
 throttle_scans: 1
 
 # Laser parameters
-sigma: 0.05
+sigma: 0.02  # Reduced from 0.05 for tighter scan matching and sharper walls
 kernelSize: 1
 lstep: 0.05
 astep: 0.05
@@ -58,8 +58,8 @@ stt: 0.10   # Angular -> Angular (was 0.02, rotation odometry less reliable)
 
 # ========== PARTICLE FILTER ==========
 # Number of particles in the filter
-# INCREASED from 80 to 100 for better pose hypothesis diversity with increased motion uncertainty
-particles: 100
+# INCREASED to 500 to handle odometry distortion with sufficient hypothesis diversity
+particles: 500
 
 # Resampling thresholds
 resampleThreshold: 0.5

@@ -240,12 +240,29 @@ void IRAM_ATTR isrRR() {
    // Differential drive odometry
    float v_left = (vel_fl + vel_rl) / 2.0;
    float v_right = (vel_fr + vel_rr) / 2.0;
-   current_linear = (v_left + v_right) / 2.0;
-   current_angular = (v_right - v_left) / TRACK_WIDTH;
-   // Update pose
-   odom_theta += current_angular * dt;
-   odom_x += current_linear * cos(odom_theta) * dt;
-   odom_y += current_linear * sin(odom_theta) * dt;
+   
+   // Calculate instantaneous velocities
+   float linear_vel = (v_left + v_right) / 2.0;
+   float angular_vel = (v_right - v_left) / TRACK_WIDTH;
+   
+   // Apply dead-zone threshold to eliminate stationary encoder noise
+   const float VEL_THRESHOLD = 0.001;  // 1mm/s - below this is considered stationary
+   if (fabs(linear_vel) < VEL_THRESHOLD) linear_vel = 0.0;
+   if (fabs(angular_vel) < 0.001) angular_vel = 0.0;  // 0.001 rad/s ~0.06°/s
+   
+   // Store for publishing
+   current_linear = linear_vel;
+   current_angular = angular_vel;
+   
+   // CRITICAL: Correct pose integration using MIDPOINT theta (Runge-Kutta 2nd order)
+   // This prevents systematic circular drift from one-step-ahead errors
+   float theta_old = odom_theta;
+   odom_theta += angular_vel * dt;
+   
+   // Use midpoint theta for position integration (average of old and new)
+   float theta_mid = theta_old + (angular_vel * dt / 2.0);
+   odom_x += linear_vel * cos(theta_mid) * dt;
+   odom_y += linear_vel * sin(theta_mid) * dt;
    // Normalize theta
    while (odom_theta > M_PI) odom_theta -= 2 * M_PI;
    while (odom_theta < -M_PI) odom_theta += 2 * M_PI;
