@@ -31,6 +31,8 @@ TO ENABLE: Set parameters in config/sensors_actuators.yaml and launch with senso
 import rospy
 import time
 import threading
+import subprocess
+import os
 from std_msgs.msg import Float32, Bool, Float32MultiArray
 from sensor_msgs.msg import Temperature
 
@@ -40,10 +42,28 @@ from sensor_msgs.msg import Temperature
 GPIO_AVAILABLE = False
 try:
     import Jetson.GPIO as GPIO
+    GPIO.setwarnings(False)  # Suppress warnings
     GPIO_AVAILABLE = True
 except ImportError as e:
     GPIO = None
     # Will log warning in __init__ when enable_buzzer=True
+
+def setup_gpio_permissions(pin_number):
+    """Setup GPIO pin with sudo if needed (one-time setup)."""
+    try:
+        # Try to export the pin with sudo
+        subprocess.call(['sudo', 'chmod', '666', '/sys/class/gpio/export'], 
+                       stderr=subprocess.DEVNULL)
+        subprocess.call(['sudo', 'bash', '-c', 
+                        'echo {} > /sys/class/gpio/export 2>/dev/null || true'.format(pin_number)],
+                       stderr=subprocess.DEVNULL)
+        subprocess.call(['sudo', 'chmod', '-R', '666', 
+                        '/sys/class/gpio/gpio{}'.format(pin_number)],
+                       stderr=subprocess.DEVNULL)
+        time.sleep(0.1)
+        return True
+    except Exception as e:
+        return False
 
 # I2C for gas sensor (ADS1115)
 ADS_AVAILABLE = False
@@ -150,7 +170,7 @@ class SensorsActuatorsNode:
         """Initialize gas sensor in GPIO mode (D0 pin, digital on/off only)."""
         if not GPIO_AVAILABLE:
             rospy.logwarn("Gas sensor (GPIO): Jetson.GPIO library not available")
-            rospy.logwarn("  Install: sudo pip3 install Jetson.GPIO")
+            rospy.logwarn("  Install: sudo pip install Jetson.GPIO")
             return
         
         if self.gas_sensor_gpio_pin == 0:
@@ -158,6 +178,9 @@ class SensorsActuatorsNode:
             return
         
         try:
+            # Setup GPIO permissions if needed
+            setup_gpio_permissions(self.gas_sensor_gpio_pin)
+            
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             self.gas_gpio_initialized = True
@@ -203,7 +226,7 @@ class SensorsActuatorsNode:
         """Initialize GPIO for buzzer control."""
         if not GPIO_AVAILABLE:
             rospy.logwarn("Buzzer: Jetson.GPIO library not available")
-            rospy.logwarn("  Install: sudo pip3 install Jetson.GPIO")
+            rospy.logwarn("  Install: sudo pip install Jetson.GPIO")
             return
         
         if self.buzzer_pin == 0:
@@ -211,12 +234,16 @@ class SensorsActuatorsNode:
             return
         
         try:
+            # Setup GPIO permissions if needed
+            setup_gpio_permissions(self.buzzer_pin)
+            
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.buzzer_pin, GPIO.OUT, initial=GPIO.LOW)
             self.buzzer_initialized = True
             rospy.loginfo("Buzzer initialized: GPIO pin {} (BOARD)".format(self.buzzer_pin))
         except Exception as e:
             rospy.logerr("Failed to initialize buzzer: {}".format(e))
+            rospy.logerr("  If permission denied, run: sudo usermod -a -G gpio $USER && sudo reboot")
             self.buzzer_initialized = False
     
     def _init_jetson_stats(self):
