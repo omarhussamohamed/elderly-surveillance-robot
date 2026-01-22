@@ -207,7 +207,7 @@ class SensorsActuatorsNode:
                 rospy.logwarn("Jetson stats initialized but not ready")
         except (OSError, IOError) as e:
             # Python 2.7 doesn't have PermissionError
-            if e.errno == 13:  # Permission denied
+            if hasattr(e, 'errno') and e.errno == 13:  # Permission denied
                 rospy.logerr("✗ Jetson stats failed: Permission denied. Run: sudo usermod -aG jtop $USER")
             else:
                 rospy.logerr("✗ Jetson stats failed: {}".format(e))
