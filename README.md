@@ -50,7 +50,7 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 
 ### Actuators
 - **Active Buzzer**: Alert/alarm notifications (5V, transistor-driven)
-  - Jetson Pin 12 (GPIO 18) → 1kΩ → 2N2222 Base
+  - Jetson Pin 16 (GPIO 23) → 1kΩ → 2N2222 Base
   - Buzzer driven by 5V rail via transistor switching (30-50mA)
   - Auto-shutoff after 5 seconds for safety
   - Wiring: [docs/BUZZER_WIRING.md](docs/BUZZER_WIRING.md)

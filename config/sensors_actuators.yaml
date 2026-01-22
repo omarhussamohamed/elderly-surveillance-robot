@@ -43,12 +43,12 @@ sensors_actuators_node:
   
   # ===== BUZZER =====
   # Hardware: Active buzzer module → 2N2222 transistor → Jetson GPIO
-  # Circuit: Pin 12 → 1kΩ resistor → 2N2222 Base, Emitter → GND, Collector → Buzzer (-)
+  # Circuit: Pin 16 → 1kΩ resistor → 2N2222 Base, Emitter → GND, Collector → Buzzer (-)
   # See: docs/BUZZER_WIRING.md
   
   # GPIO pin number (BOARD numbering)
-  # Pin 12 = GPIO 18 (controls transistor base)
-  buzzer_pin: 12  # Currently connected and enabled
+  # Pin 16 = GPIO 23 (controls transistor base)
+  buzzer_pin: 16  # Currently connected and enabled
   
   # ===== PUBLISHING RATE =====
   # How often to publish sensor data (Hz)

@@ -251,12 +251,12 @@ detected = (pin_state == GPIO.HIGH)
 ```
 Pin 2:  5V          ← Buzzer (+) positive terminal
 Pin 6:  GND         ← 2N2222 Emitter
-Pin 12: GPIO 18     ← 1kΩ resistor → 2N2222 Base
+Pin 16: GPIO 23     ← 1kΩ resistor → 2N2222 Base
                       Buzzer (-) → 2N2222 Collector
 ```
 
 **Configuration:**
-- **Pin**: 12 (BOARD numbering = GPIO 18)
+- **Pin**: 16 (BOARD numbering = GPIO 23)
 - **Driver Circuit**: 2N2222 NPN transistor with 1kΩ base resistor
 - **Power**: 5V, 30-50mA (switched by transistor, not GPIO direct)
 - **Safety**: Auto-shutoff after 5 seconds if no commands received
@@ -267,8 +267,8 @@ Pin 12: GPIO 18     ← 1kΩ resistor → 2N2222 Base
 
 **Control Circuit:**
 ```
-GPIO HIGH (3.3V) → 1kΩ → Base → Transistor ON → Buzzer sounds
-GPIO LOW (0V)    → No base current → Transistor OFF → Buzzer silent
+Pin 16 HIGH (3.3V) → 1kΩ → Base → Transistor ON → Buzzer sounds
+Pin 16 LOW (0V)    → No base current → Transistor OFF → Buzzer silent
 ```
 
 **Integration:**

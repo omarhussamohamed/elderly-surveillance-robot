@@ -56,7 +56,7 @@ TESTING INSTRUCTIONS (on Jetson Nano):
    b. Edit config/sensors_actuators.yaml:
       - Set enable_gas_sensor: true (after connecting ADS1115 + MQ-6)
       - Set enable_buzzer: true (after connecting buzzer)
-      - Set buzzer_pin: 12 (or your chosen GPIO pin)
+      - Set buzzer_pin: 16 (or your chosen GPIO pin, GPIO 23)
    
    c. Test I2C connection:
       $ sudo i2cdetect -y -r 1
