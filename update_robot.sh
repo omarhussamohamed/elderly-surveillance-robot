@@ -20,6 +20,22 @@ WORKSPACE_DIR="$HOME/catkin_ws"
 ROBOT_DIR="$WORKSPACE_DIR/src/elderly_bot"
 
 # ============================================
+# STEP 0: Cleanup Redundant Files (First Run)
+# ============================================
+echo -e "${BLUE}[0/8] Cleaning redundant files...${NC}"
+
+cd "$ROBOT_DIR"
+
+# Remove redundant scripts silently
+rm -f clean_rebuild.sh deploy_scripts.sh cleanup_package.sh 2>/dev/null
+rm -f scripts/fix_gpio_permissions.sh scripts/diagnose_tf_slam.sh scripts/validate_stationary_pose.sh 2>/dev/null
+rm -f scripts/*.bak scripts/*.py.bak scripts/*.old 2>/dev/null
+rm -f CLEANUP_AUDIT.md FINAL_PACKAGE_STRUCTURE.md 2>/dev/null
+
+echo "✓ Package cleaned"
+echo ""
+
+# ============================================
 # STEP 1: Environment Setup
 # ============================================
 echo -e "${BLUE}[1/8] Configuring environment...${NC}"

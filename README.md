@@ -52,9 +52,11 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 - **Active Buzzer**: Alert/alarm notifications (5V, transistor-driven)
   - Jetson Pin 16 (GPIO 23) → 1kΩ → 2N2222 Base
   - Buzzer driven by 5V rail via transistor switching (30-50mA)
-  - Auto-shutoff after 5 seconds for safety
-  - Wiring: [docs/BUZZER_WIRING.md](docs/BUZZER_WIRING.md)
-  - Currently ENABLED for testing
+  - **Continuous beeping**: Threaded pattern (0.1s ON/OFF, runs until stopped)
+  - Control: `rostopic pub /buzzer_command std_msgs/Bool "data: true/false"`
+  - Auto-activates on gas detection, stops when cleared
+  - Wiring: [HARDWARE_MAP.md](HARDWARE_MAP.md)
+  - Currently ENABLED
 
 ### Motor Drivers
 - 2× L298N dual H-bridge motor drivers
@@ -100,6 +102,31 @@ map
 - **[docs/MPU9250_JETSON_SETUP.md](docs/MPU9250_JETSON_SETUP.md)**: IMU hardware setup
 
 ## Hardware Setup
+
+### Quick Start (One Command)
+
+```bash
+# Update, configure, and launch the robot (handles everything):
+~/catkin_ws/src/elderly_bot/update_robot.sh
+```
+
+This script automatically:
+- ✅ Sets up environment (adds to ~/.bashrc)
+- ✅ Fixes Jetson stats permissions
+- ✅ Configures GPIO permissions
+- ✅ Updates code from Git
+- ✅ Builds workspace
+- ✅ Deploys scripts
+- ✅ Launches the robot
+
+### First-Time Initial Setup
+
+Only run once on a new Jetson:
+```bash
+cd ~/catkin_ws/src/elderly_bot
+chmod +x install_dependencies.sh
+./install_dependencies.sh
+```
 
 ### Connections
 - **RPLidar**: Connect to `/dev/ttyUSB0`
