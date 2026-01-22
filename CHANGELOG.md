@@ -42,10 +42,10 @@
 ### IMU System Enhancement
 
 #### MPU9250 Magnetometer Integration
-- **Added**: 3-axis magnetometer (AK8963) support
-- **Added**: Temperature sensor reading
-- **Benefit**: Absolute heading reference prevents yaw drift
-- **Topics**: `/imu/mag`, `/imu/temperature`
+- **Added**: MPU9250 IMU support (gyroscope + accelerometer only)
+- **Benefit**: Drift-free orientation via gyro calibration
+- **Topics**: `/imu/data_raw`
+- **Note**: Magnetometer DISABLED (indoor EMI from motors/PSU)
 - **Documentation**: [docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)
 
 #### Dynamic Gyroscope Calibration
@@ -56,18 +56,19 @@
 
 #### Sensor Fusion Pipeline
 - **Added**: `imu_nav.launch` - Complete IMU processing pipeline
-- **Flow**: Raw IMU → `imu_filter_madgwick` → Fused orientation
+- **Flow**: Raw IMU (gyro+accel) → `imu_filter_madgwick` → Fused orientation
 - **Topics**:
-  - Input: `/imu/data_raw`, `/imu/mag`
+  - Input: `/imu/data_raw` (gyro + accelerometer)
   - Output: `/imu/data` (with orientation quaternion)
 - **Frame**: All messages use `imu_link` frame ID
+- **Note**: Magnetometer DISABLED (indoor EMI from motors/PSU)
 
 #### Configuration Updates
 - **File**: `launch/imu_nav.launch`
-- Magnetometer fusion enabled (`use_mag: true`)
+- Magnetometer fusion DISABLED (`use_mag: false`, indoor EMI protection)
+- Gyro-dominant mode enabled (gain=0.9)
 - Gravity vector removal enabled
-- Pre-calibrated mag biases included
-- Madgwick gain tuned to 0.1 (balanced)
+- Dynamic gyro calibration on startup
 
 ### Odometry System Enhancement
 
@@ -181,12 +182,6 @@ rospy.Subscriber("/imu/data", Imu, callback)  # Raw data
 rospy.Subscriber("/imu/data", Imu, callback)  # Fused data (same topic, different source)
 # Or for raw data:
 rospy.Subscriber("/imu/data_raw", Imu, callback)
-```
-
-**3. Verify magnetometer**:
-```bash
-rostopic echo /imu/mag
-# Should show valid magnetic field readings
 ```
 
 ### From Old Odometry Setup

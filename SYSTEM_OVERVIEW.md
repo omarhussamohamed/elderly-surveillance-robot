@@ -26,7 +26,8 @@ elderly_bot/
 │   ├── costmap_common_params.yaml    # Shared costmap config
 │   ├── global_costmap.yaml           # Global planning costmap
 │   ├── local_costmap.yaml            # Local planning costmap
-│   └── patrol_goals.yaml             # Patrol waypoint definitions
+│   ├── patrol_goals.yaml             # Patrol waypoint definitions
+│   └── sensors_actuators.yaml        # Gas sensor, buzzer, Jetson stats config
 │
 ├── firmware/                         # ESP32 Arduino firmware
 │   ├── elderly_bot_esp32_wifi.ino    # Production firmware (WiFi rosserial)
@@ -49,6 +50,7 @@ elderly_bot/
 │
 ├── scripts/                          # Validation & utility scripts
 │   ├── mpu9250_node.py               # MPU9250 driver (Madgwick fusion)
+│   ├── sensors_actuators_node.py     # Gas sensor, buzzer, Jetson monitoring
 │   ├── patrol_client.py              # Patrol waypoint sequencer
 │   ├── master_validator.sh           # 4-stage system validation
 │   ├── tf_verification_complete.sh   # TF frame diagnostic
@@ -95,8 +97,15 @@ elderly_bot/
 | Sensor | Model | Specs | Connection | Rate | Topic |
 |--------|-------|-------|------------|------|-------|
 | **Lidar** | RPLidar A1 | 360°, 8m range, 5-10Hz | Jetson USB | 10Hz | `/scan` |
-| **IMU** | MPU9250 | 9-axis (gyro+accel+mag) | Jetson I2C (bus 1, addr 0x68) | 50Hz | `/imu/data` |
+| **IMU** | MPU9250 | 6-axis (gyro+accel), mag DISABLED | Jetson I2C (bus 1, addr 0x68) | 50Hz | `/imu/data` |
 | **Encoders** | Optical quadrature | 11 PPR × 90:1 × 4 edges = 3960 ticks/rev | ESP32 GPIO interrupts | 10Hz | `/wheel_odom` |
+| **Gas Sensor** | MQ-6 LPG/Propane | Analog 0-3.3V via ADS1115 ADC | Jetson I2C (addr 0x48) | 1Hz | `/gas_level`, `/gas_detected` |
+| **Jetson Stats** | jtop (jetson-stats) | Temperature & power monitoring | Native (software) | 1Hz | `/jetson_temperature`, `/jetson_power` |
+
+### Actuators
+| Actuator | Type | Connection | Control | Topic |
+|----------|------|------------|---------|-------|
+| **Active Buzzer** | Digital ON/OFF | Jetson GPIO (BOARD pin) | GPIO.HIGH/LOW | `/buzzer_command` |
 
 ### Motors & Drivetrain
 | Component | Specification | Value |
@@ -160,10 +169,20 @@ elderly_bot/
    
 3. **mpu9250_node.py** (50Hz)
    - I2C direct communication (bus 1, address 0x68)
-   - Madgwick filter for orientation fusion (zeta=0.01 bias correction)
-   - Publishes `/imu/data` (sensor_msgs/Imu) with absolute orientation
+   - Gyroscope + Accelerometer only (magnetometer DISABLED - indoor EMI)
+   - Madgwick filter for orientation fusion (zeta=0.01, gain=0.9 gyro-dominant)
+   - Publishes `/imu/data_raw` and `/imu/data` (fused orientation)
    
-4. **rosserial_python** (TCP server)
+4. **sensors_actuators_node.py** (1Hz, optional)
+   - **MQ-6 gas sensor** via ADS1115 16-bit I2C ADC (address 0x48)
+   - **Active buzzer** via Jetson GPIO (BOARD numbering)
+   - **Jetson monitoring** via jtop (temperature & power)
+   - Publishes `/gas_level`, `/gas_detected`, `/jetson_temperature`, `/jetson_power`
+   - Subscribes `/buzzer_command` (auto-shutoff after 5s timeout)
+   - Individual enable flags (default: disabled until hardware ready)
+   - Graceful degradation: runs without crashes if hardware missing
+   
+5. **rosserial_python** (TCP server)
    - WiFi bridge for ESP32 (port 11411)
    - TCP_NODELAY=1 for low-latency odometry
    - Receives `/wheel_odom`, sends `/cmd_vel`
@@ -400,6 +419,10 @@ Patrol:
 | `/map` | nav_msgs/OccupancyGrid | 0.5Hz | gmapping / map_server | Occupancy grid map (5cm cells) |
 | `/tf` | tf2_msgs/TFMessage | 50Hz | Multiple | Transform tree broadcasts |
 | `/cmd_vel` | geometry_msgs/Twist | 10Hz | move_base | Velocity commands to motors |
+| `/gas_level` | std_msgs/Float32 | 1Hz | sensors_actuators_node | Gas sensor voltage (0-3.3V, calibratable to PPM) |
+| `/gas_detected` | std_msgs/Bool | 1Hz | sensors_actuators_node | Gas detection flag (> threshold) |
+| `/jetson_temperature` | sensor_msgs/Temperature | 1Hz | sensors_actuators_node | Jetson GPU/CPU temperature (°C) |
+| `/jetson_power` | std_msgs/Float32 | 1Hz | sensors_actuators_node | Total power consumption (watts) |
 
 ### Subscribed Topics
 
@@ -409,6 +432,7 @@ Patrol:
 | `/initialpose` | PoseWithCovarianceStamped | AMCL | Set initial localization pose |
 | `/move_base_simple/goal` | PoseStamped | move_base | Single navigation goal |
 | `/move_base/goal` | move_base_msgs/MoveBaseActionGoal | move_base | Action-based navigation goal |
+| `/buzzer_command` | std_msgs/Bool | sensors_actuators_node | Buzzer control (True=ON, auto-shutoff after 5s) |
 
 ### Action Servers
 
@@ -788,7 +812,12 @@ ros-melodic-teleop-twist-keyboard (for manual control)
 
 ### Python Dependencies
 ```bash
+# Core dependencies
 pip install pyserial smbus2 numpy
+
+# Optional: Sensors & Actuators Node (install when hardware ready)
+pip3 install jetson-stats Jetson.GPIO adafruit-blinka adafruit-circuitpython-ads1x15
+# Note: jetson-stats requires system reboot after installation
 ```
 
 ### ESP32 Arduino Libraries

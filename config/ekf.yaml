@@ -64,24 +64,25 @@ odom0_queue_size: 2
 odom0_pose_rejection_threshold: 5.0
 odom0_twist_rejection_threshold: 2.0
 
-# ========== IMU DATA (from ESP32/MPU-9250) ==========
+# ========== IMU DATA (from MPU9250 via Madgwick filter) ==========
 
 # IMU input
 imu0: /imu/data
 
 # Which values to fuse from IMU
-# EMERGENCY FIX: DISABLE IMU YAW - corrupted by magnetometer interference indoors!
-# Magnetometer reads metal/electronics → Madgwick outputs garbage yaw → EKF propagates corruption
-# ONLY USE GYRO RATE (vyaw) - integrates to yaw, no absolute corruption
+# CRITICAL: Magnetometer DISABLED (indoor EMI), using gyro+accel Madgwick fusion
+# IMU provides ORIENTATION (absolute yaw from gyro integration + accel tilt correction)
+# This prevents gyro drift that would accumulate without fusion
 imu0_config: [false, false, false,  # position
-              false, false, false,  # orientation (YAW DISABLED - corrupted by mag!)
+              false, false, true,   # orientation (YAW from gyro+accel fusion)
               false, false, false,  # linear velocity
-              false, false, true,   # angular velocity (vyaw) - ONLY SOURCE for yaw now
-              false, false, false]  # linear acceleration (DISABLED to prevent drift)
+              false, false, false,  # angular velocity (NOT USED - orientation is better)
+              false, false, false]  # linear acceleration (too noisy)
 
-# Differential mode - ENABLED for angular velocity to prevent drift accumulation
-# When true, only the rate of change is integrated (prevents bias buildup)
-imu0_differential: true
+# Differential mode
+# False: Use absolute orientation from Madgwick filter (recommended)
+# True: Only integrate angular velocity changes (not needed with good orientation)
+imu0_differential: false
 
 # Relative mode
 imu0_relative: false

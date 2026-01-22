@@ -7,10 +7,9 @@
   2. imu_filter_madgwick → Fuses raw IMU + magnetometer → Publishes to /imu/data
   
   Data Flow:
-  /imu/data_raw (raw accel + gyro) ─┐
-                                     ├─> imu_filter_madgwick ─> /imu/data (fused orientation)
-  /imu/mag (magnetometer)           ─┘
-  /imu/temperature (thermal monitoring)
+  /imu/data_raw (raw accel + gyro) ─> imu_filter_madgwick ─> /imu/data (fused orientation)
+  
+  Magnetometer DISABLED: use_mag=false (indoor EMI protection)
   
   Hardware Setup:
   - MPU9250 connected to Jetson I2C bus (default: bus 1, address 0x68)
@@ -51,8 +50,7 @@
     
     <!-- Topics published:
          - /imu/data_raw (sensor_msgs/Imu) - Raw accelerometer + gyroscope
-         - /imu/mag (sensor_msgs/MagneticField) - Raw magnetometer
-         - /imu/temperature (sensor_msgs/Temperature) - Internal temperature
+         Note: Magnetometer DISABLED (use_mag=false, indoor EMI protection)
     -->
   </node>
   
@@ -68,7 +66,7 @@
     
     <!-- Input Topics -->
     <remap from="/imu/data_raw" to="/imu/data_raw" />
-    <remap from="/imu/mag" to="/imu/mag" />
+    <!-- Note: /imu/mag removed - magnetometer DISABLED (indoor EMI) -->
     
     <!-- Output Topic -->
     <remap from="/imu/data" to="/imu/data" />
@@ -123,30 +121,25 @@
   <!-- ========================================= -->
   <!--
     Topic Outputs:
-    - /imu/data_raw   → Raw IMU (no orientation)
-    - /imu/data       → Fused IMU (with orientation from Madgwick)
-    - /imu/mag        → Raw magnetometer
-    - /imu/temperature → Temperature sensor
+    - /imu/data_raw   → Raw IMU (gyro + accel, no orientation)
+    - /imu/data       → Fused IMU (with orientation from Madgwick filter)
     
     Verification Commands:
     rostopic list | grep imu
-    rostopic hz /imu/data_raw /imu/data /imu/mag
+    rostopic hz /imu/data_raw /imu/data
     rostopic echo /imu/data
     
-    Magnetometer Calibration:
-    1. roslaunch elderly_bot imu_nav.launch
-    2. Move robot in figure-8 pattern for 30 seconds
-    3. Record min/max values from /imu/mag
-    4. Calculate bias: (min + max) / 2 for each axis
-    5. Update madgwick_mag_bias_x/y/z parameters
+    IMU Calibration:
+    - Gyro auto-calibrates on startup (keep robot stationary for 2 seconds)
+    - Madgwick filter uses gyro+accel only (magnetometer DISABLED)
     
     Filter Tuning:
-    - Increase 'gain' → More responsive, less smooth (trust gyro more)
-    - Decrease 'gain' → More smooth, slower response (trust accel/mag more)
-    - Default 0.1 is good starting point
+    - Current: gain=0.9 (gyro-dominant, no magnetometer)
+    - Increase 'gain' → More responsive, trust gyro more
+    - Decrease 'gain' → More smooth, trust accel tilt correction more
     
     Common Issues:
-    - If orientation drifts: Calibrate magnetometer, check for magnetic interference
+    - If orientation drifts slowly: Normal for gyro-only mode indoors (EKF corrects it)
     - If orientation jitters: Reduce gain, check sensor mounting (vibrations)
     - If no /imu/data output: Check /imu/data_raw is publishing, verify imu_filter_madgwick package installed
   -->

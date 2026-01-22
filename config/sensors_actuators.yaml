@@ -1,0 +1,62 @@
+# Sensors and Actuators Configuration for Elderly Bot
+# ====================================================
+# This file contains parameters for the MQ-6 gas sensor, active buzzer, and Jetson monitoring.
+#
+# SAFETY: All features are DISABLED by default until hardware is connected and tested.
+# To enable a feature:
+#   1. Install required dependencies (see scripts/sensors_actuators_node.py)
+#   2. Connect and test hardware
+#   3. Set enable_xxx parameter to true
+#   4. Launch with sensors_actuators:=true
+
+sensors_actuators_node:
+  # ===== FEATURE ENABLE FLAGS =====
+  # Set to true only after hardware is connected and tested
+  
+  enable_gas_sensor: false   # MQ-6 via ADS1115 I2C ADC
+  enable_buzzer: false        # Active buzzer via GPIO
+  enable_stats: true          # Jetson temp/power (safe without hardware)
+  
+  # ===== GAS SENSOR (MQ-6 via ADS1115) =====
+  # Hardware: MQ-6 LPG/Propane sensor → ADS1115 16-bit ADC → Jetson I2C
+  
+  # Voltage threshold for gas detection (volts)
+  # MQ-6 typical: Clean air ~0.4-0.6V, gas present >1.0V
+  # Adjust based on your sensor calibration
+  gas_threshold_voltage: 1.0
+  
+  # ADS1115 I2C address (default 0x48, can be 0x49/0x4A/0x4B)
+  # Check with: i2cdetect -y -r 1
+  adc_i2c_address: 0x48
+  
+  # ADC channel for gas sensor (A0=0, A1=1, A2=2, A3=3)
+  adc_channel: 0
+  
+  # ADC gain setting (1 = ±4.096V range, suitable for 3.3V sensors)
+  # Options: 2/3=±6.144V, 1=±4.096V, 2=±2.048V, 4=±1.024V, 8=±0.512V, 16=±0.256V
+  adc_gain: 1
+  
+  # ===== BUZZER =====
+  # Hardware: Active buzzer module → Jetson GPIO pin (BOARD numbering)
+  # Common pins: 7, 11, 12, 13, 15, 16, 18, 19, 21, 22, 23, 24, 26, 29, 31, 32, 33, 35, 36, 37, 38, 40
+  
+  # GPIO pin number (BOARD numbering, 0 = disabled)
+  # Example: Pin 12 = GPIO18
+  # Check pinout: https://jetsonhacks.com/nvidia-jetson-nano-j41-header-pinout/
+  buzzer_pin: 0  # SET TO YOUR CHOSEN PIN (e.g., 12) when hardware ready
+  
+  # ===== PUBLISHING RATE =====
+  # How often to publish sensor data (Hz)
+  publish_rate: 1.0  # 1 Hz = once per second (adjust as needed)
+  
+  # ===== CALIBRATION NOTES =====
+  # Gas Sensor Calibration (PPM conversion):
+  #   1. Measure voltage in clean air (baseline)
+  #   2. Expose to known gas concentration
+  #   3. Calculate Rs/R0 ratio
+  #   4. Use MQ-6 datasheet curve to convert to PPM
+  #   5. Implement conversion in node or separate calibration node
+  #
+  # Buzzer Timeout:
+  #   Buzzer auto-shutoff after 5 seconds without command (safety feature)
+  #   This is hardcoded in the node, adjust there if needed

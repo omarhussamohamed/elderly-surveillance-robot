@@ -88,8 +88,8 @@
   <!-- that are NOT defined in the URDF. -->
   
   <!-- ========== IMU PIPELINE (Jetson with Sensor Fusion) ========== -->
-  <!-- Includes: MPU9250 raw data + imu_filter_madgwick + static TF -->
-  <!-- Publishes: /imu/data_raw, /imu/mag, /imu/temperature, /imu/data (fused) -->
+  <!-- Includes: MPU9250 raw data (gyro+accel) + imu_filter_madgwick + static TF -->
+  <!-- Publishes: /imu/data_raw, /imu/data (fused). Magnetometer DISABLED. -->
   
   <include file="$(find elderly_bot)/launch/imu_nav.launch" />
   

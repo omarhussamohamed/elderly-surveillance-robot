@@ -193,9 +193,9 @@ chmod +x mpu9250_node.py
 
 ### Topics Published
 - `/imu/data_raw` - Raw accelerometer + gyroscope (sensor_msgs/Imu)
-- `/imu/mag` - Magnetometer from internal AK8963 (sensor_msgs/MagneticField)
-- `/imu/temperature` - Internal temperature (sensor_msgs/Temperature)
 - `/imu/data` - Fused orientation from imu_filter_madgwick (sensor_msgs/Imu)
+
+**Note**: Magnetometer DISABLED - poisoned by indoor EMI (motors, PSU, battery)
 
 ### Calibration
 - **Gyroscope**: Auto-calibrates on startup (robot must be stationary for 1 second)
