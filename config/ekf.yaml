@@ -55,8 +55,10 @@ odom0_differential: true
 # Relative mode
 odom0_relative: false
 
-# Queue size
-odom0_queue_size: 10
+# Queue size - LAG FIX: Reduced from 10 to 2 to minimize buffering latency
+# Large queue causes over-smoothing (10 msgs at 10Hz = 1 second of buffered data)
+# Small queue (2 msgs = 200ms) provides adequate buffering without excessive lag
+odom0_queue_size: 2
 
 # Reject measurements that are this many standard deviations from the current state
 # (Mahalanobis distance threshold)
@@ -85,8 +87,9 @@ imu0_differential: true
 # Relative mode
 imu0_relative: false
 
-# Queue size
-imu0_queue_size: 10
+# Queue size - LAG FIX: Reduced from 10 to 2 for consistency with wheel odom
+# IMU publishes at ~100Hz, so 2-message queue = ~20ms buffer (minimal latency)
+imu0_queue_size: 2
 
 # Remove gravitational acceleration
 imu0_remove_gravitational_acceleration: true
