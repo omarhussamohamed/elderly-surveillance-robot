@@ -3,66 +3,88 @@
 ## 🚀 One-Command Setup & Launch
 
 ```bash
-~/catkin_ws/src/elderly_bot/update_robot.sh
+# Run with bash (no chmod needed)
+bash ~/catkin_ws/src/elderly_bot/update_robot.sh
 ```
 
 **This single command does everything:**
 - ✅ Cleans redundant files automatically
 - ✅ Configures environment (~/.bashrc)
-- ✅ Upgrades jetson-stats (fixes authentication & float parsing)
+- ✅ Upgrades jetson-stats with pip3 (fixes authentication & dictionary parsing)
+- ✅ Adds user to jetson_stats group
 - ✅ Fixes GPIO permissions permanently
 - ✅ Updates code from Git
 - ✅ Builds workspace
 - ✅ Deploys scripts
 - ✅ Launches the robot
 
+**No chmod required** - just run with `bash`
+
 ---
 
-## 🔊 Buzzer Control (Continuous Beeping)
+## 🔊 Buzzer Control (Manual Only - Latching)
 
-### Start Continuous Beeping
+**IMPORTANT:** Buzzer is completely decoupled from gas sensor.
+- No automatic gas alarms
+- Manual control only via /buzzer_command
+
+### Start Continuous Beeping (Indefinite)
 ```bash
 rostopic pub /buzzer_command std_msgs/Bool "data: true"
 ```
-**Buzzer will beep continuously (0.1s ON/OFF) until you send false.**
+**Buzzer will beep continuously (0.1s ON/OFF) forever until you send false.**
 
 ### Stop Beeping
 ```bash
 rostopic pub /buzzer_command std_msgs/Bool "data: false"
 ```
 
-### Monitor Buzzer Thread
+### Monitor Buzzer Status
 ```bash
-# Watch the logs to see buzzer thread activity
+# Watch the logs to see buzzer activity
 rostopic echo /rosout | grep BUZZER
 ```
 
 **Implementation Details:**
-- Thread-based continuous beeping (not momentary)
-- State-locked to prevent race conditions
-- Logs every 10 seconds to confirm it's still running
-- Automatically stops on gas sensor clear
-- Clean shutdown on node exit
+- ✅ **Manual control only** - NO automatic gas alarm
+- ✅ **Latching behavior** - stays ON indefinitely until stopped
+- ✅ Thread-based continuous beeping (not momentary)
+- ✅ State-locked to prevent race conditions
+- ✅ Logs every 10 seconds to confirm it's still running
+- ✅ Clean shutdown on node exit
+
+**Gas Sensor:**
+- Gas detection still published to /gas_detected topic
+- Gas level still published to /gas_level topic  
+- **No connection to buzzer** - you must manually activate buzzer if needed
 
 ---
 
 ## 🔧 Jetson Stats Fix
 
 The update_robot.sh automatically:
-1. ✅ Upgrades jetson-stats: `sudo -H pip install -U jetson-stats`
-2. ✅ Adds user to jtop group: `sudo usermod -aG jtop $USER`
+1. ✅ Upgrades jetson-stats: `sudo pip3 install -U jetson-stats`
+2. ✅ Adds user to jetson_stats group: `sudo usermod -aG jetson_stats $USER`
 3. ✅ Restarts jtop service: `sudo systemctl restart jtop.service`
+4. ✅ Handles nested dictionary values: `data['temp']` instead of `float(data)`
 
 **Manual fix if needed:**
 ```bash
-# Upgrade jetson-stats
-sudo -H pip install -U jetson-stats
+# Upgrade jetson-stats (use pip3, not pip)
+sudo pip3 install -U jetson-stats
 
-# Add user to group
-sudo usermod -aG jtop $USER
+# Add user to group (try both group names)
+sudo usermod -aG jetson_stats $USER
 
 # Logout and login for group membership to take effect
 logout
+```
+
+**Dictionary Parsing Fix:**
+The code now handles nested dictionaries like:
+```python
+{'CPU': {'temp': 33.5, 'online': True}}
+# Extracts: temp = 33.5
 ```
 
 ---
@@ -86,13 +108,24 @@ rostopic echo /rosout | grep -i buzzer
 
 ## 🐛 Troubleshooting
 
-### Buzzer only beeps once and stops
+### Buzzer stops after 0.1 seconds
 
-**Check 1: Is the thread still running?**
+**This should not happen anymore** - buzzer runs indefinitely.
+
+**Check:**
 ```bash
-# Look for "[BUZZER THREAD] Still beeping..." messages
-rostopic echo /rosout | grep "BUZZER THREAD"
+# Look for continuous beeping logs
+rostopic echo /rosout | grep "Still beeping"
+# Should see: "[BUZZER] Still beeping (count: X)"
+
+# Check if buzzer thread is running
+rostopic echo /rosout | grep "BUZZER START"
 ```
+
+**If it stops:**
+1. Check if a false command was sent
+2. Check for node crashes: `rosnode list | grep sensors_actuators`
+3. Restart node: `rosnode kill /sensors_actuators_node`
 
 **Check 2: Is the node running?**
 ```bash
@@ -120,15 +153,20 @@ echo 0 | sudo tee /sys/class/gpio/gpio23/value  # OFF
 
 **Solution (automatic in update_robot.sh):**
 ```bash
-sudo usermod -aG jtop $USER
+sudo pip3 install -U jetson-stats
+sudo usermod -aG jetson_stats $USER
 sudo systemctl restart jtop.service
 # Then logout and login
 ```
 
-### Float parsing error
+### Dictionary parsing error (Invalid CPU temp)
 
-**Solution:** Update_robot.sh upgrades jetson-stats automatically.
-The code now has try-except blocks for all float conversions.
+**Problem:** `Invalid CPU temp: {'temp': 33.5, 'online': True}`
+
+**Solution:** Code now handles nested dictionaries automatically.
+- Extracts `data['temp']` from dict values
+- Falls back to direct float conversion for simple values
+- Uses `.get()` to avoid KeyError crashes
 
 ---
 

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Elderly Bot - Complete System Setup, Update, and Launch Script
 # Handles environment, permissions, authentication, updates, and launches the robot
+# Run with: bash update_robot.sh (no chmod needed)
 
 set -e  # Exit on error
 
@@ -20,19 +21,25 @@ WORKSPACE_DIR="$HOME/catkin_ws"
 ROBOT_DIR="$WORKSPACE_DIR/src/elderly_bot"
 
 # ============================================
-# STEP 0: Cleanup Redundant Files (First Run)
+# STEP 0: Cleanup ALL Redundant Scripts
 # ============================================
-echo -e "${BLUE}[0/8] Cleaning redundant files...${NC}"
+echo -e "${BLUE}[0/8] Cleaning ALL redundant scripts...${NC}"
 
 cd "$ROBOT_DIR"
 
-# Remove redundant scripts silently
+# Remove ALL other scripts except update_robot.sh and install_dependencies.sh
+echo "Removing redundant scripts..."
 rm -f clean_rebuild.sh deploy_scripts.sh cleanup_package.sh 2>/dev/null
-rm -f scripts/fix_gpio_permissions.sh scripts/diagnose_tf_slam.sh scripts/validate_stationary_pose.sh 2>/dev/null
-rm -f scripts/*.bak scripts/*.py.bak scripts/*.old 2>/dev/null
-rm -f CLEANUP_AUDIT.md FINAL_PACKAGE_STRUCTURE.md 2>/dev/null
+rm -f quick_deploy.sh rebuild.sh setup.sh bootstrap.sh 2>/dev/null
+rm -f scripts/fix_*.sh scripts/diagnose_*.sh scripts/validate_*.sh scripts/test_*.sh 2>/dev/null
+rm -f scripts/*.bak scripts/*.py.bak scripts/*.old scripts/*~  2>/dev/null
+rm -f *.bak *.old *~ 2>/dev/null
 
-echo "✓ Package cleaned"
+# Remove redundant documentation
+rm -f CLEANUP_AUDIT.md FINAL_PACKAGE_STRUCTURE.md 2>/dev/null
+rm -f *FIX*.md *DEBUG*.md *TEMP*.md 2>/dev/null
+
+echo "✓ All redundant files removed"
 echo ""
 
 # ============================================
@@ -63,19 +70,19 @@ echo -e "${BLUE}[2/8] Fixing Jetson stats permissions...${NC}"
 # Upgrade jetson-stats to latest version (fixes float parsing bugs)
 if command -v jtop &> /dev/null; then
     echo "Upgrading jetson-stats to latest version..."
-    sudo -H pip install -U jetson-stats || echo "⚠ jetson-stats upgrade skipped"
+    sudo pip3 install -U jetson-stats 2>/dev/null || sudo -H pip install -U jetson-stats || echo "⚠ jetson-stats upgrade skipped"
 else
     echo "Installing jetson-stats..."
-    sudo -H pip install jetson-stats || echo "⚠ jetson-stats install skipped"
+    sudo pip3 install jetson-stats 2>/dev/null || sudo -H pip install jetson-stats || echo "⚠ jetson-stats install skipped"
 fi
 
-# Check if user is in jtop group
-if ! groups | grep -q "jtop"; then
-    echo "Adding user to jtop group..."
-    sudo usermod -aG jtop $USER
-    echo -e "${YELLOW}⚠ User added to jtop group. You may need to logout/login for this to take effect.${NC}"
+# Check if user is in jetson_stats group (try both group names)
+if ! groups | grep -qE "jtop|jetson_stats"; then
+    echo "Adding user to jetson_stats group..."
+    sudo usermod -aG jetson_stats $USER 2>/dev/null || sudo usermod -aG jtop $USER
+    echo -e "${YELLOW}⚠ User added to jetson_stats group. You may need to logout/login for this to take effect.${NC}"
 else
-    echo "✓ User already in jtop group"
+    echo "✓ User already in jetson_stats/jtop group"
 fi
 
 # Restart jtop service if running

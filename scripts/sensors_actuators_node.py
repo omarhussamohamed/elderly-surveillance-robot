@@ -84,7 +84,7 @@ class SensorsActuatorsNode:
         self.buzzer_initialized = False
         self.jtop_handle = None
         
-        # Buzzer warning pattern state
+        # Buzzer warning pattern state (MANUAL CONTROL ONLY)
         self.buzzer_lock = threading.Lock()
         self.buzzer_warning_active = False
         self.buzzer_warning_thread = None
@@ -267,7 +267,9 @@ class SensorsActuatorsNode:
                 rospy.logerr_throttle(5.0, "Buzzer error: {}".format(e))
     
     def start_buzzer_warning(self):
-        """Start buzzer warning pattern (continuous beeping until stopped)."""
+        """Start buzzer (continuous beeping until manually stopped).
+        MANUAL CONTROL ONLY - runs indefinitely until /buzzer_command false.
+        """
         if not self.buzzer_initialized:
             rospy.logwarn("Cannot start buzzer - not initialized")
             return
@@ -280,11 +282,11 @@ class SensorsActuatorsNode:
             
             # Set active flag FIRST
             self.buzzer_warning_active = True
-            rospy.loginfo("========== BUZZER START REQUESTED ==========")
+            rospy.loginfo("========== BUZZER START (MANUAL) ==========")
         
         def warning_pattern():
-            """Continuous beep pattern: 0.1s ON, 0.1s OFF, runs forever until stopped."""
-            rospy.loginfo("[BUZZER THREAD] Started - will beep continuously")
+            """Continuous beep: 0.1s ON, 0.1s OFF, runs forever until stopped."""
+            rospy.loginfo("[BUZZER] Started - manual control (indefinite)")
             beep_count = 0
             
             try:
@@ -292,7 +294,7 @@ class SensorsActuatorsNode:
                     # Check if we should stop
                     with self.buzzer_lock:
                         if not self.buzzer_warning_active:
-                            rospy.loginfo("[BUZZER THREAD] Stop flag detected, exiting...")
+                            rospy.loginfo("[BUZZER] Stop command received")
                             break
                     
                     # Beep ON
@@ -305,13 +307,13 @@ class SensorsActuatorsNode:
                     
                     beep_count += 1
                     if beep_count % 50 == 0:  # Log every 10 seconds
-                        rospy.loginfo("[BUZZER THREAD] Still beeping... (count: {})".format(beep_count))
+                        rospy.loginfo("[BUZZER] Still beeping (count: {})".format(beep_count))
                         
             except Exception as e:
-                rospy.logerr("[BUZZER THREAD] ERROR: {}".format(e))
+                rospy.logerr("[BUZZER] ERROR: {}".format(e))
             finally:
                 self.set_buzzer(False)
-                rospy.loginfo("[BUZZER THREAD] Exited (total beeps: {})".format(beep_count))
+                rospy.loginfo("[BUZZER] Stopped (total beeps: {})".format(beep_count))
         
         # Start thread
         self.buzzer_warning_thread = threading.Thread(target=warning_pattern, name="BuzzerThread")
@@ -320,8 +322,8 @@ class SensorsActuatorsNode:
         rospy.loginfo("========== BUZZER THREAD LAUNCHED ==========")
     
     def stop_buzzer_warning(self):
-        """Stop buzzer warning pattern."""
-        rospy.loginfo("========== BUZZER STOP REQUESTED ==========")
+        """Stop buzzer."""
+        rospy.loginfo("========== BUZZER STOP (MANUAL) ==========")
         
         with self.buzzer_lock:
             if not self.buzzer_warning_active:
@@ -355,7 +357,7 @@ class SensorsActuatorsNode:
             self.stop_buzzer_warning()
     
     def read_jetson_stats(self):
-        """Read Jetson temperature and power with robust error handling."""
+        """Read Jetson temperature and power with robust dictionary parsing."""
         if self.jtop_handle is None:
             return (0.0, 0.0)
         
@@ -363,7 +365,7 @@ class SensorsActuatorsNode:
             if not self.jtop_handle.ok():
                 return (0.0, 0.0)
             
-            # Read temperature - prioritize CPU thermal
+            # Read temperature - handle nested dictionaries
             temp = 0.0
             if hasattr(self.jtop_handle, 'temperature'):
                 temps = self.jtop_handle.temperature
@@ -371,22 +373,34 @@ class SensorsActuatorsNode:
                     # Try CPU first
                     if 'CPU' in temps:
                         try:
-                            temp = float(temps['CPU'])
-                        except (ValueError, TypeError):
-                            rospy.logwarn_throttle(30.0, "Invalid CPU temp: {}".format(temps['CPU']))
+                            cpu_val = temps['CPU']
+                            # Handle nested dict: {'temp': 33.5, 'online': True}
+                            if isinstance(cpu_val, dict):
+                                temp = float(cpu_val.get('temp', 0.0))
+                            else:
+                                temp = float(cpu_val)
+                        except (ValueError, TypeError) as e:
+                            rospy.logwarn_throttle(30.0, "Invalid CPU temp: {} (error: {})".format(temps['CPU'], e))
                     # Try thermal second
                     elif 'thermal' in temps:
                         try:
-                            temp = float(temps['thermal'])
-                        except (ValueError, TypeError):
-                            rospy.logwarn_throttle(30.0, "Invalid thermal temp: {}".format(temps['thermal']))
+                            thermal_val = temps['thermal']
+                            if isinstance(thermal_val, dict):
+                                temp = float(thermal_val.get('temp', 0.0))
+                            else:
+                                temp = float(thermal_val)
+                        except (ValueError, TypeError) as e:
+                            rospy.logwarn_throttle(30.0, "Invalid thermal temp: {} (error: {})".format(temps['thermal'], e))
                     # Average all as fallback
                     elif temps:
                         try:
                             valid_temps = []
-                            for v in temps.values():
+                            for k, v in temps.items():
                                 try:
-                                    valid_temps.append(float(v))
+                                    if isinstance(v, dict):
+                                        valid_temps.append(float(v.get('temp', 0.0)))
+                                    else:
+                                        valid_temps.append(float(v))
                                 except (ValueError, TypeError):
                                     pass
                             if valid_temps:
@@ -394,7 +408,7 @@ class SensorsActuatorsNode:
                         except Exception:
                             pass
             
-            # Read power - try multiple possible keys
+            # Read power - handle nested dictionaries
             power = 0.0
             if hasattr(self.jtop_handle, 'power'):
                 power_data = self.jtop_handle.power
@@ -403,10 +417,16 @@ class SensorsActuatorsNode:
                     for key in ['tot', 'total', 'ALL', 'cur']:
                         if key in power_data:
                             try:
-                                power = float(power_data[key])
+                                pwr_val = power_data[key]
+                                # Handle nested dict: {'power': 5.2, 'unit': 'mW'}
+                                if isinstance(pwr_val, dict):
+                                    power = float(pwr_val.get('power', pwr_val.get('val', 0.0)))
+                                else:
+                                    power = float(pwr_val)
                                 break
-                            except (ValueError, TypeError):
-                                rospy.logwarn_throttle(30.0, "Invalid power value for key '{}': {}".format(key, power_data[key]))
+                            except (ValueError, TypeError) as e:
+                                rospy.logwarn_throttle(30.0, "Invalid power value for key '{}': {} (error: {})".format(
+                                    key, power_data[key], e))
                 elif isinstance(power_data, (int, float)):
                     try:
                         power = float(power_data)
@@ -426,20 +446,14 @@ class SensorsActuatorsNode:
             return (0.0, 0.0)
     
     def publish_sensor_data(self):
-        """Publish sensor data and handle automatic gas alarm."""
+        """Publish sensor data (gas, temperature, power).
+        Note: Buzzer is MANUAL CONTROL ONLY - no automatic gas alarm.
+        """
         voltage, detected = self.read_gas_sensor()
         self.gas_voltage_pub.publish(Float32(data=voltage))
         self.gas_detected_pub.publish(Bool(data=detected))
         
-        # Auto-activate buzzer warning when gas detected
-        if detected and self.buzzer_initialized:
-            if not self.buzzer_warning_active:
-                rospy.logwarn("GAS DETECTED! Activating alarm")
-                self.start_buzzer_warning()
-        elif not detected and self.buzzer_warning_active:
-            rospy.loginfo("Gas cleared, stopping alarm")
-            self.stop_buzzer_warning()
-        
+        # Publish Jetson stats
         temp, power = self.read_jetson_stats()
         temp_msg = Temperature()
         temp_msg.header.stamp = rospy.Time.now()
