@@ -27,7 +27,7 @@
   
   <!-- Robot geometry parameters -->
   <param name="robot_description" 
-         command="cat $(find elderly_bot)/urdf/elderly_bot.urdf" />
+         textfile="$(find elderly_bot)/urdf/elderly_bot.urdf" />
   
   <!-- ========== ROBOT STATE PUBLISHER ========== -->
   <!-- Publishes TF transforms from URDF robot_description -->
