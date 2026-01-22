@@ -39,8 +39,11 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
   - Madgwick fusion provides orientation from gyro+accel
   - See [docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)
 - **Gas Sensor**: MQ-6 (LPG/natural gas detection)
-  - **GPIO Mode** (default): Digital D0 output → Jetson Pin 18 (GPIO 24)
-  - Binary detection: HIGH = gas detected, LOW = no gas
+  - **GPIO Mode** (default): Digital D0 output → Jetson Pin 24 (GPIO 8 BCM)
+  - Binary detection: Active-high polarity (D0 HIGH when gas detected)
+  - Software debouncing: 500ms stability requirement
+  - ✅ **Voltage**: Powered with 3.3V (safe for direct GPIO connection)
+  - Note: 3.3V operation is slightly less sensitive than 5V
   - Alternative I2C mode: A0 analog via ADS1115 ADC (requires additional hardware)
   - Wiring: [docs/GAS_SENSOR_WIRING.md](docs/GAS_SENSOR_WIRING.md)
   - Currently ENABLED for testing

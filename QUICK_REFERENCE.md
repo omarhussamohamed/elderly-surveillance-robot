@@ -54,8 +54,8 @@ rostopic echo /rosout | grep BUZZER
 - ✅ Clean shutdown on node exit
 
 **Gas Sensor:**
-- Gas detection still published to /gas_detected topic
-- Gas level still published to /gas_level topic  
+- Gas detection published to /gas_detected topic (interrupt-driven)
+- Software debounced: requires 500ms stable state
 - **No connection to buzzer** - you must manually activate buzzer if needed
 
 ---
@@ -94,7 +94,6 @@ The code now handles nested dictionaries like:
 ```bash
 # Gas sensor
 rostopic echo /gas_detected
-rostopic echo /gas_level
 
 # Jetson health
 rostopic echo /jetson_temperature

@@ -25,9 +25,31 @@ gas_sensor_mode: "gpio"  # "gpio" or "i2c"
 
 # --- GPIO MODE SETTINGS ---
 # GPIO pin for D0 digital output (BOARD numbering)
-# Default: Pin 24 (GPIO 8)
+# Physical Pin 24 = GPIO 8 (BCM)
 # See docs/GAS_SENSOR_WIRING.md for wiring diagram
 gas_sensor_gpio_pin: 24
+
+# Polarity of digital output (D0 pin)
+# Options:
+#   'active_low':  D0 LOW when gas detected (common with 5V power)
+#   'active_high': D0 HIGH when gas detected (common with 3.3V power)
+# With 3.3V power: typically active_high
+gas_polarity: "active_high"
+
+# Software stability time (seconds)
+# Pin must be stable for this duration before accepting state change
+# Prevents false alarms from threshold oscillation
+# Recommended: 0.3-0.5 seconds (matches real gas detection physics)
+gas_stability_time: 0.5
+
+# ✅ VOLTAGE CONFIGURATION (CURRENT SETUP):
+# MQ-6 module powered with 3.3V (safe for Jetson Nano GPIO)
+# D0 output: 3.3V logic (safe, no level shifter needed)
+# 
+# Note: 3.3V powered MQ-6 is:
+#   - Safe for direct GPIO connection
+#   - Slightly less sensitive than 5V operation
+#   - Typically uses active_high polarity (D0 HIGH when gas detected)
 
 # --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
 # Voltage threshold for gas detection (volts)

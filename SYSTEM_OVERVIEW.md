@@ -107,7 +107,7 @@ elderly_bot/
 | **Lidar** | RPLidar A1 | 360°, 8m range, 5-10Hz | Jetson USB | 10Hz | `/scan` |
 | **IMU** | MPU9250 | 6-axis (gyro+accel), mag DISABLED | Jetson I2C (bus 1, addr 0x68) | 50Hz | `/imu/data` |
 | **Encoders** | Optical quadrature | 11 PPR × 90:1 × 4 edges = 3960 ticks/rev | ESP32 GPIO interrupts | 10Hz | `/wheel_odom` |
-| **Gas Sensor** | MQ-6 LPG/Propane | Analog 0-3.3V via ADS1115 ADC | Jetson I2C (addr 0x48) | 1Hz | `/gas_level`, `/gas_detected` |
+| **Gas Sensor** | MQ-6 LPG/Propane | Digital D0 → GPIO (active-low) | Jetson GPIO Pin 24 (GPIO 8 BCM) | Interrupt | `/gas_detected` |
 | **Jetson Stats** | jtop (jetson-stats) | Temperature & power monitoring | Native (software) | 1Hz | `/jetson_temperature`, `/jetson_power` |
 
 ### Actuators
@@ -181,8 +181,11 @@ elderly_bot/
    - Madgwick filter for orientation fusion (zeta=0.01, gain=0.9 gyro-dominant)
    - Publishes `/imu/data_raw` and `/imu/data` (fused orientation)
    
-4. **sensors_actuators_node.py** (1Hz, optional)
-   - **MQ-6 gas sensor** via ADS1115 16-bit I2C ADC (address 0x48)
+4. **sensors_actuators_node.py** (1Hz publish, interrupt-driven detection)
+   - **MQ-6 gas sensor** via GPIO digital input (Pin 24)
+     - Interrupt-driven detection (no polling)
+     - Software debouncing (500ms stability)
+     - Publishes `/gas_detected` (Bool)
    - **Active buzzer** via Jetson GPIO (BOARD numbering)
    - **Jetson monitoring** via jtop (temperature & power)
    - Publishes `/gas_level`, `/gas_detected`, `/jetson_temperature`, `/jetson_power`
@@ -427,8 +430,7 @@ Patrol:
 | `/map` | nav_msgs/OccupancyGrid | 0.5Hz | gmapping / map_server | Occupancy grid map (5cm cells) |
 | `/tf` | tf2_msgs/TFMessage | 50Hz | Multiple | Transform tree broadcasts |
 | `/cmd_vel` | geometry_msgs/Twist | 10Hz | move_base | Velocity commands to motors |
-| `/gas_level` | std_msgs/Float32 | 1Hz | sensors_actuators_node | Gas sensor voltage (0-3.3V, calibratable to PPM) |
-| `/gas_detected` | std_msgs/Bool | 1Hz | sensors_actuators_node | Gas detection flag (> threshold) |
+| `/gas_detected` | std_msgs/Bool | Interrupt | sensors_actuators_node | Gas detection (software debounced, 500ms stability) |
 | `/jetson_temperature` | sensor_msgs/Temperature | 1Hz | sensors_actuators_node | Jetson GPU/CPU temperature (°C) |
 | `/jetson_power` | std_msgs/Float32 | 1Hz | sensors_actuators_node | Total power consumption (watts) |
 
