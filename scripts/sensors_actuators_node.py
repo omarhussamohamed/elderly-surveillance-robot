@@ -250,19 +250,19 @@ class SensorsActuatorsNode:
                 rospy.logerr_throttle(5.0, "Buzzer error: {}".format(e))
     
     def start_buzzer_warning(self):
-        """Start buzzer warning pattern (beep beep beep)."""
+        """Start buzzer warning pattern (fast beeping)."""
         if not self.buzzer_initialized:
             return
         
         self.buzzer_warning_active = True
         
         def warning_pattern():
-            """Beep pattern: 0.2s ON, 0.2s OFF, repeat."""
+            """Fast beep pattern: 0.1s ON, 0.1s OFF, repeat."""
             while self.buzzer_warning_active and not rospy.is_shutdown():
                 self.set_buzzer(True)
-                time.sleep(0.2)
+                time.sleep(0.1)
                 self.set_buzzer(False)
-                time.sleep(0.2)
+                time.sleep(0.1)
         
         if self.buzzer_warning_thread is None or not self.buzzer_warning_thread.is_alive():
             self.buzzer_warning_thread = threading.Thread(target=warning_pattern)
