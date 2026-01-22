@@ -9,8 +9,13 @@ import rospy
 import time
 import threading
 import subprocess
+import os
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
+
+# Python 2.7 compatibility
+if not hasattr(subprocess, 'DEVNULL'):
+    subprocess.DEVNULL = open(os.devnull, 'wb')
 
 # === HARDWARE IMPORTS ===
 GPIO_AVAILABLE = False
@@ -200,8 +205,12 @@ class SensorsActuatorsNode:
                 rospy.loginfo("✓ Jetson stats ready")
             else:
                 rospy.logwarn("Jetson stats initialized but not ready")
-        except PermissionError:
-            rospy.logerr("✗ Jetson stats failed: Permission denied. Run: sudo usermod -aG jtop $USER")
+        except (OSError, IOError) as e:
+            # Python 2.7 doesn't have PermissionError
+            if e.errno == 13:  # Permission denied
+                rospy.logerr("✗ Jetson stats failed: Permission denied. Run: sudo usermod -aG jtop $USER")
+            else:
+                rospy.logerr("✗ Jetson stats failed: {}".format(e))
             self.jtop_handle = None
         except Exception as e:
             rospy.logerr("✗ Jetson stats failed: {}".format(e))
