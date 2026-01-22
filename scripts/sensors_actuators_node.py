@@ -341,8 +341,15 @@ class SensorsActuatorsNode:
             rospy.logerr("  ")
             rospy.logerr("  ⚡ RISK: 5V signal may damage Jetson pin over time!")
             rospy.logerr("  ")
-            rospy.logerr("  REQUIRED FIX (choose one):") (RAW VALUES)...")
-            rospy.loginfo("  Watch these values - if LED is ON now, raw should be LOW")
+            rospy.logerr("  REQUIRED FIX (choose one):")
+            rospy.logerr("  1. Voltage divider: DO → [10kΩ] → GPIO → [22kΩ] → GND")
+            rospy.logerr("  2. Bi-directional level shifter (5V ↔ 3.3V)")
+            rospy.logerr("  3. Power MQ-6 with 3.3V (less sensitive but safe)")
+            rospy.logerr("  ")
+            rospy.logerr("  Current operation: TEMPORARY TEST ONLY - ADD PROTECTION!")
+            rospy.loginfo("="*60)
+            
+            # Wait and monitor pin for 2 seconds (RAW VALUES DEBUG)
             start_time = time.time()
             state_changes = 0
             last_check_state = initial_state
