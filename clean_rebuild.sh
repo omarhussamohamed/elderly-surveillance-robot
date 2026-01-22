@@ -37,32 +37,32 @@ source devel/setup.bash
 echo "✓ Workspace sourced"
 echo ""
 
-echo "[6/6] Verifying installed script..."
-DEVEL_SCRIPT="devel/lib/elderly_bot/sensors_actuators_node.py"
-INSTALL_SCRIPT="install/lib/elderly_bot/sensors_actuators_node.py"
+echo "[6/6] Verifying and fixing script deployment..."
+SOURCE_SCRIPT="src/elderly_bot/scripts/sensors_actuators_node.py"
+DEVEL_DIR="devel/lib/elderly_bot"
+DEVEL_SCRIPT="$DEVEL_DIR/sensors_actuators_node.py"
 
-if [ -f "$DEVEL_SCRIPT" ]; then
-    echo "✓ Script ready in devel space (default for roslaunch)"
-    echo "  Location: $(readlink -f $DEVEL_SCRIPT)"
-    
-    # Check if it's executable
-    if [ -x "$DEVEL_SCRIPT" ]; then
-        echo "✓ Script is executable"
-    else
-        echo "⚠ Making script executable..."
-        chmod +x "$DEVEL_SCRIPT"
-    fi
-elif [ -f "$INSTALL_SCRIPT" ]; then
-    echo "✓ Script ready in install space"
-    echo "  Location: $(readlink -f $INSTALL_SCRIPT)"
-else
-    echo "⚠ Script not found in expected locations"
-    echo "  Checked: $DEVEL_SCRIPT"
-    echo "  Checked: $INSTALL_SCRIPT"
-    echo ""
-    echo "  The script should still work from source:"
-    echo "  $(readlink -f src/elderly_bot/scripts/sensors_actuators_node.py)"
+# Check source script first
+if [ ! -f "$SOURCE_SCRIPT" ]; then
+    echo "✗ ERROR: Source script not found: $SOURCE_SCRIPT"
+    exit 1
 fi
+
+# Make source executable
+chmod +x "$SOURCE_SCRIPT"
+echo "✓ Source script is executable"
+
+# Create devel directory if needed
+if [ ! -d "$DEVEL_DIR" ]; then
+    mkdir -p "$DEVEL_DIR"
+    echo "✓ Created devel directory: $DEVEL_DIR"
+fi
+
+# Copy script to devel space (fallback if catkin_install_python doesn't work)
+cp "$SOURCE_SCRIPT" "$DEVEL_SCRIPT"
+chmod +x "$DEVEL_SCRIPT"
+echo "✓ Script deployed to devel space"
+echo "  Location: $(readlink -f $DEVEL_SCRIPT)"
 echo ""
 
 echo "============================================"
