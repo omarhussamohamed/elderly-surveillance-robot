@@ -224,25 +224,29 @@ class SensorsActuatorsNode:
     
     def _init_buzzer(self):
         """Initialize GPIO for buzzer control."""
+        rospy.loginfo("Attempting to initialize buzzer on pin {}...".format(self.buzzer_pin))
+        
         if not GPIO_AVAILABLE:
-            rospy.logwarn("Buzzer: Jetson.GPIO library not available")
-            rospy.logwarn("  Install: sudo pip install Jetson.GPIO")
+            rospy.logerr("Buzzer: Jetson.GPIO library not available")
+            rospy.logerr("  Install: sudo pip install Jetson.GPIO")
             return
         
         if self.buzzer_pin == 0:
-            rospy.logwarn("Buzzer: pin not configured (buzzer_pin=0)")
+            rospy.logerr("Buzzer: pin not configured (buzzer_pin=0)")
             return
         
         try:
             # Setup GPIO permissions if needed
+            rospy.loginfo("Setting up GPIO permissions for pin {}...".format(self.buzzer_pin))
             setup_gpio_permissions(self.buzzer_pin)
             
+            rospy.loginfo("Configuring GPIO mode and pin {}...".format(self.buzzer_pin))
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.buzzer_pin, GPIO.OUT, initial=GPIO.LOW)
             self.buzzer_initialized = True
-            rospy.loginfo("Buzzer initialized: GPIO pin {} (BOARD)".format(self.buzzer_pin))
+            rospy.loginfo("✓ Buzzer initialized successfully: GPIO pin {} (BOARD)".format(self.buzzer_pin))
         except Exception as e:
-            rospy.logerr("Failed to initialize buzzer: {}".format(e))
+            rospy.logerr("✗ Failed to initialize buzzer: {}".format(e))
             rospy.logerr("  If permission denied, run: sudo usermod -a -G gpio $USER && sudo reboot")
             self.buzzer_initialized = False
     
