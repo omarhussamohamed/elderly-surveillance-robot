@@ -364,12 +364,11 @@ class MPU9250Node:
             gyro_y -= self.gyro_offset[1]
             gyro_z -= self.gyro_offset[2]
             
-            # CRITICAL: Remap from MPU9250 NED to ROS ENU convention
-            # NED: X=forward, Y=right, Z=down
-            # ENU: X=forward, Y=left, Z=up
-            # Transform: X_enu=X_ned, Y_enu=-Y_ned, Z_enu=-Z_ned
-            gyro_y = -gyro_y
-            gyro_z = -gyro_z
+            # COORDINATE FRAME FIX: Keep gyro_z positive for CCW rotation
+            # Robot's IMU is mounted aligned with base_link (Z-up, right-hand rule)
+            # Positive gyro_z = counter-clockwise rotation (correct for ROS REP-103)
+            gyro_y = -gyro_y  # Y-axis may need inversion depending on mount
+            # gyro_z inversion REMOVED - was causing wrong rotation direction
             
             return gyro_x, gyro_y, gyro_z
         except Exception as e:
