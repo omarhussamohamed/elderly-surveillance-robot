@@ -740,19 +740,19 @@ class SensorsActuatorsNode:
             elapsed = current_time - self.gas_poll_start_time
             poll_rate = self.gas_poll_count / elapsed if elapsed > 0 else 0
             
+            # Debug: raw GPIO should flip with LED after voltage divider
             # CRITICAL DEBUG: Show BOTH polarity interpretations + LED reminder
-            rospy.loginfo(\"[{:.3f}] RAW: {} | {}: {} | {}: {} | PUB: {} | ** CHECK LED NOW **\".format(
+            rospy.loginfo("[{:.3f}] RAW: {} | {}: {} | {}: {} | PUB: {} | ** CHECK LED NOW **".format(
                 current_time,
                 raw_pin_str,
                 self.gas_polarity,
-                \"TRUE\" if raw_detected else \"FALSE\",
+                "TRUE" if raw_detected else "FALSE",
                 opposite_polarity,
-                \"TRUE\" if opposite_detected else \"FALSE\",
-                \"TRUE\" if published_state else \"FALSE\"))
-            elapsed = current_time - self.gas_poll_start_time
-            poll_rate = self.gas_poll_count / elapsed if elapsed > 0 else 0
+                "TRUE" if opposite_detected else "FALSE",
+                "TRUE" if published_state else "FALSE"))
             
-            # AGGRESSIVE DEBUG: Log EVERY read with full state
+            # Publish current state (from interrupt-driven cache)
+            self.gas_detected_pub.publish(Bool(data=published_state))
             rospy.loginfo("[{:.3f}] POLL #{} ({:.1f} Hz) | RAW PIN: {} | RAW DETECTED: {} | PUBLISHED: {} | MATCH: {}".format(
                 current_time,
                 self.gas_poll_count,
