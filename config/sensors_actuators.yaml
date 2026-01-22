@@ -9,59 +9,58 @@
 #   3. Set enable_xxx parameter to true
 #   4. Launch with sensors_actuators:=true
 
-sensors_actuators_node:
-  # ===== FEATURE ENABLE FLAGS =====
-  # Set to true only after hardware is connected and tested
-  
-  enable_gas_sensor: true    # MQ-6 gas sensor (GPIO or I2C mode) - ENABLED FOR TESTING
-  enable_buzzer: true         # Active buzzer via GPIO - ENABLED FOR TESTING
-  enable_stats: true          # Jetson temp/power (safe without hardware)
-  
-  # ===== GAS SENSOR (MQ-6) =====
-  # Two modes available:
-  #   - 'gpio': D0 pin → Jetson GPIO (binary detection, no ADC needed) ✓ RECOMMENDED
-  #   - 'i2c':  A0 pin → ADS1115 ADC → I2C (analog voltage, requires ADS1115)
-  
-  gas_sensor_mode: "gpio"  # "gpio" or "i2c"
-  
-  # --- GPIO MODE SETTINGS ---
-  # GPIO pin for D0 digital output (BOARD numbering)
-  # Default: Pin 18 (GPIO 24)
-  # See docs/GAS_SENSOR_WIRING.md for wiring diagram
-  gas_sensor_gpio_pin: 18
-  
-  # --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
-  # Voltage threshold for gas detection (volts)
-  # MQ-6 typical: Clean air ~0.4-0.6V, gas present >1.0V
-  gas_threshold_voltage: 1.0
-  
-  # ADS1115 I2C settings
-  adc_i2c_address: 0x48  # Check with: i2cdetect -y -r 1
-  adc_i2c_bus: 1         # I2C bus number (usually 1 on Jetson)
-  adc_channel: 0         # ADC channel (A0=0, A1=1, A2=2, A3=3)
-  adc_gain: 1            # Gain: 1=±4.096V (suitable for 0-5V sensors)
-  
-  # ===== BUZZER =====
-  # Hardware: Active buzzer module → 2N2222 transistor → Jetson GPIO
-  # Circuit: Pin 16 → 1kΩ resistor → 2N2222 Base, Emitter → GND, Collector → Buzzer (-)
-  # See: docs/BUZZER_WIRING.md
-  
-  # GPIO pin number (BOARD numbering)
-  # Pin 16 = GPIO 23 (controls transistor base)
-  buzzer_pin: 16  # Currently connected and enabled
-  
-  # ===== PUBLISHING RATE =====
-  # How often to publish sensor data (Hz)
-  publish_rate: 1.0  # 1 Hz = once per second (adjust as needed)
-  
-  # ===== CALIBRATION NOTES =====
-  # Gas Sensor Calibration (PPM conversion):
-  #   1. Measure voltage in clean air (baseline)
-  #   2. Expose to known gas concentration
-  #   3. Calculate Rs/R0 ratio
-  #   4. Use MQ-6 datasheet curve to convert to PPM
-  #   5. Implement conversion in node or separate calibration node
-  #
-  # Buzzer Timeout:
-  #   Buzzer auto-shutoff after 5 seconds without command (safety feature)
-  #   This is hardcoded in the node, adjust there if needed
+# ===== FEATURE ENABLE FLAGS =====
+# Set to true only after hardware is connected and tested
+
+enable_gas_sensor: true    # MQ-6 gas sensor (GPIO or I2C mode) - ENABLED FOR TESTING
+enable_buzzer: true         # Active buzzer via GPIO - ENABLED FOR TESTING
+enable_stats: true          # Jetson temp/power (safe without hardware)
+
+# ===== GAS SENSOR (MQ-6) =====
+# Two modes available:
+#   - 'gpio': D0 pin → Jetson GPIO (binary detection, no ADC needed) ✓ RECOMMENDED
+#   - 'i2c':  A0 pin → ADS1115 ADC → I2C (analog voltage, requires ADS1115)
+
+gas_sensor_mode: "gpio"  # "gpio" or "i2c"
+
+# --- GPIO MODE SETTINGS ---
+# GPIO pin for D0 digital output (BOARD numbering)
+# Default: Pin 18 (GPIO 24)
+# See docs/GAS_SENSOR_WIRING.md for wiring diagram
+gas_sensor_gpio_pin: 18
+
+# --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
+# Voltage threshold for gas detection (volts)
+# MQ-6 typical: Clean air ~0.4-0.6V, gas present >1.0V
+gas_threshold_voltage: 1.0
+
+# ADS1115 I2C settings
+adc_i2c_address: 0x48  # Check with: i2cdetect -y -r 1
+adc_i2c_bus: 1         # I2C bus number (usually 1 on Jetson)
+adc_channel: 0         # ADC channel (A0=0, A1=1, A2=2, A3=3)
+adc_gain: 1            # Gain: 1=±4.096V (suitable for 0-5V sensors)
+
+# ===== BUZZER =====
+# Hardware: Active buzzer module → 2N2222 transistor → Jetson GPIO
+# Circuit: Pin 16 → 1kΩ resistor → 2N2222 Base, Emitter → GND, Collector → Buzzer (-)
+# See: docs/BUZZER_WIRING.md
+
+# GPIO pin number (BOARD numbering)
+# Pin 16 = GPIO 23 (controls transistor base)
+buzzer_pin: 16  # Currently connected and enabled
+
+# ===== PUBLISHING RATE =====
+# How often to publish sensor data (Hz)
+publish_rate: 1.0  # 1 Hz = once per second (adjust as needed)
+
+# ===== CALIBRATION NOTES =====
+# Gas Sensor Calibration (PPM conversion):
+#   1. Measure voltage in clean air (baseline)
+#   2. Expose to known gas concentration
+#   3. Calculate Rs/R0 ratio
+#   4. Use MQ-6 datasheet curve to convert to PPM
+#   5. Implement conversion in node or separate calibration node
+#
+# Buzzer Timeout:
+#   Buzzer auto-shutoff after 5 seconds without command (safety feature)
+#   This is hardcoded in the node, adjust there if needed
