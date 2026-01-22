@@ -129,13 +129,13 @@ class SensorsActuatorsNode:
         rospy.loginfo("=== Sensors & Actuators Node Initialized ===")
         gas_status = 'DISABLED'
         if self.gas_gpio_initialized:
-            gas_status = f'ENABLED (GPIO mode, pin {self.gas_sensor_gpio_pin})'
+            gas_status = 'ENABLED (GPIO mode, pin {})'.format(self.gas_sensor_gpio_pin)
         elif self.i2c_bus is not None:
-            gas_status = f'ENABLED (I2C mode, 0x{self.adc_i2c_address:02X})'
-        rospy.loginfo(f"  Gas sensor (MQ-6): {gas_status}")
-        rospy.loginfo(f"  Buzzer: {'ENABLED' if self.buzzer_initialized else 'DISABLED'}")
-        rospy.loginfo(f"  Jetson stats: {'ENABLED' if self.jtop_handle is not None else 'DISABLED'}")
-        rospy.loginfo(f"  Publish rate: {self.publish_rate} Hz")
+            gas_status = 'ENABLED (I2C mode, 0x{:02X})'.format(self.adc_i2c_address)
+        rospy.loginfo("  Gas sensor (MQ-6): {}".format(gas_status))
+        rospy.loginfo("  Buzzer: {}".format('ENABLED' if self.buzzer_initialized else 'DISABLED'))
+        rospy.loginfo("  Jetson stats: {}".format('ENABLED' if self.jtop_handle is not None else 'DISABLED'))
+        rospy.loginfo("  Publish rate: {} Hz".format(self.publish_rate))
     
     def _init_gas_sensor(self):
         """Initialize gas sensor (GPIO or I2C mode)."""
@@ -144,7 +144,7 @@ class SensorsActuatorsNode:
         elif self.gas_sensor_mode == 'i2c':
             self._init_gas_sensor_i2c()
         else:
-            rospy.logerr(f"Invalid gas_sensor_mode: {self.gas_sensor_mode}. Use 'gpio' or 'i2c'")
+            rospy.logerr("Invalid gas_sensor_mode: {}. Use 'gpio' or 'i2c'".format(self.gas_sensor_mode))
     
     def _init_gas_sensor_gpio(self):
         """Initialize gas sensor in GPIO mode (D0 pin, digital on/off only)."""
@@ -161,9 +161,9 @@ class SensorsActuatorsNode:
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             self.gas_gpio_initialized = True
-            rospy.loginfo(f"Gas sensor initialized: GPIO mode, pin {self.gas_sensor_gpio_pin} (BOARD)")
+            rospy.loginfo("Gas sensor initialized: GPIO mode, pin {} (BOARD)".format(self.gas_sensor_gpio_pin))
         except Exception as e:
-            rospy.logerr(f"Failed to initialize gas sensor GPIO: {e}")
+            rospy.logerr("Failed to initialize gas sensor GPIO: {}".format(e))
             self.gas_gpio_initialized = False
     
     def _init_gas_sensor_i2c(self):
@@ -187,11 +187,11 @@ class SensorsActuatorsNode:
             config_bytes = [(config >> 8) & 0xFF, config & 0xFF]
             self.i2c_bus.write_i2c_block_data(self.adc_i2c_address, self.ADS1115_REG_CONFIG, config_bytes)
             
-            rospy.loginfo(f"Gas sensor initialized: I2C mode, bus {self.adc_i2c_bus}, addr 0x{self.adc_i2c_address:02X}")
+            rospy.loginfo("Gas sensor initialized: I2C mode, bus {}, addr 0x{:02X}".format(self.adc_i2c_bus, self.adc_i2c_address))
             
         except Exception as e:
-            rospy.logerr(f"Failed to initialize gas sensor I2C: {e}")
-            rospy.logerr(f"  Check I2C: sudo i2cdetect -y -r {self.adc_i2c_bus}")
+            rospy.logerr("Failed to initialize gas sensor I2C: {}".format(e))
+            rospy.logerr("  Check I2C: sudo i2cdetect -y -r {}".format(self.adc_i2c_bus))
             if self.i2c_bus is not None:
                 try:
                     self.i2c_bus.close()
@@ -214,9 +214,9 @@ class SensorsActuatorsNode:
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.buzzer_pin, GPIO.OUT, initial=GPIO.LOW)
             self.buzzer_initialized = True
-            rospy.loginfo(f"Buzzer initialized: GPIO pin {self.buzzer_pin} (BOARD)")
+            rospy.loginfo("Buzzer initialized: GPIO pin {} (BOARD)".format(self.buzzer_pin))
         except Exception as e:
-            rospy.logerr(f"Failed to initialize buzzer: {e}")
+            rospy.logerr("Failed to initialize buzzer: {}".format(e))
             self.buzzer_initialized = False
     
     def _init_jetson_stats(self):
@@ -231,7 +231,7 @@ class SensorsActuatorsNode:
             self.jtop_handle.start()
             rospy.loginfo("Jetson stats initialized")
         except Exception as e:
-            rospy.logerr(f"Failed to initialize Jetson stats: {e}")
+            rospy.logerr("Failed to initialize Jetson stats: {}".format(e))
             rospy.logerr("  Did you reboot after installing jetson-stats?")
             self.jtop_handle = None
     
@@ -263,7 +263,7 @@ class SensorsActuatorsNode:
             detected = (pin_state == GPIO.HIGH)
             return (0.0, detected)
         except Exception as e:
-            rospy.logwarn_throttle(10.0, f"Gas sensor GPIO read error: {e}")
+            rospy.logwarn_throttle(10.0, "Gas sensor GPIO read error: {}".format(e))
             return (0.0, False)
     
     def read_gas_sensor_i2c(self):
@@ -301,7 +301,7 @@ class SensorsActuatorsNode:
             return (voltage, detected)
             
         except Exception as e:
-            rospy.logwarn_throttle(10.0, f"Gas sensor I2C read error: {e}")
+            rospy.logwarn_throttle(10.0, "Gas sensor I2C read error: {}".format(e))
             return (0.0, False)
     
     def set_buzzer(self, state):
@@ -316,7 +316,7 @@ class SensorsActuatorsNode:
             try:
                 GPIO.output(self.buzzer_pin, GPIO.HIGH if state else GPIO.LOW)
             except Exception as e:
-                rospy.logerr_throttle(5.0, f"Buzzer control error: {e}")
+                rospy.logerr_throttle(5.0, "Buzzer control error: {}".format(e))
     
     def buzzer_command_callback(self, msg):
         """
@@ -345,7 +345,7 @@ class SensorsActuatorsNode:
         elapsed = rospy.get_time() - self.last_buzzer_command_time
         if elapsed > self.buzzer_timeout_seconds:
             self.set_buzzer(False)
-            rospy.logwarn_throttle(10.0, f"Buzzer auto-shutoff (no command for {elapsed:.1f}s)")
+            rospy.logwarn_throttle(10.0, "Buzzer auto-shutoff (no command for {:.1f}s)".format(elapsed))
             self.last_buzzer_command_time = 0.0  # Reset
     
     def read_jetson_stats(self):
@@ -370,7 +370,7 @@ class SensorsActuatorsNode:
             return (avg_temp, power)
             
         except Exception as e:
-            rospy.logwarn_throttle(10.0, f"Jetson stats read error: {e}")
+            rospy.logwarn_throttle(10.0, "Jetson stats read error: {}".format(e))
             return (0.0, 0.0)
     
     def publish_sensor_data(self):
