@@ -106,14 +106,18 @@ lasamplestep: 0.005
 
 # ========== SCAN MATCHING ==========
 # Minimum score for accepting a scan match (balanced for reliable matching)
-# STABILITY FIX: Reduced from 100 to 50 to accept plain wall scans (low-feature environments)
-# With corrected odometry (midpoint integration + IMU vyaw fusion), false matches are minimal
-minimumScore: 50
+# GHOSTING FIX: Increased from 50 to 100 to REJECT false loop closures in small rooms
+# Small rectangular rooms have repetitive features (4 identical walls + corners)
+# Low minimumScore causes false matches → pose jumps → wall duplication
+# Trade-off: May reject valid scans in very plain areas, but prevents catastrophic ghosting
+minimumScore: 100
 
 # Linear and angular search range for scan matching
-# STABILITY FIX: Reduced from 0.2m to 0.1m for 2× faster map updates during linear motion
-linearUpdate: 0.1    # Minimum linear travel before update (10cm - responsive mapping)
-angularUpdate: 0.05  # Minimum angular travel before update (2.9° - frequent rotation updates)
+# GHOSTING FIX: Reduced linearUpdate to 0.05m to UPDATE MORE FREQUENTLY
+# More frequent updates = less pose uncertainty = smaller search space = prevents false matches
+# At 0.1m/s speed: updates every 0.5sec (was 1.0sec at 0.1m)
+linearUpdate: 0.05   # Update every 5cm (DOUBLED update frequency to prevent drift accumulation)
+angularUpdate: 0.05  # Update every 2.9° rotation (unchanged)
 
 # Temporal update
 # STABILITY FIX: Enabled with 1.0 sec as safety fallback for edge cases (slow spin, vibration)

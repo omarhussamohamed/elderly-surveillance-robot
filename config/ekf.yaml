@@ -27,6 +27,8 @@ odom_frame: odom
 base_link_frame: base_footprint
 
 # World frame (same as odom for local navigation)
+# CRITICAL FIX: Keep as 'odom' but ensure wheel_odom publishes to DIFFERENT frame
+# ESP32 should publish with frame_id='wheel_odom_frame', not 'odom'
 world_frame: odom
 
 # ========== WHEEL ODOMETRY (from ESP32) ==========
@@ -45,7 +47,10 @@ odom0_config: [true,  true,  false,  # position (x, y, z)
                false, false, false]  # linear acceleration (ax, ay, az)
 
 # Differential mode (integrates velocities to get pose)
-odom0_differential: false
+# GHOSTING FIX: Enable differential mode to handle odometry jumps/resets
+# When true, EKF only integrates velocity changes, ignoring absolute pose jumps
+# This prevents WiFi lag spikes from causing map teleportation
+odom0_differential: true
 
 # Relative mode
 odom0_relative: false
