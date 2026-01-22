@@ -39,18 +39,22 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
   - Madgwick fusion provides orientation from gyro+accel
   - See [docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)
 - **Gas Sensor**: MQ-6 (LPG/natural gas detection)
-  - Analog signal via ADS1115 16-bit I2C ADC (bus 1, address 0x48)
-  - Threshold-based detection with voltage reporting
-  - Optional: disabled by default (enable_gas_sensor parameter)
+  - **GPIO Mode** (default): Digital D0 output → Jetson Pin 18 (GPIO 24)
+  - Binary detection: HIGH = gas detected, LOW = no gas
+  - Alternative I2C mode: A0 analog via ADS1115 ADC (requires additional hardware)
+  - Wiring: [docs/GAS_SENSOR_WIRING.md](docs/GAS_SENSOR_WIRING.md)
+  - Currently ENABLED for testing
 - **Jetson Monitoring**: System temperature and power consumption
   - Uses jetson-stats (jtop) library
   - Real-time hardware health monitoring
 
 ### Actuators
-- **Active Buzzer**: Alert/alarm notifications
-  - Connected to Jetson GPIO (BOARD numbering)
+- **Active Buzzer**: Alert/alarm notifications (5V, transistor-driven)
+  - Jetson Pin 12 (GPIO 18) → 1kΩ → 2N2222 Base
+  - Buzzer driven by 5V rail via transistor switching (30-50mA)
   - Auto-shutoff after 5 seconds for safety
-  - Optional: disabled by default (enable_buzzer parameter)
+  - Wiring: [docs/BUZZER_WIRING.md](docs/BUZZER_WIRING.md)
+  - Currently ENABLED for testing
 
 ### Motor Drivers
 - 2× L298N dual H-bridge motor drivers

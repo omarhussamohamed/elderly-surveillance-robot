@@ -13,37 +13,42 @@ sensors_actuators_node:
   # ===== FEATURE ENABLE FLAGS =====
   # Set to true only after hardware is connected and tested
   
-  enable_gas_sensor: false   # MQ-6 via ADS1115 I2C ADC
-  enable_buzzer: false        # Active buzzer via GPIO
+  enable_gas_sensor: true    # MQ-6 gas sensor (GPIO or I2C mode) - ENABLED FOR TESTING
+  enable_buzzer: true         # Active buzzer via GPIO - ENABLED FOR TESTING
   enable_stats: true          # Jetson temp/power (safe without hardware)
   
-  # ===== GAS SENSOR (MQ-6 via ADS1115) =====
-  # Hardware: MQ-6 LPG/Propane sensor → ADS1115 16-bit ADC → Jetson I2C
+  # ===== GAS SENSOR (MQ-6) =====
+  # Two modes available:
+  #   - 'gpio': D0 pin → Jetson GPIO (binary detection, no ADC needed) ✓ RECOMMENDED
+  #   - 'i2c':  A0 pin → ADS1115 ADC → I2C (analog voltage, requires ADS1115)
   
+  gas_sensor_mode: "gpio"  # "gpio" or "i2c"
+  
+  # --- GPIO MODE SETTINGS ---
+  # GPIO pin for D0 digital output (BOARD numbering)
+  # Default: Pin 18 (GPIO 24)
+  # See docs/GAS_SENSOR_WIRING.md for wiring diagram
+  gas_sensor_gpio_pin: 18
+  
+  # --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
   # Voltage threshold for gas detection (volts)
   # MQ-6 typical: Clean air ~0.4-0.6V, gas present >1.0V
-  # Adjust based on your sensor calibration
   gas_threshold_voltage: 1.0
   
-  # ADS1115 I2C address (default 0x48, can be 0x49/0x4A/0x4B)
-  # Check with: i2cdetect -y -r 1
-  adc_i2c_address: 0x48
-  
-  # ADC channel for gas sensor (A0=0, A1=1, A2=2, A3=3)
-  adc_channel: 0
-  
-  # ADC gain setting (1 = ±4.096V range, suitable for 3.3V sensors)
-  # Options: 2/3=±6.144V, 1=±4.096V, 2=±2.048V, 4=±1.024V, 8=±0.512V, 16=±0.256V
-  adc_gain: 1
+  # ADS1115 I2C settings
+  adc_i2c_address: 0x48  # Check with: i2cdetect -y -r 1
+  adc_i2c_bus: 1         # I2C bus number (usually 1 on Jetson)
+  adc_channel: 0         # ADC channel (A0=0, A1=1, A2=2, A3=3)
+  adc_gain: 1            # Gain: 1=±4.096V (suitable for 0-5V sensors)
   
   # ===== BUZZER =====
-  # Hardware: Active buzzer module → Jetson GPIO pin (BOARD numbering)
-  # Common pins: 7, 11, 12, 13, 15, 16, 18, 19, 21, 22, 23, 24, 26, 29, 31, 32, 33, 35, 36, 37, 38, 40
+  # Hardware: Active buzzer module → 2N2222 transistor → Jetson GPIO
+  # Circuit: Pin 12 → 1kΩ resistor → 2N2222 Base, Emitter → GND, Collector → Buzzer (-)
+  # See: docs/BUZZER_WIRING.md
   
-  # GPIO pin number (BOARD numbering, 0 = disabled)
-  # Example: Pin 12 = GPIO18
-  # Check pinout: https://jetsonhacks.com/nvidia-jetson-nano-j41-header-pinout/
-  buzzer_pin: 0  # SET TO YOUR CHOSEN PIN (e.g., 12) when hardware ready
+  # GPIO pin number (BOARD numbering)
+  # Pin 12 = GPIO 18 (controls transistor base)
+  buzzer_pin: 12  # Currently connected and enabled
   
   # ===== PUBLISHING RATE =====
   # How often to publish sensor data (Hz)

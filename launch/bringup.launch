@@ -106,10 +106,10 @@
   
   <!-- ========== OPTIONAL: SENSORS & ACTUATORS ========== -->
   <!-- Gas sensor (MQ-6), buzzer, Jetson monitoring -->
-  <!-- Enable with: roslaunch elderly_bot bringup.launch enable_sensors:=true -->
+  <!-- Enabled by default. Disable with: enable_sensors:=false -->
   <!-- Configure in: config/sensors_actuators.yaml -->
   
-  <arg name="enable_sensors" default="false" />
+  <arg name="enable_sensors" default="true" />
   
   <group if="$(arg enable_sensors)">
     <node name="sensors_actuators_node" 

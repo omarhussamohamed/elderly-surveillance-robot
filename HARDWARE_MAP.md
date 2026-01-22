@@ -87,7 +87,7 @@ This document contains the **exact hardware configuration** extracted from `elde
 - **RL Encoder**: `INPUT_PULLUP` (internal pullups)
 - **RR Encoder**: `INPUT_PULLUP` (internal pullups)
 
-## Sensors/Analog Input
+## Sensors/Analog Input (ESP32)
 
 - **Differential Input Setup**:
   - **VP Pin (ADC1_CH0)**: `36`
@@ -213,3 +213,78 @@ gyro_z = -gyro_z
 ```
 
 **Result**: URDF uses identity rotation (rpy="0 0 0"), axes match ROS ENU standard
+---
+
+## Sensors/Actuators on Jetson Nano GPIO
+
+### MQ-6 Gas Sensor (GPIO Mode)
+
+**Hardware Wiring (Jetson J41 Header):**
+```
+Pin 2:  5V          ← MQ-6 VCC
+Pin 6:  GND         ← MQ-6 GND
+Pin 18: GPIO 24     ← MQ-6 D0 (digital output)
+```
+
+**Configuration:**
+- **Mode**: GPIO (binary detection, no ADC required)
+- **Pin**: 18 (BOARD numbering = GPIO 24)
+- **Detection**: Digital HIGH = gas detected, LOW = no gas
+- **Sensitivity**: Adjustable via on-board potentiometer
+- **Alternative Mode**: I2C via ADS1115 ADC for analog voltage readings (optional)
+- **Wiring Guide**: [docs/GAS_SENSOR_WIRING.md](docs/GAS_SENSOR_WIRING.md)
+
+**Topics Published:**
+- `/gas_level` (std_msgs/Float32) - Voltage level (0.0 in GPIO mode)
+- `/gas_detected` (std_msgs/Bool) - Gas detection status
+
+**Detection Logic:**
+```python
+# GPIO mode: digital on/off only
+pin_state = GPIO.input(18)  # Read Pin 18
+detected = (pin_state == GPIO.HIGH)
+```
+
+### Active Buzzer (Transistor-Driven)
+
+**Hardware Wiring (Jetson J41 Header):**
+```
+Pin 2:  5V          ← Buzzer (+) positive terminal
+Pin 6:  GND         ← 2N2222 Emitter
+Pin 12: GPIO 18     ← 1kΩ resistor → 2N2222 Base
+                      Buzzer (-) → 2N2222 Collector
+```
+
+**Configuration:**
+- **Pin**: 12 (BOARD numbering = GPIO 18)
+- **Driver Circuit**: 2N2222 NPN transistor with 1kΩ base resistor
+- **Power**: 5V, 30-50mA (switched by transistor, not GPIO direct)
+- **Safety**: Auto-shutoff after 5 seconds if no commands received
+- **Wiring Guide**: [docs/BUZZER_WIRING.md](docs/BUZZER_WIRING.md)
+
+**Topic Subscribed:**
+- `/buzzer_command` (std_msgs/Bool) - true = ON, false = OFF
+
+**Control Circuit:**
+```
+GPIO HIGH (3.3V) → 1kΩ → Base → Transistor ON → Buzzer sounds
+GPIO LOW (0V)    → No base current → Transistor OFF → Buzzer silent
+```
+
+**Integration:**
+- Buzzer automatically activates when gas sensor detects gas
+- Manual control available via `/buzzer_command` topic
+- Thread-safe operation with mutex-protected GPIO access
+
+### Jetson Stats Monitoring
+
+**Software Monitoring:**
+- **Library**: jetson-stats (jtop)
+- **Metrics**: CPU temperature, GPU temperature, power consumption
+- **Topics Published**:
+  - `/jetson/temperature` (std_msgs/Float32) - CPU temp in °C
+  - `/jetson/power` (std_msgs/Float32) - Power consumption in watts
+
+**Safety Thresholds:**
+- Temperature warning: >70°C
+- Power monitoring: Real-time system load tracking

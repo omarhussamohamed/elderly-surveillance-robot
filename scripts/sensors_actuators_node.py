@@ -2,7 +2,7 @@
 """
 Sensors and Actuators Node for Elderly Bot
 ===========================================
-Handles MQ-6 gas sensor (via I2C ADC), active buzzer (GPIO), and Jetson monitoring.
+Handles MQ-6 gas sensor (GPIO or I2C ADC), active buzzer (GPIO), and Jetson monitoring.
 
 SAFETY FEATURES:
 - Runs without crashing even if hardware is missing or libraries fail to import
@@ -13,13 +13,16 @@ SAFETY FEATURES:
 - Extensive error handling with clear log messages
 
 HARDWARE:
-- MQ-6 Gas Sensor: Analog output → ADS1115 I2C ADC (16-bit, 0x48) → Channel A0
+- MQ-6 Gas Sensor: Two modes:
+  - GPIO mode: D0 pin → Jetson GPIO (digital on/off only)
+  - I2C mode: A0 pin → ADS1115 ADC → I2C (full voltage reading)
 - Active Buzzer: Digital output → Jetson GPIO pin (BOARD numbering)
 - Jetson Stats: jtop library for temperature/power monitoring
 
 DEPENDENCIES (install when hardware ready):
   sudo apt install python3-pip
-  pip3 install jetson-stats Jetson.GPIO smbus2
+  pip3 install jetson-stats Jetson.GPIO
+  pip3 install smbus2  # Only needed for I2C mode
   
 TO ENABLE: Set parameters in config/sensors_actuators.yaml and launch with sensors_actuators:=true
 """
@@ -63,7 +66,7 @@ except ImportError as e:
 class SensorsActuatorsNode:
     """
     ROS node that manages:
-    1. Gas sensor reading (MQ-6 via ADS1115 I2C ADC)
+    1. Gas sensor reading (MQ-6 via GPIO or ADS1115 I2C ADC)
     2. Buzzer control (GPIO digital output with safety timeout)
     3. Jetson monitoring (temperature, power via jtop)
     
@@ -79,6 +82,8 @@ class SensorsActuatorsNode:
         self.enable_buzzer = rospy.get_param('~enable_buzzer', False)
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
+        self.gas_sensor_mode = rospy.get_param('~gas_sensor_mode', 'gpio')  # 'gpio' or 'i2c'
+        self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)  # BOARD numbering
         self.gas_threshold_voltage = rospy.get_param('~gas_threshold_voltage', 1.0)
         self.buzzer_pin = rospy.get_param('~buzzer_pin', 0)  # BOARD numbering
         self.adc_i2c_address = rospy.get_param('~adc_i2c_address', 0x48)
@@ -86,7 +91,8 @@ class SensorsActuatorsNode:
         self.publish_rate = rospy.get_param('~publish_rate', 1.0)
         
         # === HARDWARE STATE ===
-        self.i2c_bus = None  # smbus2.SMBus instance
+        self.i2c_bus = None  # smbus2.SMBus instance (I2C mode only)
+        self.gas_gpio_initialized = False  # GPIO mode only
         self.buzzer_initialized = False
         self.jtop_handle = None
         
@@ -95,7 +101,7 @@ class SensorsActuatorsNode:
         self.last_buzzer_command_time = 0.0
         self.buzzer_timeout_seconds = 5.0
         
-        # ADS1115 registers
+        # ADS1115 registers (I2C mode only)
         self.ADS1115_REG_CONVERSION = 0x00
         self.ADS1115_REG_CONFIG = 0x01
         
@@ -120,15 +126,49 @@ class SensorsActuatorsNode:
         rospy.Subscriber('/buzzer_command', Bool, self.buzzer_command_callback)
         
         rospy.loginfo("=== Sensors & Actuators Node Initialized ===")
-        rospy.loginfo(f"  Gas sensor (MQ-6): {'ENABLED' if self.i2c_bus is not None else 'DISABLED'}")
+        gas_status = 'DISABLED'
+        if self.gas_gpio_initialized:
+            gas_status = f'ENABLED (GPIO mode, pin {self.gas_sensor_gpio_pin})'
+        elif self.i2c_bus is not None:
+            gas_status = f'ENABLED (I2C mode, 0x{self.adc_i2c_address:02X})'
+        rospy.loginfo(f"  Gas sensor (MQ-6): {gas_status}")
         rospy.loginfo(f"  Buzzer: {'ENABLED' if self.buzzer_initialized else 'DISABLED'}")
         rospy.loginfo(f"  Jetson stats: {'ENABLED' if self.jtop_handle is not None else 'DISABLED'}")
         rospy.loginfo(f"  Publish rate: {self.publish_rate} Hz")
     
     def _init_gas_sensor(self):
-        """Initialize ADS1115 ADC via I2C for gas sensor."""
+        """Initialize gas sensor (GPIO or I2C mode)."""
+        if self.gas_sensor_mode == 'gpio':
+            self._init_gas_sensor_gpio()
+        elif self.gas_sensor_mode == 'i2c':
+            self._init_gas_sensor_i2c()
+        else:
+            rospy.logerr(f"Invalid gas_sensor_mode: {self.gas_sensor_mode}. Use 'gpio' or 'i2c'")
+    
+    def _init_gas_sensor_gpio(self):
+        """Initialize gas sensor in GPIO mode (D0 pin, digital on/off only)."""
+        if not GPIO_AVAILABLE:
+            rospy.logwarn("Gas sensor (GPIO): Jetson.GPIO library not available")
+            rospy.logwarn("  Install: sudo pip3 install Jetson.GPIO")
+            return
+        
+        if self.gas_sensor_gpio_pin == 0:
+            rospy.logwarn("Gas sensor (GPIO): pin not configured (gas_sensor_gpio_pin=0)")
+            return
+        
+        try:
+            GPIO.setmode(GPIO.BOARD)
+            GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
+            self.gas_gpio_initialized = True
+            rospy.loginfo(f"Gas sensor initialized: GPIO mode, pin {self.gas_sensor_gpio_pin} (BOARD)")
+        except Exception as e:
+            rospy.logerr(f"Failed to initialize gas sensor GPIO: {e}")
+            self.gas_gpio_initialized = False
+    
+    def _init_gas_sensor_i2c(self):
+        """Initialize gas sensor in I2C mode (A0 pin via ADS1115, full voltage reading)."""
         if not ADS_AVAILABLE:
-            rospy.logwarn("Gas sensor: smbus2 library not available")
+            rospy.logwarn("Gas sensor (I2C): smbus2 library not available")
             rospy.logwarn("  Install: sudo pip3 install smbus2")
             return
         
@@ -146,10 +186,10 @@ class SensorsActuatorsNode:
             config_bytes = [(config >> 8) & 0xFF, config & 0xFF]
             self.i2c_bus.write_i2c_block_data(self.adc_i2c_address, self.ADS1115_REG_CONFIG, config_bytes)
             
-            rospy.loginfo(f"Gas sensor initialized: I2C bus {self.adc_i2c_bus}, addr 0x{self.adc_i2c_address:02X}")
+            rospy.loginfo(f"Gas sensor initialized: I2C mode, bus {self.adc_i2c_bus}, addr 0x{self.adc_i2c_address:02X}")
             
         except Exception as e:
-            rospy.logerr(f"Failed to initialize gas sensor: {e}")
+            rospy.logerr(f"Failed to initialize gas sensor I2C: {e}")
             rospy.logerr(f"  Check I2C: sudo i2cdetect -y -r {self.adc_i2c_bus}")
             if self.i2c_bus is not None:
                 try:
@@ -196,8 +236,39 @@ class SensorsActuatorsNode:
     
     def read_gas_sensor(self):
         """
-        Read gas sensor voltage from ADS1115.
+        Read gas sensor (GPIO or I2C mode).
         Returns: (voltage, detected) tuple. Safe defaults (0.0, False) if hardware unavailable.
+        Note: GPIO mode always returns voltage=0.0, only detected boolean is meaningful.
+        """
+        if self.gas_sensor_mode == 'gpio':
+            return self.read_gas_sensor_gpio()
+        elif self.gas_sensor_mode == 'i2c':
+            return self.read_gas_sensor_i2c()
+        else:
+            return (0.0, False)
+    
+    def read_gas_sensor_gpio(self):
+        """
+        Read gas sensor in GPIO mode (D0 pin).
+        Returns: (0.0, detected) tuple. Voltage always 0.0 in GPIO mode.
+        """
+        if not self.gas_gpio_initialized:
+            return (0.0, False)
+        
+        try:
+            # Read digital pin state (HIGH=gas detected, LOW=no gas)
+            # Note: Some modules may be active-low, adjust if needed
+            pin_state = GPIO.input(self.gas_sensor_gpio_pin)
+            detected = (pin_state == GPIO.HIGH)
+            return (0.0, detected)
+        except Exception as e:
+            rospy.logwarn_throttle(10.0, f"Gas sensor GPIO read error: {e}")
+            return (0.0, False)
+    
+    def read_gas_sensor_i2c(self):
+        """
+        Read gas sensor in I2C mode (A0 pin via ADS1115).
+        Returns: (voltage, detected) tuple with actual voltage reading.
         """
         if self.i2c_bus is None:
             return (0.0, False)
@@ -229,7 +300,7 @@ class SensorsActuatorsNode:
             return (voltage, detected)
             
         except Exception as e:
-            rospy.logwarn_throttle(10.0, f"Gas sensor read error: {e}")
+            rospy.logwarn_throttle(10.0, f"Gas sensor I2C read error: {e}")
             return (0.0, False)
     
     def set_buzzer(self, state):
