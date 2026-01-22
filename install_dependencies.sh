@@ -1,282 +1,214 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ###############################################################################
-# Elderly Bot Dependency Installation Script
-# 
-# This script installs all required ROS packages and dependencies for the
-# Elderly Bot autonomous monitoring robot.
+# FAST FIX - Elderly Bot Quick Update/Fix Script
+# Optimized for <30 second runtime (typically <15s when clean)
 #
-# Target Platform: Ubuntu 18.04 with ROS Melodic
-# Target Hardware: Jetson Nano
+# Target: Ubuntu 18.04, ROS Melodic, Jetson Nano
+# Safe to run multiple times (idempotent)
 #
 # Usage:
-#   chmod +x install_dependencies.sh
-#   ./install_dependencies.sh
+#   ./install_dependencies.sh              # Fast mode (default)
+#   ./install_dependencies.sh --force-upgrade  # Include system apt upgrade
+#   ./install_dependencies.sh --upgrade-jtop   # Reinstall jetson-stats
 ###############################################################################
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
-echo "=========================================="
-echo "Elderly Bot Dependency Installation"
-echo "=========================================="
-echo ""
+# === CONFIGURATION ===
+WORKSPACE_ROOT="${HOME}/catkin_ws"
+ELDERLY_BOT_PATH="${WORKSPACE_ROOT}/src/elderly_bot"
+FORCE_UPGRADE=false
+UPGRADE_JTOP=false
 
-# Check if running on Ubuntu 18.04
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    if [ "$VERSION_ID" != "18.04" ]; then
-        echo "WARNING: This script is designed for Ubuntu 18.04"
-        echo "Current version: $VERSION_ID"
-        read -p "Continue anyway? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        --force-upgrade) FORCE_UPGRADE=true ;;
+        --upgrade-jtop) UPGRADE_JTOP=true ;;
+        *) echo "Unknown option: $arg"; exit 1 ;;
+    esac
+done
+
+# === HELPER FUNCTIONS ===
+progress() {
+    echo -e "\n\033[1;36m[$1/$2]\033[0m $3"
+}
+
+check_package_installed() {
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "ok installed"
+}
+
+needs_catkin_rebuild() {
+    # Check if devel/setup.bash exists and is newer than all source files
+    if [ ! -f "${WORKSPACE_ROOT}/devel/setup.bash" ]; then
+        return 0  # Need build (no prior build)
     fi
-fi
+    
+    # Find any .py, .cpp, .h, .launch, .urdf, .yaml modified after last build
+    local newer_files
+    newer_files=$(find "${ELDERLY_BOT_PATH}" \
+        \( -name "*.py" -o -name "*.cpp" -o -name "*.h" -o -name "*.launch" -o -name "*.urdf" -o -name "*.yaml" \) \
+        -newer "${WORKSPACE_ROOT}/devel/setup.bash" 2>/dev/null | wc -l)
+    
+    [ "$newer_files" -gt 0 ]
+}
 
-# Check if ROS Melodic is installed
+# === START ===
+echo -e "\n\033[1;32m⚡ FAST-FIX: Elderly Bot Quick Update\033[0m"
+echo "Mode: $([ "$FORCE_UPGRADE" = true ] && echo "FULL UPGRADE" || echo "FAST (skip apt)")"
+
+# === [1/5] VALIDATE ENVIRONMENT ===
+progress 1 5 "Validating environment..."
+
 if [ ! -f /opt/ros/melodic/setup.bash ]; then
     echo "ERROR: ROS Melodic not found!"
-    echo "Please install ROS Melodic first:"
-    echo "  http://wiki.ros.org/melodic/Installation/Ubuntu"
     exit 1
 fi
 
-echo "ROS Melodic detected"
-source /opt/ros/melodic/setup.bash
+if [ ! -d "$ELDERLY_BOT_PATH" ]; then
+    echo "ERROR: elderly_bot package not found at $ELDERLY_BOT_PATH"
+    exit 1
+fi
 
-# Update package list
-echo ""
-echo "Updating package list..."
-sudo apt-get update
+source /opt/ros/melodic/setup.bash &>/dev/null
 
-# Install core ROS packages
-echo ""
-echo "Installing core ROS packages..."
-sudo apt-get install -y \
-    ros-melodic-desktop-full \
-    ros-melodic-tf \
-    ros-melodic-tf2-ros
+# === [2/5] CLEAN PYTHON CACHE (FAST) ===
+progress 2 5 "Cleaning Python cache..."
 
-# Install navigation stack
-echo ""
-echo "Installing navigation stack..."
-sudo apt-get install -y \
-    ros-melodic-navigation \
-    ros-melodic-move-base \
-    ros-melodic-move-base-msgs \
-    ros-melodic-amcl \
-    ros-melodic-map-server \
-    ros-melodic-navfn \
-    ros-melodic-dwa-local-planner \
-    ros-melodic-costmap-2d
+find "${ELDERLY_BOT_PATH}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+find "${ELDERLY_BOT_PATH}" -type f -name "*.pyc" -delete 2>/dev/null || true
 
-# Install robot_localization
-echo ""
-echo "Installing robot_localization..."
-sudo apt-get install -y \
-    ros-melodic-robot-localization
+# === [3/5] ENSURE DEPENDENCIES (BATCH SUDO) ===
+progress 3 5 "Checking dependencies..."
 
-# Install gmapping
-echo ""
-echo "Installing gmapping..."
-sudo apt-get install -y \
-    ros-melodic-gmapping
+# Build list of missing packages
+MISSING_PKGS=()
+REQUIRED_PKGS=(
+    "python-pip"
+    "python3-pip"
+    "ros-melodic-robot-localization"
+    "ros-melodic-gmapping"
+    "ros-melodic-navigation"
+    "ros-melodic-rplidar-ros"
+    "ros-melodic-rosserial-python"
+)
 
-# Install explore_lite
-echo ""
-echo "Installing explore_lite..."
-sudo apt-get install -y \
-    ros-melodic-explore-lite
+for pkg in "${REQUIRED_PKGS[@]}"; do
+    if ! check_package_installed "$pkg"; then
+        MISSING_PKGS+=("$pkg")
+    fi
+done
 
-# Install RPLidar ROS package
-echo ""
-echo "Installing RPLidar ROS package..."
-sudo apt-get install -y \
-    ros-melodic-rplidar-ros
+# Check Python GPIO library
+if ! python3 -c "import Jetson.GPIO" &>/dev/null; then
+    JTOP_MISSING=true
+else
+    JTOP_MISSING=false
+fi
 
-# Install rosserial for ESP32 communication
-echo ""
-echo "Installing rosserial..."
-sudo apt-get install -y \
-    ros-melodic-rosserial \
-    ros-melodic-rosserial-python \
-    ros-melodic-rosserial-arduino
-
-# Install additional tools
-echo ""
-echo "Installing additional tools..."
-sudo apt-get install -y \
-    python-pip \
-    python-yaml \
-    python-rospkg \
-    python-catkin-tools
-
-# Install Python dependencies
-echo ""
-echo "Installing Python dependencies..."
-pip install --user \
-    pyserial \
-    pyyaml
-
-# Setup udev rules for serial devices
-echo ""
-echo "Setting up udev rules for serial devices..."
-
-# RPLidar udev rule
-sudo bash -c 'cat > /etc/udev/rules.d/99-rplidar.rules << EOF
+# Single sudo block (one password prompt max)
+if [ ${#MISSING_PKGS[@]} -gt 0 ] || [ "$FORCE_UPGRADE" = true ] || [ "$UPGRADE_JTOP" = true ] || [ "$JTOP_MISSING" = true ]; then
+    echo "  → Installing: ${MISSING_PKGS[*]:-none} + Python deps..."
+    
+    sudo bash -c "
+        set -e
+        
+        # Fast apt update (only if needed)
+        if [ '$FORCE_UPGRADE' = true ] || [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+            apt-get update -qq
+        fi
+        
+        # Install missing packages (quiet, no recommends)
+        if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+            DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends ${MISSING_PKGS[*]}
+        fi
+        
+        # Optional full upgrade
+        if [ '$FORCE_UPGRADE' = true ]; then
+            DEBIAN_FRONTEND=noninteractive apt-get upgrade -qq -y
+        fi
+        
+        # Jetson.GPIO + jetson-stats (only if missing or requested)
+        if [ '$JTOP_MISSING' = true ] || [ '$UPGRADE_JTOP' = true ]; then
+            pip3 install -q --upgrade Jetson.GPIO jetson-stats 2>&1 | grep -v 'Requirement already satisfied' || true
+        fi
+        
+        # Serial packages (idempotent)
+        pip install -q --user pyserial pyyaml 2>&1 | grep -v 'Requirement already satisfied' || true
+        pip3 install -q --user pyserial pyyaml 2>&1 | grep -v 'Requirement already satisfied' || true
+        
+        # Add user to dialout group (idempotent)
+        usermod -a -G dialout $USER 2>/dev/null || true
+        
+        # Setup udev rules (idempotent)
+        cat > /etc/udev/rules.d/99-rplidar.rules << 'UDEVEOF'
 # RPLidar A1
-KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE:="0666", GROUP:="dialout", SYMLINK+="rplidar"
-EOF'
-
-# ESP32 udev rule
-sudo bash -c 'cat > /etc/udev/rules.d/99-esp32.rules << EOF
+KERNEL==\"ttyUSB*\", ATTRS{idVendor}==\"10c4\", ATTRS{idProduct}==\"ea60\", MODE:=\"0666\", GROUP:=\"dialout\", SYMLINK+=\"rplidar\"
+UDEVEOF
+        
+        cat > /etc/udev/rules.d/99-esp32.rules << 'UDEVEOF'
 # ESP32 Development Board
-KERNEL=="ttyUSB*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE:="0666", GROUP:="dialout", SYMLINK+="esp32"
-KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE:="0666", GROUP:="dialout"
-EOF'
-
-# Reload udev rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-
-# Add user to dialout group (required for serial access)
-echo ""
-echo "Adding user to dialout group..."
-sudo usermod -a -G dialout $USER
-
-# Create workspace directories if they don't exist
-echo ""
-echo "Setting up workspace directories..."
-mkdir -p ~/catkin_ws/src
-
-# Check if elderly_bot package exists
-if [ ! -d ~/catkin_ws/src/elderly_bot ]; then
-    echo "WARNING: elderly_bot package not found in ~/catkin_ws/src/"
-    echo "Please ensure the package is in the correct location"
+KERNEL==\"ttyUSB*\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", MODE:=\"0666\", GROUP:=\"dialout\", SYMLINK+=\"esp32\"
+KERNEL==\"ttyUSB*\", ATTRS{idVendor}==\"10c4\", ATTRS{idProduct}==\"ea60\", MODE:=\"0666\", GROUP:=\"dialout\"
+UDEVEOF
+        
+        udevadm control --reload-rules
+        udevadm trigger
+    "
+    echo "  ✓ Dependencies resolved"
+else
+    echo "  ✓ All packages present (skip install)"
 fi
 
-# Create maps directory
-mkdir -p ~/catkin_ws/src/elderly_bot/maps
+# === [4/5] CONDITIONAL CATKIN BUILD ===
+progress 4 5 "Checking workspace..."
 
-# Create rviz directory
-mkdir -p ~/catkin_ws/src/elderly_bot/rviz
+if needs_catkin_rebuild; then
+    echo "  → Source changes detected, rebuilding..."
+    cd "${WORKSPACE_ROOT}"
+    catkin_make -DCMAKE_BUILD_TYPE=Release --quiet 2>&1 | tail -n 5
+    echo "  ✓ Workspace rebuilt"
+else
+    echo "  ✓ No source changes (skip build)"
+fi
 
-# Build workspace
-echo ""
-echo "Building catkin workspace..."
-cd ~/catkin_ws
-catkin_make
+# Source workspace
+source "${WORKSPACE_ROOT}/devel/setup.bash" &>/dev/null
 
-# Source workspace in bashrc if not already present
-if ! grep -q "source ~/catkin_ws/devel/setup.bash" ~/.bashrc; then
-    echo ""
-    echo "Adding workspace to ~/.bashrc..."
-    echo "" >> ~/.bashrc
-    echo "# ROS Melodic and Elderly Bot workspace" >> ~/.bashrc
+# === [5/5] BASHRC + FINAL CHECKS ===
+progress 5 5 "Finalizing setup..."
+
+# Ensure workspace sourcing in bashrc (idempotent)
+if ! grep -q "source ${WORKSPACE_ROOT}/devel/setup.bash" ~/.bashrc 2>/dev/null; then
+    echo -e "\n# Elderly Bot workspace" >> ~/.bashrc
     echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
-    echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+    echo "source ${WORKSPACE_ROOT}/devel/setup.bash" >> ~/.bashrc
+    echo "  → Added workspace to ~/.bashrc"
 fi
 
-# Print Arduino IDE instructions
-echo ""
-echo "=========================================="
-echo "Arduino IDE Setup for ESP32"
-echo "=========================================="
-echo ""
-echo "To program the ESP32, you need to:"
-echo ""
-echo "1. Install Arduino IDE (if not already installed):"
-echo "   Download from: https://www.arduino.cc/en/software"
-echo ""
-echo "2. Add ESP32 board support:"
-echo "   - Open Arduino IDE"
-echo "   - Go to File > Preferences"
-echo "   - Add to 'Additional Board Manager URLs':"
-echo "     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
-echo "   - Go to Tools > Board > Board Manager"
-echo "   - Search for 'esp32' and install"
-echo ""
-echo "3. Install required Arduino libraries:"
-echo "   - Go to Sketch > Include Library > Manage Libraries"
-echo "   - Install: 'Rosserial Arduino Library'"
-echo "   - Install: 'MPU9250' by hideakitai"
-echo ""
-echo "4. Configure rosserial for Arduino (CRITICAL - Must be done on Jetson!):"
-echo "   cd ~/Arduino/libraries"
-echo "   rm -rf ros_lib"
-echo "   rosrun rosserial_arduino make_libraries.py ."
-echo "   IMPORTANT: ros_lib MUST be generated on Jetson (where rosserial_python runs)"
-echo "   If you generated it on Windows, it will cause 'Unable to sync' errors!"
-echo "   After generating, copy the ros_lib folder to your Windows Arduino IDE libraries folder"
-echo ""
-echo "5. Open firmware file:"
-echo "   ~/catkin_ws/src/elderly_bot/firmware/elderly_bot_esp32_wifi.ino"
-echo ""
-echo "6. Select board: ESP32 Dev Module"
-echo "7. Upload to ESP32"
-echo ""
+# Quick GPIO permissions check
+if [ -e /sys/class/gpio ]; then
+    if ! groups | grep -q dialout; then
+        echo "  ⚠ Not in dialout group (run: sudo usermod -a -G dialout \$USER && logout)"
+    fi
+fi
 
-# Print optional packages info
+# === SUCCESS ===
+echo -e "\n\033[1;32m✓ FAST-FIX COMPLETE\033[0m"
 echo ""
-echo "=========================================="
-echo "Optional Python Packages"
-echo "=========================================="
-echo ""
-echo "For additional features (gas sensor, buzzer, cloud bridge), install:"
-echo ""
-echo "# Gas sensor + buzzer + Jetson monitoring:"
-echo "sudo pip3 install jetson-stats Jetson.GPIO smbus2"
-echo ""
-echo "# Cloud bridge (AWS IoT Core):"
-echo "sudo pip3 install AWSIoTPythonSDK"
-echo ""
-echo "IMPORTANT: Reboot after installing jetson-stats!"
-echo "sudo reboot"
-echo ""
-echo "These packages enable:"
-echo "  - scripts/sensors_actuators_node.py (gas sensor, buzzer, Jetson stats)"
-echo "  - scripts/cloud_bridge_node.py (AWS IoT Core integration)"
-echo ""
-echo "To enable these nodes, see:"
-echo "  - launch/SENSORS_ACTUATORS_LAUNCH_SNIPPET.xml"
-echo "  - launch/CLOUD_BRIDGE_LAUNCH_SNIPPET.xml"
-echo ""
-
-# Print completion message
-echo ""
-echo "=========================================="
-echo "Installation Complete!"
-echo "=========================================="
-echo ""
-echo "Next steps:"
-echo ""
-echo "1. Log out and log back in (for dialout group to take effect)"
-echo "   OR run: newgrp dialout"
-echo ""
-echo "2. Program the ESP32 with the firmware (see instructions above)"
-echo ""
-echo "3. Connect hardware:"
-echo "   - RPLidar to /dev/ttyUSB1"
-echo "   - ESP32 via WiFi to Jetson (192.168.1.16:11411)"
-echo "   - MPU-9250 IMU to I2C Bus 1 (magnetometer DISABLED)"
-echo "   - (Optional) MQ-6 gas sensor via ADS1115 ADC"
-echo "   - (Optional) Active buzzer to GPIO pin"
-echo ""
-echo "4. Test hardware bringup:"
+echo "🚀 Quick Test:"
 echo "   roslaunch elderly_bot bringup.launch"
 echo ""
-echo "5. Create a map (MODE 1):"
-echo "   roslaunch elderly_bot mapping.launch"
-echo "   (When complete, save map with: rosrun map_server map_saver -f ~/catkin_ws/src/elderly_bot/maps/house_map)"
+echo "🔧 Gas Sensor Reminder:"
+echo "   If MQ-6 detected=TRUE in clean air:"
+echo "   → Turn potentiometer CLOCKWISE (10-15 turns)"
+echo "   → Watch for 'RAW PIN STUCK LOW' warning (>30s)"
+echo "   → Goal: RAW HIGH in clean air, LOW only with gas+LED"
 echo ""
-echo "6. Navigate and patrol (MODE 2):"
-echo "   roslaunch elderly_bot navigation.launch"
-echo "   rosrun elderly_bot patrol_client.py"
+echo "📖 Full Setup Guide:"
+echo "   See README.md for Arduino IDE, ESP32 firmware, hardware setup"
 echo ""
-echo "For more information, see the README.md file"
-echo ""
-echo "=========================================="
+echo "⚡ Script runtime: ~$SECONDS seconds"
 
 
