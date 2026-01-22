@@ -25,9 +25,9 @@ gas_sensor_mode: "gpio"  # "gpio" or "i2c"
 
 # --- GPIO MODE SETTINGS ---
 # GPIO pin for D0 digital output (BOARD numbering)
-# Default: Pin 18 (GPIO 24)
+# Default: Pin 24 (GPIO 8)
 # See docs/GAS_SENSOR_WIRING.md for wiring diagram
-gas_sensor_gpio_pin: 18
+gas_sensor_gpio_pin: 24
 
 # --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
 # Voltage threshold for gas detection (volts)

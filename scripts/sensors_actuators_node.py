@@ -71,7 +71,7 @@ class SensorsActuatorsNode:
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
         self.gas_sensor_mode = rospy.get_param('~gas_sensor_mode', 'gpio')
-        self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
+        self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 24)
         self.gas_threshold_voltage = rospy.get_param('~gas_threshold_voltage', 1.0)
         self.buzzer_pin = rospy.get_param('~buzzer_pin', 0)
         self.adc_i2c_address = rospy.get_param('~adc_i2c_address', 0x48)
@@ -108,7 +108,6 @@ class SensorsActuatorsNode:
             self._init_jetson_stats()
         
         # ROS interface
-        self.gas_voltage_pub = rospy.Publisher('/gas_level', Float32, queue_size=1)
         self.gas_detected_pub = rospy.Publisher('/gas_detected', Bool, queue_size=1)
         self.jetson_temp_pub = rospy.Publisher('/jetson_temperature', Temperature, queue_size=1)
         self.jetson_power_pub = rospy.Publisher('/jetson_power', Float32, queue_size=1)
@@ -146,17 +145,19 @@ class SensorsActuatorsNode:
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             
-            # Read initial state
+            # Read initial state (ACTIVE-LOW: LOW = gas detected)
             initial_state = GPIO.input(self.gas_sensor_gpio_pin)
             with self.gas_detection_lock:
-                self.last_gas_detected = (initial_state == GPIO.HIGH)
+                self.last_gas_detected = (initial_state == GPIO.LOW)  # Inverted logic
             
             # Setup interrupt-driven detection with debouncing
             def gas_sensor_callback(channel):
-                """Interrupt callback for gas sensor state change."""
+                """Interrupt callback for gas sensor state change.
+                MQ-6 is ACTIVE-LOW: LOW (0) = gas detected, HIGH (1) = no gas
+                """
                 try:
                     pin_state = GPIO.input(self.gas_sensor_gpio_pin)
-                    detected = (pin_state == GPIO.HIGH)
+                    detected = (pin_state == GPIO.LOW)  # Inverted: LOW = gas detected
                     
                     with self.gas_detection_lock:
                         if detected != self.last_gas_detected:
@@ -164,9 +165,9 @@ class SensorsActuatorsNode:
                             # Publish immediately
                             self.gas_detected_pub.publish(Bool(data=detected))
                             if detected:
-                                rospy.loginfo("[GAS SENSOR] GAS DETECTED!")
+                                rospy.logwarn("[GAS SENSOR] ⚠ GAS DETECTED! (pin LOW)")
                             else:
-                                rospy.loginfo("[GAS SENSOR] Gas cleared")
+                                rospy.loginfo("[GAS SENSOR] ✓ Gas cleared (pin HIGH)")
                 except Exception as e:
                     rospy.logerr("Gas sensor callback error: {}".format(e))
             
@@ -179,9 +180,12 @@ class SensorsActuatorsNode:
             )
             
             self.gas_gpio_initialized = True
-            rospy.loginfo("✓ Gas sensor ready: GPIO pin {} (interrupt-driven, debounce=200ms)".format(
-                self.gas_sensor_gpio_pin))
-            rospy.loginfo("  Initial state: {}".format("GAS DETECTED" if self.last_gas_detected else "No gas"))
+            rospy.loginfo("✓ Gas sensor ready: Pin {} (BOARD numbering, GPIO {})".format(
+                self.gas_sensor_gpio_pin, "8" if self.gas_sensor_gpio_pin == 24 else "?"))
+            rospy.loginfo("  Mode: Interrupt-driven, debounce=200ms, ACTIVE-LOW logic")
+            rospy.loginfo("  Initial pin state: {} -> {}".format(
+                "LOW" if initial_state == GPIO.LOW else "HIGH",
+                "GAS DETECTED" if self.last_gas_detected else "No gas"))
             
         except Exception as e:
             rospy.logerr("✗ Gas sensor failed: {}".format(e))
@@ -265,7 +269,9 @@ class SensorsActuatorsNode:
         return (0.0, False)
     
     def read_gas_sensor_gpio(self):
-        """Read gas sensor in GPIO mode (returns cached interrupt-driven value)."""
+        """Read gas sensor in GPIO mode (returns cached interrupt-driven value).
+        MQ-6 is ACTIVE-LOW: LOW = gas detected.
+        """
         if not self.gas_gpio_initialized:
             return (0.0, False)
         try:
@@ -486,11 +492,13 @@ class SensorsActuatorsNode:
             return (0.0, 0.0)
     
     def publish_sensor_data(self):
-        """Publish sensor data (gas, temperature, power).
-        Note: Buzzer is MANUAL CONTROL ONLY - no automatic gas alarm.
+        """Publish sensor data (gas detection via interrupts, temperature, power).
+        Note: Gas detection updates via GPIO interrupt callback.
+              Buzzer is MANUAL CONTROL ONLY.
         """
+        # Gas detection is handled by interrupt callback, no need to poll
+        # Just publish current state periodically for any late subscribers
         voltage, detected = self.read_gas_sensor()
-        self.gas_voltage_pub.publish(Float32(data=voltage))
         self.gas_detected_pub.publish(Bool(data=detected))
         
         # Publish Jetson stats
