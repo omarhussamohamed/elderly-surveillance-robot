@@ -31,25 +31,47 @@ gas_sensor_gpio_pin: 24
 
 # Polarity of digital output (D0 pin)
 # Options:
-#   'active_low':  D0 LOW when gas detected (common with 5V power)
-#   'active_high': D0 HIGH when gas detected (common with 3.3V power)
-# With 3.3V power: typically active_high
-gas_polarity: "active_high"
+#   'active_low':  D0 LOW (0V) when gas detected (STANDARD 5V MODULES - LED ON = gas)
+#   'active_high': D0 HIGH when gas detected (rare, some 3.3V modules)
+# 
+# ⚠️ IF LED TURNS ON WHEN GAS PRESENT → Use 'active_low'
+# Test: Wave lighter near sensor, watch LED. When LED ON:
+#   - If /gas_detected goes TRUE → correct polarity
+#   - If /gas_detected stays FALSE → flip polarity
+gas_polarity: "active_low"
 
 # Software stability time (seconds)
 # Pin must be stable for this duration before accepting state change
 # Prevents false alarms from threshold oscillation
-# Recommended: 0.3-0.5 seconds (matches real gas detection physics)
-gas_stability_time: 0.5
+# REDUCED for diagnosis: 0.1s (100ms) - adjust based on testing
+# Original: 0.5s (too slow for real-time LED tracking)
+gas_stability_time: 0.1
 
-# ✅ VOLTAGE CONFIGURATION (CURRENT SETUP):
-# MQ-6 module powered with 3.3V (safe for Jetson Nano GPIO)
-# D0 output: 3.3V logic (safe, no level shifter needed)
+# ⚠️⚠️⚠️ CRITICAL VOLTAGE WARNING (5V OPERATION) ⚠️⚠️⚠️
 # 
-# Note: 3.3V powered MQ-6 is:
-#   - Safe for direct GPIO connection
-#   - Slightly less sensitive than 5V operation
-#   - Typically uses active_high polarity (D0 HIGH when gas detected)
+# Current setup: MQ-6 powered with 5V
+#   - Sensor VCC: 5V (required for full sensitivity)
+#   - D0 output: ~5V HIGH / ~0V LOW
+#   - Jetson GPIO: 3.3V MAX (NOT 5V TOLERANT!)
+# 
+# ⚡ RISK: 5V signal on Jetson pin = potential damage!
+# 
+# REQUIRED PROTECTION (choose one):
+# 
+# Option 1: Voltage Divider (simple, cheap)
+#   MQ-6 DO → 2kΩ resistor → Jetson Pin 24 → 3kΩ resistor → GND
+#   Result: 5V → 3V safe signal
+# 
+# Option 2: Bi-directional Level Shifter
+#   Example: TXS0108E, 74LVC245, BSS138-based modules
+#   HV (high voltage) side: 5V MQ-6 DO
+#   LV (low voltage) side: 3.3V Jetson GPIO
+# 
+# Option 3: Power MQ-6 with 3.3V (if acceptable)
+#   - Sensor less sensitive but safe
+#   - Change gas_polarity to 'active_high' if using this
+# 
+# Current operation: TEST ONLY - ADD PROTECTION BEFORE LONG-TERM USE!
 
 # --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
 # Voltage threshold for gas detection (volts)
