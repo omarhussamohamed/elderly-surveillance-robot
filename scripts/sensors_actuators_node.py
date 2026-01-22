@@ -188,15 +188,23 @@ class SensorsActuatorsNode:
     def _init_jetson_stats(self):
         """Initialize Jetson monitoring."""
         if not JTOP_AVAILABLE:
-            rospy.logwarn("Jetson stats not available")
+            rospy.logwarn("Jetson stats not available - install jetson-stats: sudo -H pip install jetson-stats")
             return
         
         try:
             self.jtop_handle = jtop()
             self.jtop_handle.start()
-            rospy.loginfo("Jetson stats ready")
+            # Wait for jtop to initialize
+            time.sleep(0.5)
+            if self.jtop_handle.ok():
+                rospy.loginfo("✓ Jetson stats ready")
+            else:
+                rospy.logwarn("Jetson stats initialized but not ready")
+        except PermissionError:
+            rospy.logerr("✗ Jetson stats failed: Permission denied. Run: sudo usermod -aG jtop $USER")
+            self.jtop_handle = None
         except Exception as e:
-            rospy.logerr("Jetson stats failed: {}".format(e))
+            rospy.logerr("✗ Jetson stats failed: {}".format(e))
             self.jtop_handle = None
     
     def read_gas_sensor(self):
@@ -254,24 +262,35 @@ class SensorsActuatorsNode:
         if not self.buzzer_initialized:
             return
         
+        # Stop any existing pattern first
+        self.stop_buzzer_warning()
+        time.sleep(0.05)  # Brief pause
+        
         self.buzzer_warning_active = True
         
         def warning_pattern():
-            """Fast beep pattern: 0.1s ON, 0.1s OFF, repeat."""
-            while self.buzzer_warning_active and not rospy.is_shutdown():
-                self.set_buzzer(True)
-                time.sleep(0.1)
+            """Fast beep pattern: 0.1s ON, 0.1s OFF, repeat continuously."""
+            try:
+                rospy.loginfo("Buzzer warning pattern started")
+                while self.buzzer_warning_active and not rospy.is_shutdown():
+                    self.set_buzzer(True)
+                    time.sleep(0.1)
+                    self.set_buzzer(False)
+                    time.sleep(0.1)
+                rospy.loginfo("Buzzer warning pattern stopped")
+            except Exception as e:
+                rospy.logerr("Buzzer warning error: {}".format(e))
+            finally:
                 self.set_buzzer(False)
-                time.sleep(0.1)
         
-        if self.buzzer_warning_thread is None or not self.buzzer_warning_thread.is_alive():
-            self.buzzer_warning_thread = threading.Thread(target=warning_pattern)
-            self.buzzer_warning_thread.daemon = True
-            self.buzzer_warning_thread.start()
+        self.buzzer_warning_thread = threading.Thread(target=warning_pattern)
+        self.buzzer_warning_thread.daemon = True
+        self.buzzer_warning_thread.start()
     
     def stop_buzzer_warning(self):
         """Stop buzzer warning pattern."""
         self.buzzer_warning_active = False
+        time.sleep(0.25)  # Wait for thread to finish current cycle
         self.set_buzzer(False)
     
     def buzzer_command_callback(self, msg):
@@ -289,13 +308,39 @@ class SensorsActuatorsNode:
         """Read Jetson temperature and power."""
         if self.jtop_handle is None:
             return (0.0, 0.0)
+        
         try:
-            temps = self.jtop_handle.temperature
-            avg_temp = sum(temps.values()) / len(temps) if temps else 0.0
-            power = self.jtop_handle.power.get('total', 0.0)
-            return (avg_temp, power)
+            if not self.jtop_handle.ok():
+                return (0.0, 0.0)
+            
+            # Read temperature - prioritize CPU thermal
+            temp = 0.0
+            if hasattr(self.jtop_handle, 'temperature'):
+                temps = self.jtop_handle.temperature
+                if 'CPU' in temps:
+                    temp = float(temps['CPU'])
+                elif 'thermal' in temps:
+                    temp = float(temps['thermal'])
+                elif temps:
+                    # Average all available temperatures
+                    temp = sum(float(v) for v in temps.values()) / len(temps)
+            
+            # Read power - try multiple possible keys
+            power = 0.0
+            if hasattr(self.jtop_handle, 'power'):
+                power_data = self.jtop_handle.power
+                if isinstance(power_data, dict):
+                    # Try different power keys
+                    power = float(power_data.get('tot', power_data.get('total', power_data.get('ALL', 0.0))))
+                elif isinstance(power_data, (int, float)):
+                    power = float(power_data)
+            
+            return (temp, power)
+        except AttributeError as e:
+            rospy.logwarn_throttle(30.0, "Jetson stats attribute error: {}".format(e))
+            return (0.0, 0.0)
         except Exception as e:
-            rospy.logwarn_throttle(10.0, "Jetson stats error: {}".format(e))
+            rospy.logwarn_throttle(30.0, "Jetson stats read error: {}".format(e))
             return (0.0, 0.0)
     
     def publish_sensor_data(self):
