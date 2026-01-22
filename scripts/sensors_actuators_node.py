@@ -84,6 +84,10 @@ class SensorsActuatorsNode:
         self.buzzer_initialized = False
         self.jtop_handle = None
         
+        # Gas sensor state (for interrupt-driven detection)
+        self.last_gas_detected = False
+        self.gas_detection_lock = threading.Lock()
+        
         # Buzzer warning pattern state (MANUAL CONTROL ONLY)
         self.buzzer_lock = threading.Lock()
         self.buzzer_warning_active = False
@@ -128,7 +132,7 @@ class SensorsActuatorsNode:
             rospy.logerr("Invalid gas_sensor_mode: {}".format(self.gas_sensor_mode))
     
     def _init_gas_sensor_gpio(self):
-        """Initialize gas sensor in GPIO mode."""
+        """Initialize gas sensor in GPIO mode with interrupt detection."""
         if not GPIO_AVAILABLE:
             rospy.logerr("Gas sensor: Jetson.GPIO not available")
             return
@@ -141,8 +145,44 @@ class SensorsActuatorsNode:
             setup_gpio_permissions(self.gas_sensor_gpio_pin)
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
+            
+            # Read initial state
+            initial_state = GPIO.input(self.gas_sensor_gpio_pin)
+            with self.gas_detection_lock:
+                self.last_gas_detected = (initial_state == GPIO.HIGH)
+            
+            # Setup interrupt-driven detection with debouncing
+            def gas_sensor_callback(channel):
+                """Interrupt callback for gas sensor state change."""
+                try:
+                    pin_state = GPIO.input(self.gas_sensor_gpio_pin)
+                    detected = (pin_state == GPIO.HIGH)
+                    
+                    with self.gas_detection_lock:
+                        if detected != self.last_gas_detected:
+                            self.last_gas_detected = detected
+                            # Publish immediately
+                            self.gas_detected_pub.publish(Bool(data=detected))
+                            if detected:
+                                rospy.loginfo("[GAS SENSOR] GAS DETECTED!")
+                            else:
+                                rospy.loginfo("[GAS SENSOR] Gas cleared")
+                except Exception as e:
+                    rospy.logerr("Gas sensor callback error: {}".format(e))
+            
+            # Add event detection on BOTH rising and falling edges with 200ms debounce
+            GPIO.add_event_detect(
+                self.gas_sensor_gpio_pin,
+                GPIO.BOTH,
+                callback=gas_sensor_callback,
+                bouncetime=200
+            )
+            
             self.gas_gpio_initialized = True
-            rospy.loginfo("✓ Gas sensor ready: GPIO pin {}".format(self.gas_sensor_gpio_pin))
+            rospy.loginfo("✓ Gas sensor ready: GPIO pin {} (interrupt-driven, debounce=200ms)".format(
+                self.gas_sensor_gpio_pin))
+            rospy.loginfo("  Initial state: {}".format("GAS DETECTED" if self.last_gas_detected else "No gas"))
+            
         except Exception as e:
             rospy.logerr("✗ Gas sensor failed: {}".format(e))
             self.gas_gpio_initialized = False
@@ -225,12 +265,12 @@ class SensorsActuatorsNode:
         return (0.0, False)
     
     def read_gas_sensor_gpio(self):
-        """Read gas sensor in GPIO mode."""
+        """Read gas sensor in GPIO mode (returns cached interrupt-driven value)."""
         if not self.gas_gpio_initialized:
             return (0.0, False)
         try:
-            pin_state = GPIO.input(self.gas_sensor_gpio_pin)
-            detected = (pin_state == GPIO.HIGH)
+            with self.gas_detection_lock:
+                detected = self.last_gas_detected
             return (0.0, detected)
         except Exception as e:
             rospy.logwarn_throttle(10.0, "Gas sensor read error: {}".format(e))
@@ -472,11 +512,17 @@ class SensorsActuatorsNode:
         """Clean shutdown."""
         rospy.loginfo("Shutting down sensors node...")
         self.stop_buzzer_warning()
-        if self.buzzer_initialized:
+        
+        # Cleanup GPIO
+        if self.gas_gpio_initialized or self.buzzer_initialized:
             try:
+                # Remove event detection before cleanup
+                if self.gas_gpio_initialized:
+                    GPIO.remove_event_detect(self.gas_sensor_gpio_pin)
                 GPIO.cleanup()
-            except:
-                pass
+            except Exception as e:
+                rospy.logwarn("GPIO cleanup warning: {}".format(e))
+        
         if self.i2c_bus:
             try:
                 self.i2c_bus.close()
