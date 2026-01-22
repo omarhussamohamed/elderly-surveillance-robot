@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# FAST UPDATE - Elderly Bot (Optimized & Permissions-Hardened)
+# FAST UPDATE - Elderly Bot (Permissions-Hardened & Optimized)
 # Runtime: <15s clean, <30s with build
 ###############################################################################
 
@@ -12,7 +12,6 @@ ROBOT_DIR="${WORKSPACE_DIR}/src/elderly_bot"
 AUTO_LAUNCH=false
 FORCE_GIT=false
 UPGRADE_JTOP=false
-DRY_RUN=false
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
@@ -20,18 +19,15 @@ while [[ $# -gt 0 ]]; do
         --launch)       AUTO_LAUNCH=true; shift ;;
         --force-git)    FORCE_GIT=true;  shift ;;
         --upgrade-jtop) UPGRADE_JTOP=true; shift ;;
-        --dry-run)      DRY_RUN=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
 progress() { echo -e "\n\033[1;36m[$1/6]\033[0m $2"; }
-
-changed() { echo -e "  \033[1;33m→\033[0m $1"; }
+changed()  { echo -e "  \033[1;33m→\033[0m $1"; }
 
 # === START ===
 echo -e "\n\033[1;32m⚡ Elderly Bot Fast Update\033[0m"
-[[ $DRY_RUN = true ]] && echo "  (DRY RUN - no changes applied)"
 
 # [1/6] Validate
 progress 1 6 "Validating..."
@@ -43,7 +39,7 @@ source /opt/ros/melodic/setup.bash &>/dev/null
 progress 2 6 "Cleaning cache..."
 find "$ROBOT_DIR" \( -name __pycache__ -o -name "*.pyc" \) -delete 2>/dev/null || true
 
-# [3/6] Git
+# [3/6] Git update
 progress 3 6 "Git update..."
 if [ -d "$ROBOT_DIR/.git" ]; then
     cd "$ROBOT_DIR"
@@ -51,7 +47,7 @@ if [ -d "$ROBOT_DIR/.git" ]; then
     LOCAL=$(git rev-parse HEAD 2>/dev/null)
     REMOTE=$(git rev-parse origin/main 2>/dev/null)
     if [ "$LOCAL" != "$REMOTE" ] || [ "$FORCE_GIT" = true ]; then
-        changed "Code changed or forced → pulling"
+        changed "Code changed or forced → updating"
         git stash --quiet 2>/dev/null || true
         git pull --quiet origin main || {
             changed "Pull failed → force reset"
@@ -68,81 +64,79 @@ fi
 # [4/6] Permissions & Groups (single sudo block)
 progress 4 6 "Permissions..."
 
-# Pre-checks (non-sudo)
 CURRENT_GROUPS=$(id -nG)
 NEEDS_SUDO=false
-CHANGES_SUMMARY=""
+CHANGES=""
 
+# Jetson.GPIO / jtop check
 if ! python3 -c "import Jetson.GPIO" &>/dev/null || [ "$UPGRADE_JTOP" = true ]; then
     NEEDS_SUDO=true
-    CHANGES_SUMMARY+="Jetson.GPIO/jtop "
+    CHANGES+="Jetson.GPIO/jtop "
 fi
 
-for g in dialout gpio i2c jetson_stats jtop; do
+# Groups
+for g in dialout gpio i2c jtop; do
     if ! echo "$CURRENT_GROUPS" | grep -qw "$g"; then
-        if [[ "$g" = "i2c" && ! -e /dev/i2c-* ]]; then continue; fi
-        if [[ "$g" = "gpio" && ! -e /sys/class/gpio ]]; then continue; fi
+        if [[ "$g" == "i2c" && ! -e /dev/i2c-* ]] || [[ "$g" == "gpio" && ! -e /sys/class/gpio ]]; then continue; fi
         NEEDS_SUDO=true
-        CHANGES_SUMMARY+="$g "
+        CHANGES+="$g "
     fi
 done
 
+# Sysfs / device perms
 if [ -e /sys/class/gpio/export ] && [ ! -w /sys/class/gpio/export ]; then
     NEEDS_SUDO=true
-    CHANGES_SUMMARY+="GPIO sysfs "
+    CHANGES+="GPIO sysfs "
 fi
 if ls /dev/i2c-* &>/dev/null && [ ! -w /dev/i2c-1 ]; then
     NEEDS_SUDO=true
-    CHANGES_SUMMARY+="I2C "
+    CHANGES+="I2C "
 fi
 
 if [ "$NEEDS_SUDO" = true ]; then
-    if [ "$DRY_RUN" = true ]; then
-        changed "Would apply: $CHANGES_SUMMARY"
-    else
-        echo "  → Applying changes..."
-        sudo bash -c "
-            set -e
-            CHANGED=false
+    echo "  → Applying changes..."
+    sudo bash -c "
+        set -e
+        CHANGED=false
 
-            # Packages
-            if [ '$UPGRADE_JTOP' = true ] || ! python3 -c 'import Jetson.GPIO' &>/dev/null; then
-                export PYTHONWARNINGS=ignore
-                pip3 install --quiet --upgrade Jetson.GPIO jetson-stats
+        # Packages
+        if [ '$UPGRADE_JTOP' = true ] || ! python3 -c 'import Jetson.GPIO' &>/dev/null; then
+            export PYTHONWARNINGS=ignore
+            pip3 install --quiet --upgrade Jetson.GPIO jetson-stats || true
+            CHANGED=true
+        fi
+
+        # Groups
+        for g in dialout gpio i2c jtop; do
+            if ! id -nG $USER | grep -qw \$g; then
+                if [[ \$g == i2c && ! -e /dev/i2c-* ]] || [[ \$g == gpio && ! -e /sys/class/gpio ]]; then continue; fi
+                usermod -aG \$g $USER
                 CHANGED=true
             fi
+        done
 
-            # Groups
-            for g in dialout gpio i2c jetson_stats jtop; do
-                if ! id -nG $USER | grep -qw \$g; then
-                    if [[ \$g = i2c && ! -e /dev/i2c-* ]] || [[ \$g = gpio && ! -e /sys/class/gpio ]]; then continue; fi
-                    usermod -aG \$g $USER
-                    CHANGED=true
-                fi
-            done
+        # GPIO sysfs
+        chmod 666 /sys/class/gpio/export /sys/class/gpio/unexport 2>/dev/null || true
+        find /sys/class/gpio -maxdepth 2 -name 'direction' -o -name 'value' -exec chmod 666 {} + 2>/dev/null || true
 
-            # GPIO sysfs
-            chmod 666 /sys/class/gpio/export /sys/class/gpio/unexport 2>/dev/null || true
-            chmod -R 666 /sys/class/gpio/gpio*/direction /sys/class/gpio/gpio*/value 2>/dev/null || true
-
-            # I2C
-            if ls /dev/i2c-* &>/dev/null; then
-                if getent group i2c >/dev/null; then
-                    chgrp i2c /dev/i2c-* 2>/dev/null || true
-                    chmod 660 /dev/i2c-* 2>/dev/null || true
-                else
-                    chmod 666 /dev/i2c-* 2>/dev/null || true
-                fi
+        # I2C
+        if ls /dev/i2c-* &>/dev/null; then
+            if getent group i2c >/dev/null; then
+                chgrp i2c /dev/i2c-* 2>/dev/null || true
+                chmod 660 /dev/i2c-* 2>/dev/null || true
+            else
+                chmod 666 /dev/i2c-* 2>/dev/null || true
             fi
+            CHANGED=true
+        fi
 
-            [ \"\$CHANGED\" = true ] && echo '    ⚠ Group changes → logout/login needed'
-        "
-    fi
+        [ \"\$CHANGED\" = true ] && echo '    ⚠ Group changes → logout/login needed'
+    "
 else
     echo "  ✓ All permissions OK"
 fi
 
-# Executable bits (always safe & fast)
+# Make scripts executable
 chmod +x "${ROBOT_DIR}/scripts/"*.{py,sh} 2>/dev/null || true
 
 # [5/6] Build
