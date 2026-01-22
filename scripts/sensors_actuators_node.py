@@ -271,10 +271,17 @@ class SensorsActuatorsNode:
         if not self.buzzer_initialized:
             return
         
-        # Stop any existing pattern first
-        self.stop_buzzer_warning()
-        time.sleep(0.05)  # Brief pause
+        # If already running, don't restart
+        if self.buzzer_warning_active and self.buzzer_warning_thread and self.buzzer_warning_thread.is_alive():
+            rospy.loginfo("Buzzer warning already active")
+            return
         
+        # Stop any existing pattern first
+        if self.buzzer_warning_active:
+            self.buzzer_warning_active = False
+            time.sleep(0.3)  # Wait for old thread to exit
+        
+        # Start new pattern
         self.buzzer_warning_active = True
         
         def warning_pattern():
@@ -282,10 +289,12 @@ class SensorsActuatorsNode:
             try:
                 rospy.loginfo("Buzzer warning pattern started")
                 while self.buzzer_warning_active and not rospy.is_shutdown():
-                    self.set_buzzer(True)
-                    time.sleep(0.1)
-                    self.set_buzzer(False)
-                    time.sleep(0.1)
+                    if self.buzzer_warning_active:  # Double check
+                        self.set_buzzer(True)
+                        time.sleep(0.1)
+                    if self.buzzer_warning_active:  # Check again before OFF
+                        self.set_buzzer(False)
+                        time.sleep(0.1)
                 rospy.loginfo("Buzzer warning pattern stopped")
             except Exception as e:
                 rospy.logerr("Buzzer warning error: {}".format(e))
@@ -295,12 +304,22 @@ class SensorsActuatorsNode:
         self.buzzer_warning_thread = threading.Thread(target=warning_pattern)
         self.buzzer_warning_thread.daemon = True
         self.buzzer_warning_thread.start()
+        rospy.loginfo("Buzzer warning thread started")
     
     def stop_buzzer_warning(self):
         """Stop buzzer warning pattern."""
+        if not self.buzzer_warning_active:
+            return  # Already stopped
+        
+        rospy.loginfo("Stopping buzzer warning...")
         self.buzzer_warning_active = False
-        time.sleep(0.25)  # Wait for thread to finish current cycle
+        
+        # Wait for thread to finish (max 0.5s)
+        if self.buzzer_warning_thread and self.buzzer_warning_thread.is_alive():
+            self.buzzer_warning_thread.join(timeout=0.5)
+        
         self.set_buzzer(False)
+        rospy.loginfo("Buzzer warning stopped")
     
     def buzzer_command_callback(self, msg):
         """Handle buzzer commands."""

@@ -17,22 +17,27 @@ rm -rf build/ devel/ install/ .catkin_tools/
 echo "✓ Clean complete"
 echo ""
 
-echo "[2/5] Re-sourcing ROS environment..."
+echo "[2/5] Making scripts executable..."
+chmod +x src/elderly_bot/scripts/*.py
+echo "✓ Scripts are executable"
+echo ""
+
+echo "[3/5] Re-sourcing ROS environment..."
 source /opt/ros/melodic/setup.bash
 echo "✓ Environment ready"
 echo ""
 
-echo "[3/5] Building workspace..."
-catkin_make
+echo "[4/6] Building workspace..."
+catkin_make install
 echo "✓ Build complete"
 echo ""
 
-echo "[4/5] Sourcing new workspace..."
+echo "[5/6] Sourcing new workspace..."
 source devel/setup.bash
 echo "✓ Workspace sourced"
 echo ""
 
-echo "[5/5] Verifying installed script..."
+echo "[6/6] Verifying installed script..."
 if [ -f "install/lib/elderly_bot/sensors_actuators_node.py" ]; then
     echo "✓ Script installed successfully"
     echo ""

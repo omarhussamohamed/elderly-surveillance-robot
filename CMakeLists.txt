@@ -73,8 +73,8 @@ include_directories(
 ## Install ##
 #############
 
-# Install Python scripts
-catkin_install_python(PROGRAMS
+# Install Python scripts - make them executable first
+install(PROGRAMS
   scripts/patrol_client.py
   scripts/mpu9250_node.py
   scripts/sensors_actuators_node.py
