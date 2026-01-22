@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Sensors and Actuators Node for Elderly Bot
 ===========================================
