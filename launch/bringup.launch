@@ -117,7 +117,8 @@
           type="sensors_actuators_node.py"
           output="screen"
           respawn="true"
-          respawn_delay="5">
+          respawn_delay="5"
+          launch-prefix="python3">
       <rosparam command="load" file="$(find elderly_bot)/config/sensors_actuators.yaml" />
     </node>
   </group>
