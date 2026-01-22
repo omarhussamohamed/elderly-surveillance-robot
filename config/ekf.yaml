@@ -56,8 +56,7 @@ odom0_differential: true
 odom0_relative: false
 
 # Queue size - LAG FIX: Reduced from 10 to 2 to minimize buffering latency
-# Large queue causes over-smoothing (10 msgs at 10Hz = 1 second of buffered data)
-# Small queue (2 msgs = 200ms) provides adequate buffering without excessive lag
+# With 20Hz wheel odom, 2-message queue = 100ms buffer (minimal while stable)
 odom0_queue_size: 2
 
 # Reject measurements that are this many standard deviations from the current state

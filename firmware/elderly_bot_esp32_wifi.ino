@@ -57,7 +57,7 @@
  const int CH_FL = 0; const int CH_FR = 1; const int CH_RL = 4; const int CH_RR = 5;
  // ==================== TIMING SETTINGS ====================
  #define CONTROL_LOOP_INTERVAL 20 // 50Hz control loop (20ms)
- #define ODOM_PUBLISH_INTERVAL 100 // 10Hz odometry (100ms) - Rate mismatch is NOT the lag source
+ #define ODOM_PUBLISH_INTERVAL 50 // 20Hz odometry (50ms) - LAG FIX: Reduce sensor staleness without full rate matching
  #define SAFETY_TIMEOUT 800 // Stop motors if no cmd_vel for 800ms
  #define ROS_SERIAL_BUFFER_SIZE 1024
  // ==================== GLOBALS ====================
