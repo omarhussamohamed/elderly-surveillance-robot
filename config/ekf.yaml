@@ -69,12 +69,13 @@ odom0_twist_rejection_threshold: 2.0
 imu0: /imu/data
 
 # Which values to fuse from IMU
-# Use fused orientation from Madgwick filter to prevent drift
-# ROTATION FIX: Enable angular velocity (vyaw) for smooth tracking during rotation
+# EMERGENCY FIX: DISABLE IMU YAW - corrupted by magnetometer interference indoors!
+# Magnetometer reads metal/electronics → Madgwick outputs garbage yaw → EKF propagates corruption
+# ONLY USE GYRO RATE (vyaw) - integrates to yaw, no absolute corruption
 imu0_config: [false, false, false,  # position
-              false, false, true,   # orientation (use yaw from Madgwick fusion)
+              false, false, false,  # orientation (YAW DISABLED - corrupted by mag!)
               false, false, false,  # linear velocity
-              false, false, true,   # angular velocity (vyaw) - ENABLED for rotation tracking!
+              false, false, true,   # angular velocity (vyaw) - ONLY SOURCE for yaw now
               false, false, false]  # linear acceleration (DISABLED to prevent drift)
 
 # Differential mode - ENABLED for angular velocity to prevent drift accumulation

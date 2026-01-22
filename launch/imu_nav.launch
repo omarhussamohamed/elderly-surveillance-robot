@@ -74,8 +74,12 @@
     <remap from="/imu/data" to="/imu/data" />
     
     <!-- Sensor Configuration -->
-    <param name="use_mag" value="true" />  <!-- Enable magnetometer fusion for absolute heading -->
-    <param name="use_magnetic_field_msg" value="true" />  <!-- Use sensor_msgs/MagneticField -->
+    <!-- EMERGENCY FIX: MAGNETOMETER DISABLED - causing 60° yaw jumps indoors! -->
+    <!-- Indoor environment: metal chassis, motors, Jetson PSU corrupt mag readings -->
+    <!-- Magnetometer reads 500-2000 μT local fields vs 50 μT Earth field -->
+    <!-- Result: Random yaw orientation, robot rotates while stationary -->
+    <param name="use_mag" value="false" />  <!-- DISABLED: Gyro-only mode for indoor use -->
+    <param name="use_magnetic_field_msg" value="false" />  <!-- Not using mag data -->
     <param name="publish_tf" value="false" />  <!-- Disable TF - using static transform instead -->
     <param name="reverse_tf" value="false" />  <!-- TF direction: imu_link is child of base_link -->
     
@@ -84,7 +88,10 @@
     <param name="world_frame" value="enu" />  <!-- World frame convention (East-North-Up) - data already remapped in node -->
     
     <!-- Filter Parameters -->
-    <param name="gain" value="$(arg madgwick_gain)" />  <!-- Filter gain (default: 0.1) -->
+    <!-- EMERGENCY FIX: Higher gain since mag disabled (gyro-only mode) -->
+    <!-- gain=0.9 means trust gyro 90%, accel 10% for tilt correction -->
+    <!-- No mag → no yaw jumps, only slow gyro drift (acceptable indoors) -->
+    <param name="gain" value="0.9" />  <!-- HIGH: Gyro-dominant (was 0.1 for mag fusion) -->
     <param name="zeta" value="$(arg madgwick_zeta)" />  <!-- Gyro drift compensation -->
     
     <!-- Magnetometer Calibration (adjust after mag calibration) -->
