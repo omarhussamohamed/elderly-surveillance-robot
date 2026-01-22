@@ -350,16 +350,19 @@ class SensorsActuatorsNode:
         Handle buzzer commands from /buzzer_command topic.
         Safety: auto-shutoff if no command received for >5 seconds.
         """
+        rospy.loginfo("Buzzer command received: {}".format(msg.data))
+        
         if not self.buzzer_initialized:
+            rospy.logwarn("Buzzer command ignored - buzzer not initialized")
             return
         
         self.last_buzzer_command_time = rospy.get_time()
         self.set_buzzer(msg.data)
         
         if msg.data:
-            rospy.loginfo("Buzzer ON")
+            rospy.loginfo("Buzzer ON - GPIO pin {} set HIGH".format(self.buzzer_pin))
         else:
-            rospy.loginfo("Buzzer OFF")
+            rospy.loginfo("Buzzer OFF - GPIO pin {} set LOW".format(self.buzzer_pin))
     
     def check_buzzer_timeout(self):
         """Auto-shutoff buzzer if no command received for >5 seconds."""
