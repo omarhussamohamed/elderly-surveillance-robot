@@ -77,6 +77,8 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/patrol_client.py
   scripts/mpu9250_node.py
+  scripts/sensors_actuators_node.py
+  scripts/cloud_bridge_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
