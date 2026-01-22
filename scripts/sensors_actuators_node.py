@@ -267,59 +267,81 @@ class SensorsActuatorsNode:
                 rospy.logerr_throttle(5.0, "Buzzer error: {}".format(e))
     
     def start_buzzer_warning(self):
-        """Start buzzer warning pattern (fast beeping)."""
+        """Start buzzer warning pattern (continuous beeping until stopped)."""
         if not self.buzzer_initialized:
+            rospy.logwarn("Cannot start buzzer - not initialized")
             return
         
-        # If already running, don't restart
-        if self.buzzer_warning_active and self.buzzer_warning_thread and self.buzzer_warning_thread.is_alive():
-            rospy.loginfo("Buzzer warning already active")
-            return
-        
-        # Stop any existing pattern first
-        if self.buzzer_warning_active:
-            self.buzzer_warning_active = False
-            time.sleep(0.3)  # Wait for old thread to exit
-        
-        # Start new pattern
-        self.buzzer_warning_active = True
+        with self.buzzer_lock:
+            # If already running, don't restart
+            if self.buzzer_warning_active:
+                rospy.loginfo("Buzzer already active - ignoring duplicate start")
+                return
+            
+            # Set active flag FIRST
+            self.buzzer_warning_active = True
+            rospy.loginfo("========== BUZZER START REQUESTED ==========")
         
         def warning_pattern():
-            """Fast beep pattern: 0.1s ON, 0.1s OFF, repeat continuously."""
+            """Continuous beep pattern: 0.1s ON, 0.1s OFF, runs forever until stopped."""
+            rospy.loginfo("[BUZZER THREAD] Started - will beep continuously")
+            beep_count = 0
+            
             try:
-                rospy.loginfo("Buzzer warning pattern started")
-                while self.buzzer_warning_active and not rospy.is_shutdown():
-                    if self.buzzer_warning_active:  # Double check
-                        self.set_buzzer(True)
-                        time.sleep(0.1)
-                    if self.buzzer_warning_active:  # Check again before OFF
-                        self.set_buzzer(False)
-                        time.sleep(0.1)
-                rospy.loginfo("Buzzer warning pattern stopped")
+                while not rospy.is_shutdown():
+                    # Check if we should stop
+                    with self.buzzer_lock:
+                        if not self.buzzer_warning_active:
+                            rospy.loginfo("[BUZZER THREAD] Stop flag detected, exiting...")
+                            break
+                    
+                    # Beep ON
+                    self.set_buzzer(True)
+                    time.sleep(0.1)
+                    
+                    # Beep OFF
+                    self.set_buzzer(False)
+                    time.sleep(0.1)
+                    
+                    beep_count += 1
+                    if beep_count % 50 == 0:  # Log every 10 seconds
+                        rospy.loginfo("[BUZZER THREAD] Still beeping... (count: {})".format(beep_count))
+                        
             except Exception as e:
-                rospy.logerr("Buzzer warning error: {}".format(e))
+                rospy.logerr("[BUZZER THREAD] ERROR: {}".format(e))
             finally:
                 self.set_buzzer(False)
+                rospy.loginfo("[BUZZER THREAD] Exited (total beeps: {})".format(beep_count))
         
-        self.buzzer_warning_thread = threading.Thread(target=warning_pattern)
+        # Start thread
+        self.buzzer_warning_thread = threading.Thread(target=warning_pattern, name="BuzzerThread")
         self.buzzer_warning_thread.daemon = True
         self.buzzer_warning_thread.start()
-        rospy.loginfo("Buzzer warning thread started")
+        rospy.loginfo("========== BUZZER THREAD LAUNCHED ==========")
     
     def stop_buzzer_warning(self):
         """Stop buzzer warning pattern."""
-        if not self.buzzer_warning_active:
-            return  # Already stopped
+        rospy.loginfo("========== BUZZER STOP REQUESTED ==========")
         
-        rospy.loginfo("Stopping buzzer warning...")
-        self.buzzer_warning_active = False
+        with self.buzzer_lock:
+            if not self.buzzer_warning_active:
+                rospy.loginfo("Buzzer already stopped")
+                return
+            
+            # Clear the active flag
+            self.buzzer_warning_active = False
         
-        # Wait for thread to finish (max 0.5s)
+        # Wait for thread to finish (max 1 second)
         if self.buzzer_warning_thread and self.buzzer_warning_thread.is_alive():
-            self.buzzer_warning_thread.join(timeout=0.5)
+            rospy.loginfo("Waiting for buzzer thread to exit...")
+            self.buzzer_warning_thread.join(timeout=1.0)
+            
+            if self.buzzer_warning_thread.is_alive():
+                rospy.logwarn("Buzzer thread did not exit cleanly")
         
+        # Ensure buzzer is OFF
         self.set_buzzer(False)
-        rospy.loginfo("Buzzer warning stopped")
+        rospy.loginfo("========== BUZZER STOPPED ==========")
     
     def buzzer_command_callback(self, msg):
         """Handle buzzer commands."""
@@ -333,7 +355,7 @@ class SensorsActuatorsNode:
             self.stop_buzzer_warning()
     
     def read_jetson_stats(self):
-        """Read Jetson temperature and power."""
+        """Read Jetson temperature and power with robust error handling."""
         if self.jtop_handle is None:
             return (0.0, 0.0)
         
@@ -345,13 +367,32 @@ class SensorsActuatorsNode:
             temp = 0.0
             if hasattr(self.jtop_handle, 'temperature'):
                 temps = self.jtop_handle.temperature
-                if 'CPU' in temps:
-                    temp = float(temps['CPU'])
-                elif 'thermal' in temps:
-                    temp = float(temps['thermal'])
-                elif temps:
-                    # Average all available temperatures
-                    temp = sum(float(v) for v in temps.values()) / len(temps)
+                if temps and isinstance(temps, dict):
+                    # Try CPU first
+                    if 'CPU' in temps:
+                        try:
+                            temp = float(temps['CPU'])
+                        except (ValueError, TypeError):
+                            rospy.logwarn_throttle(30.0, "Invalid CPU temp: {}".format(temps['CPU']))
+                    # Try thermal second
+                    elif 'thermal' in temps:
+                        try:
+                            temp = float(temps['thermal'])
+                        except (ValueError, TypeError):
+                            rospy.logwarn_throttle(30.0, "Invalid thermal temp: {}".format(temps['thermal']))
+                    # Average all as fallback
+                    elif temps:
+                        try:
+                            valid_temps = []
+                            for v in temps.values():
+                                try:
+                                    valid_temps.append(float(v))
+                                except (ValueError, TypeError):
+                                    pass
+                            if valid_temps:
+                                temp = sum(valid_temps) / len(valid_temps)
+                        except Exception:
+                            pass
             
             # Read power - try multiple possible keys
             power = 0.0
@@ -359,16 +400,29 @@ class SensorsActuatorsNode:
                 power_data = self.jtop_handle.power
                 if isinstance(power_data, dict):
                     # Try different power keys
-                    power = float(power_data.get('tot', power_data.get('total', power_data.get('ALL', 0.0))))
+                    for key in ['tot', 'total', 'ALL', 'cur']:
+                        if key in power_data:
+                            try:
+                                power = float(power_data[key])
+                                break
+                            except (ValueError, TypeError):
+                                rospy.logwarn_throttle(30.0, "Invalid power value for key '{}': {}".format(key, power_data[key]))
                 elif isinstance(power_data, (int, float)):
-                    power = float(power_data)
+                    try:
+                        power = float(power_data)
+                    except (ValueError, TypeError):
+                        pass
             
             return (temp, power)
+            
         except AttributeError as e:
             rospy.logwarn_throttle(30.0, "Jetson stats attribute error: {}".format(e))
             return (0.0, 0.0)
+        except ValueError as e:
+            rospy.logwarn_throttle(30.0, "Jetson stats float conversion error: {}".format(e))
+            return (0.0, 0.0)
         except Exception as e:
-            rospy.logwarn_throttle(30.0, "Jetson stats read error: {}".format(e))
+            rospy.logwarn_throttle(30.0, "Jetson stats unexpected error: {}".format(e))
             return (0.0, 0.0)
     
     def publish_sensor_data(self):

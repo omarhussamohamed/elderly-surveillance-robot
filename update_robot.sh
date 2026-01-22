@@ -60,6 +60,15 @@ echo ""
 # ============================================
 echo -e "${BLUE}[2/8] Fixing Jetson stats permissions...${NC}"
 
+# Upgrade jetson-stats to latest version (fixes float parsing bugs)
+if command -v jtop &> /dev/null; then
+    echo "Upgrading jetson-stats to latest version..."
+    sudo -H pip install -U jetson-stats || echo "⚠ jetson-stats upgrade skipped"
+else
+    echo "Installing jetson-stats..."
+    sudo -H pip install jetson-stats || echo "⚠ jetson-stats install skipped"
+fi
+
 # Check if user is in jtop group
 if ! groups | grep -q "jtop"; then
     echo "Adding user to jtop group..."
