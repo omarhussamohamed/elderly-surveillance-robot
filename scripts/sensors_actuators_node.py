@@ -10,6 +10,7 @@ import time
 import threading
 import subprocess
 import os
+import warnings
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
 
@@ -99,6 +100,13 @@ class SensorsActuatorsNode:
         self.gas_poll_count = 0
         self.gas_poll_start_time = 0.0
         
+        # Stuck LOW detection (pot too sensitive)
+        self.gas_stuck_low_start = None
+        self.gas_stuck_low_warned = False
+        
+        # One-time warnings
+        self.voltage_warning_shown = False
+        
         # Polarity configuration (auto-detect or manual)
         # Options: 'active_low' (D0 LOW when gas detected), 'active_high' (D0 HIGH when gas detected)
         # Standard 5V MQ-6: active_low (DO LOW when gas detected, LED ON)
@@ -160,8 +168,9 @@ class SensorsActuatorsNode:
         try:
             setup_gpio_permissions(self.gas_sensor_gpio_pin)
             GPIO.setmode(GPIO.BOARD)
-            # Use pull-down to prevent floating input (if D0 enters high-impedance)
-            GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            # Note: Jetson.GPIO ignores pull_up_down, so removed to suppress warning
+            # MQ-6 DO has strong output, no pull needed
+            GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             
             # CRITICAL DEBUG: Test BOTH polarities to find correct one
             rospy.logwarn("="*60)
@@ -328,27 +337,18 @@ class SensorsActuatorsNode:
                 self.gas_polarity.upper(),
                 "LOW" if self.gas_polarity == 'active_low' else "HIGH"))
             rospy.loginfo("  Hardware debounce: 20ms (fast response)")
-            rospy.loginfo("  Software stability: {:.0f}ms required".format(self.gas_stability_required * 1000))
             rospy.loginfo("  Pull resistor: DOWN (prevents floating)")
             rospy.loginfo("  Initial pin state: {}".format(initial_state_str))
             rospy.loginfo("  Initial detection: {}".format(
                 "GAS DETECTED" if initial_detected else "NO GAS (safe)"))
             rospy.loginfo("="*60)
             rospy.logerr("⚠️⚠️⚠️ CRITICAL VOLTAGE WARNING ⚠️⚠️⚠️")
-            rospy.logerr("  Module powered: 5V (sensor requires 5V for full sensitivity)")
-            rospy.logerr("  D0 signal level: ~5V HIGH / ~0V LOW (UNSAFE FOR JETSON!)")
-            rospy.logerr("  Jetson GPIO pins: 3.3V ONLY (NOT 5V TOLERANT)")
-            rospy.logerr("  ")
-            rospy.logerr("  ⚡ RISK: 5V signal may damage Jetson pin over time!")
-            rospy.logerr("  ")
-            rospy.logerr("  REQUIRED FIX (choose one):")
-            rospy.logerr("  1. Voltage divider: DO → [10kΩ] → GPIO → [22kΩ] → GND")
-            rospy.logerr("  2. Bi-directional level shifter (5V ↔ 3.3V)")
-            rospy.logerr("  3. Power MQ-6 with 3.3V (less sensitive but safe)")
-            rospy.logerr("  ")
-            rospy.logerr("  Current operation: TEMPORARY TEST ONLY - ADD PROTECTION!")
-            rospy.loginfo("="*60)
             
+            # Show voltage warning ONCE only (user has divider installed)
+            if not self.voltage_warning_shown:
+                rospy.logwarn("⚠️ VOLTAGE NOTE: Ensure 10k+22k divider installed on DO pin")
+                rospy.logwarn("  (5V direct to GPIO will damage Jetson over time)")
+                self.voltage_warning_shown = True
             # Wait and monitor pin for 2 seconds (RAW VALUES DEBUG)
             start_time = time.time()
             state_changes = 0
@@ -749,29 +749,46 @@ class SensorsActuatorsNode:
                 "TRUE" if raw_detected else "FALSE",
                 opposite_polarity,
                 "TRUE" if opposite_detected else "FALSE",
-                "TRUE" if published_state else "FALSE"))
+              === STUCK LOW DETECTION ===
+            if raw_pin_state == GPIO.LOW:
+                if self.gas_stuck_low_start is None:
+                    self.gas_stuck_low_start = current_time
+                stuck_duration = current_time - self.gas_stuck_low_start
+                
+                # Warn after 30 seconds stuck LOW
+                if stuck_duration > 30 and not self.gas_stuck_low_warned:
+                    rospy.logwarn("="*60)
+                    rospy.logwarn("⚠️ RAW PIN STUCK LOW FOR {:.0f}s → POT TOO SENSITIVE!".format(stuck_duration))
+                    rospy.logwarn("  LED OFF but detected=TRUE → threshold too low")
+                    rospy.logwarn("  FIX: Turn potentiometer CLOCKWISE slowly (10-15 turns)")
+                    rospy.logwarn("  GOAL: RAW HIGH in clean air, LOW only with gas+LED")
+                    rospy.logwarn("="*60)
+                    self.gas_stuck_low_warned = True
+                
+                # Critical error after 60 seconds
+                if stuck_duration > 60:
+                    rospy.logerr_throttle(30, "CRITICAL: RAW LOW >{:.0f}s → TURN POT CW NOW OR CHECK WIRING!".format(stuck_duration))
+            else:
+                # Reset if pin goes HIGH
+                self.gas_stuck_low_start = None
+                self.gas_stuck_low_warned = False
+            
+            # Debug: raw GPIO should flip with LED after voltage divider
+            # Log every 10th poll to reduce spam (2 Hz instead of 20 Hz)
+            if self.gas_poll_count % 10 == 0:
+                rospy.loginfo("[{:.3f}] #{} ({:.1f}Hz) | RAW: {} | {}: {} | {}: {} | PUB: {} | ** LED? **".format(
+                    current_time,
+                    self.gas_poll_count,
+                    poll_rate,
+                    raw_pin_str,
+                    self.gas_polarity,
+                    "TRUE" if raw_detected else "FALSE",
+                    opposite_polarity,
+                    "TRUE" if opposite_detected else "FALSE",
+                    "TRUE" if published_state else "FALSE"))
             
             # Publish current state (from interrupt-driven cache)
-            self.gas_detected_pub.publish(Bool(data=published_state))
-            rospy.loginfo("[{:.3f}] POLL #{} ({:.1f} Hz) | RAW PIN: {} | RAW DETECTED: {} | PUBLISHED: {} | MATCH: {}".format(
-                current_time,
-                self.gas_poll_count,
-                poll_rate,
-                raw_pin_str,
-                "TRUE" if raw_detected else "FALSE",
-                "TRUE" if published_state else "FALSE",
-                "YES" if raw_detected == published_state else ">>> LAG/MISMATCH <<<"))
-            
-            # Publish current state (from interrupt-driven cache)
-            self.gas_detected_pub.publish(Bool(data=published_state))
-        
-        # Publish Jetson stats (keep quiet to not spam logs)
-        temp, power = self.read_jetson_stats()
-        temp_msg = Temperature()
-        temp_msg.header.stamp = rospy.Time.now()
-        temp_msg.temperature = temp
-        self.jetson_temp_pub.publish(temp_msg)
-        self.jetson_power_pub.publish(Float32(data=power))
+            self.gas_detected_pub.publish(Bool(data=published_state)
     
     def run(self):
         """Main loop - INCREASED to 20Hz for high-frequency GPIO polling during diagnosis."""
