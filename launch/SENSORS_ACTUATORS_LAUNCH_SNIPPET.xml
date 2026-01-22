@@ -50,7 +50,7 @@ TESTING INSTRUCTIONS (on Jetson Nano):
 2. WITH HARDWARE CONNECTED:
    a. Install dependencies:
       $ sudo apt install python3-pip
-      $ pip3 install jetson-stats Jetson.GPIO adafruit-blinka adafruit-circuitpython-ads1x15
+      $ pip3 install jetson-stats Jetson.GPIO smbus2
       $ sudo reboot  # Required for jetson-stats
    
    b. Edit config/sensors_actuators.yaml:

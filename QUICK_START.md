@@ -30,7 +30,7 @@ chmod +x install_dependencies.sh
 **Optional Python packages (for sensors/actuators/cloud):**
 ```bash
 # Gas sensor + buzzer + Jetson monitoring
-sudo pip3 install jetson-stats Jetson.GPIO adafruit-blinka adafruit-circuitpython-ads1x15
+sudo pip3 install jetson-stats Jetson.GPIO smbus2
 
 # Cloud bridge (AWS IoT Core)
 sudo pip3 install AWSIoTPythonSDK

@@ -166,7 +166,7 @@ All documentation files have been updated to reflect the changes:
 Install with pip3:
 ```bash
 # Gas sensor + buzzer + Jetson monitoring
-sudo pip3 install jetson-stats Jetson.GPIO adafruit-blinka adafruit-circuitpython-ads1x15
+sudo pip3 install jetson-stats Jetson.GPIO smbus2
 
 # Cloud bridge (AWS IoT Core)
 sudo pip3 install AWSIoTPythonSDK
@@ -222,7 +222,7 @@ On Jetson Nano:
 
 3. **Install Optional Dependencies** (if using new features):
    ```bash
-   sudo pip3 install jetson-stats Jetson.GPIO adafruit-blinka adafruit-circuitpython-ads1x15 AWSIoTPythonSDK
+   sudo pip3 install jetson-stats Jetson.GPIO smbus2 AWSIoTPythonSDK
    sudo reboot
    ```
 

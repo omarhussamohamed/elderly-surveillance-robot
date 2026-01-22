@@ -39,7 +39,7 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
   - Madgwick fusion provides orientation from gyro+accel
   - See [docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)
 - **Gas Sensor**: MQ-6 (LPG/natural gas detection)
-  - Analog signal via ADS1115 16-bit I2C ADC (address 0x48)
+  - Analog signal via ADS1115 16-bit I2C ADC (bus 1, address 0x48)
   - Threshold-based detection with voltage reporting
   - Optional: disabled by default (enable_gas_sensor parameter)
 - **Jetson Monitoring**: System temperature and power consumption
@@ -111,6 +111,9 @@ map
 - **Buzzer (Optional)**: Active buzzer on Jetson GPIO
   - Configure pin number in config/sensors_actuators.yaml
   - Uses BOARD pin numbering
+- **AWS IoT Core (Optional)**: Cloud connectivity
+  - Certificates stored in ~/aws_certs/ on Jetson
+  - See aws_certs/README.md for setup instructions
 
 ### Serial Permissions
 ```bash

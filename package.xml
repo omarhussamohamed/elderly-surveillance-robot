@@ -50,7 +50,7 @@
   <!-- Optional Python packages (install via pip):
        - jetson-stats (Jetson monitoring)
        - Jetson.GPIO (buzzer control)
-       - adafruit-blinka + adafruit-circuitpython-ads1x15 (gas sensor)
+       - smbus2 (gas sensor I2C communication)
        - AWSIoTPythonSDK (cloud bridge)
   -->
   

@@ -27,7 +27,14 @@ elderly_bot/
 │   ├── global_costmap.yaml           # Global planning costmap
 │   ├── local_costmap.yaml            # Local planning costmap
 │   ├── patrol_goals.yaml             # Patrol waypoint definitions
-│   └── sensors_actuators.yaml        # Gas sensor, buzzer, Jetson stats config
+│   ├── sensors_actuators.yaml        # Gas sensor, buzzer, Jetson stats config
+│   └── cloud_config.yaml             # AWS IoT Core connection config
+│
+├── aws_certs/                        # AWS IoT certificates (deployment only)
+│   ├── README.md                     # Certificate setup guide
+│   ├── .gitignore                    # Excludes actual certificates
+│   ├── setup_certificates.sh         # Automated setup script
+│   └── PLACEHOLDER_*.pem             # Structure examples (not real certs)
 │
 ├── firmware/                         # ESP32 Arduino firmware
 │   ├── elderly_bot_esp32_wifi.ino    # Production firmware (WiFi rosserial)
@@ -51,6 +58,7 @@ elderly_bot/
 ├── scripts/                          # Validation & utility scripts
 │   ├── mpu9250_node.py               # MPU9250 driver (Madgwick fusion)
 │   ├── sensors_actuators_node.py     # Gas sensor, buzzer, Jetson monitoring
+│   ├── cloud_bridge_node.py          # AWS IoT Core MQTT bridge
 │   ├── patrol_client.py              # Patrol waypoint sequencer
 │   ├── master_validator.sh           # 4-stage system validation
 │   ├── tf_verification_complete.sh   # TF frame diagnostic

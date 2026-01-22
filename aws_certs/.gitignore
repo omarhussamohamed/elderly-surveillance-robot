@@ -1,0 +1,12 @@
+# AWS IoT Core Certificates - DO NOT COMMIT TO GIT!
+# Keep this directory structure in version control, but exclude actual certificates
+
+# Exclude all certificate and key files
+*.pem
+*.crt
+*.key
+
+# But keep placeholder files and documentation
+!PLACEHOLDER_*
+!README.md
+!.gitignore
