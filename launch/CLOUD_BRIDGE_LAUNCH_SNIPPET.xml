@@ -1,0 +1,196 @@
+<!--
+====================================================================================================
+LAUNCH SNIPPET FOR AWS IoT CLOUD BRIDGE
+====================================================================================================
+
+Add this snippet to launch/bringup.launch to enable cloud communication with AWS IoT Core.
+
+USAGE:
+  1. Copy the XML block below into launch/bringup.launch (before the closing </launch> tag)
+  2. Complete AWS IoT Core setup (see config/cloud_config.yaml for detailed guide)
+  3. Update config/cloud_config.yaml with your AWS endpoint and certificate paths
+  4. Launch with: roslaunch elderly_bot bringup.launch enable_cloud:=true
+  5. Or leave enable_cloud:=false (default) to keep cloud bridge disabled
+
+The node will run safely without crashing if AWS is unavailable or misconfigured (only warnings).
+To actually connect to cloud, complete the AWS setup and set enable_cloud:=true in the config.
+
+====================================================================================================
+-->
+
+  <!-- ============= AWS IoT CORE CLOUD BRIDGE ============= -->
+  <!-- Optional: Enable with enable_cloud:=true -->
+  <arg name="enable_cloud" default="false" doc="Enable AWS IoT Core cloud communication bridge"/>
+  
+  <group if="$(arg enable_cloud)">
+    <!-- Load cloud configuration parameters -->
+    <rosparam file="$(find elderly_bot)/config/cloud_config.yaml" command="load"/>
+    
+    <!-- Start cloud bridge node -->
+    <node pkg="elderly_bot" type="cloud_bridge_node.py" name="cloud_bridge_node" output="screen">
+      <!-- All parameters loaded from YAML file above -->
+      <!-- To override from launch file, add <param> tags here -->
+    </node>
+    
+    <node pkg="roswtf" type="roswtf" name="roswtf_check_cloud" if="false">
+      <!-- Optional: Add roswtf check for cloud diagnostics (disabled by default) -->
+    </node>
+  </group>
+  <!-- ========================================================= -->
+
+<!--
+====================================================================================================
+TESTING INSTRUCTIONS (on Jetson Nano):
+====================================================================================================
+
+1. WITHOUT CLOUD (safe test - only warnings):
+   $ roslaunch elderly_bot bringup.launch enable_cloud:=true
+   
+   Expected: Node starts, shows warnings about missing AWS config, continues running.
+
+2. WITH AWS IoT CORE SETUP:
+   a. Complete AWS IoT Core setup (see config/cloud_config.yaml guide):
+      - Create Thing in AWS IoT Console
+      - Download certificates (4 files)
+      - Create and attach IoT policy
+      - Copy certificates to Jetson: ~/aws_certs/
+   
+   b. Install AWS IoT Python SDK:
+      $ pip3 install AWSIoTPythonSDK
+   
+   c. Edit config/cloud_config.yaml:
+      - Set aws_endpoint (from AWS IoT Settings → Device data endpoint)
+      - Set certificate paths (absolute paths: /home/jetson/aws_certs/...)
+      - Set enable_cloud: true
+   
+   d. Launch:
+      $ roslaunch elderly_bot bringup.launch enable_cloud:=true
+   
+   e. Verify connection (check logs):
+      [INFO] Connected to AWS IoT Core
+      [INFO] Subscribed to MQTT topic: robot/commands
+   
+   f. Monitor in AWS Console:
+      AWS IoT Core → Test → MQTT test client
+      Subscribe to: robot/sensors/data
+      You should see JSON messages with sensor data arriving every second
+
+3. TEST BIDIRECTIONAL COMMUNICATION:
+   
+   a. Publish sensor data (automatic):
+      - Start sensors_actuators_node: roslaunch elderly_bot bringup.launch sensors_actuators:=true enable_cloud:=true
+      - Sensor data automatically published to cloud every 1 second
+      - View in AWS MQTT test client
+   
+   b. Send commands from cloud:
+      In AWS MQTT test client, publish to: robot/commands
+      
+      Buzzer ON:
+      {"command": "buzzer", "value": true}
+      
+      Buzzer OFF:
+      {"command": "buzzer", "value": false}
+      
+      Emergency Stop:
+      {"command": "stop", "value": null}
+      
+      Movement (careful!):
+      {"command": "move", "value": {"linear": 0.1, "angular": 0.0}}
+
+4. INTEGRATION WITH EXISTING SYSTEM:
+   - Node is completely independent, no interference with navigation/SLAM
+   - Safe to run alongside all existing nodes
+   - Only publishes to /buzzer_command and /cmd_vel (same as other nodes)
+   - No TF frames, no costmap interaction, no motor control conflict
+
+====================================================================================================
+PUBLISHED TOPICS (Cloud → ROS):
+====================================================================================================
+  /buzzer_command     (std_msgs/Bool)         - Buzzer control from cloud
+  /cmd_vel            (geometry_msgs/Twist)   - Movement/stop commands from cloud
+
+SUBSCRIBED TOPICS (ROS → Cloud):
+  /gas_level          (std_msgs/Float32)      - Gas sensor voltage
+  /jetson_temperature (sensor_msgs/Temperature) - Jetson temperature
+  /jetson_power       (std_msgs/Float32)      - Power consumption
+
+====================================================================================================
+CLOUD TEAM INTEGRATION NOTES:
+====================================================================================================
+
+Message Format - Sensor Data (robot → cloud):
+Topic: robot/sensors/data
+{
+  "timestamp": 1234567890.123,
+  "robot_id": "robot_01",
+  "sensors": {
+    "gas_level": 0.5,
+    "temperature": 45.2,
+    "power": 12.5
+  }
+}
+
+Message Format - Commands (cloud → robot):
+Topic: robot/commands
+
+Buzzer control:
+{"command": "buzzer", "value": true}
+
+Emergency stop:
+{"command": "stop", "value": null}
+
+Movement:
+{"command": "move", "value": {"linear": 0.1, "angular": 0.0}}
+
+====================================================================================================
+TROUBLESHOOTING:
+====================================================================================================
+  "AWS IoT SDK not available"
+    → pip3 install AWSIoTPythonSDK
+  
+  "AWS endpoint not configured"
+    → Set aws_endpoint in config/cloud_config.yaml
+    → Get from: AWS IoT Core Console → Settings → Device data endpoint
+  
+  "Certificate paths not configured"
+    → Set root_ca_path, cert_path, key_path in config/cloud_config.yaml
+    → Use absolute paths: /home/jetson/aws_certs/xxxxx.pem
+  
+  "Root CA not found"
+    → Download from: https://www.amazontrust.com/repository/AmazonRootCA1.pem
+    → Save to: /home/jetson/aws_certs/AmazonRootCA1.pem
+  
+  "Connection timeout"
+    → Check internet connection: ping 8.8.8.8
+    → Verify endpoint URL (no typos, no https://)
+    → Check firewall allows port 8883 outbound
+  
+  "Certificate verification failed"
+    → Ensure certificate is ACTIVATED in AWS IoT Console
+    → Verify policy is attached to certificate
+    → Check Thing name matches client_id in config
+  
+  "Permission denied"
+    → Review IoT policy in AWS Console
+    → Ensure policy allows iot:Connect, iot:Publish, iot:Subscribe
+    → Verify Thing ARN matches in policy
+
+====================================================================================================
+SECURITY BEST PRACTICES:
+====================================================================================================
+  1. Never commit private key (.pem.key) to git
+     Add to .gitignore: *.pem.key
+  
+  2. Set restrictive permissions on private key:
+     chmod 600 ~/aws_certs/*.pem.key
+  
+  3. Use least-privilege IoT policy (restrict to specific topics)
+  
+  4. Rotate certificates periodically (AWS recommendation: annually)
+  
+  5. Monitor AWS CloudWatch for unusual activity
+  
+  6. Use separate Thing per robot (don't share client_id/certificates)
+
+====================================================================================================
+-->

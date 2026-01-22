@@ -32,11 +32,25 @@ The Elderly Bot is designed for autonomous indoor monitoring with two operationa
 
 ### Sensors
 - **Lidar**: RPLidar A1 (mounted 0.30m above ground)
-- **IMU**: MPU-9250 (gyroscope + accelerometer + magnetometer)
-  - Connected via I2C to Jetson Nano
+- **IMU**: MPU-9250 (gyroscope + accelerometer only)
+  - Connected via I2C to Jetson Nano (bus 1, address 0x68)
   - Dynamic gyro calibration on startup
-  - Magnetometer for absolute heading
+  - **Magnetometer DISABLED** (indoor EMI from motors/PSU/battery)
+  - Madgwick fusion provides orientation from gyro+accel
   - See [docs/IMU_CALIBRATION.md](docs/IMU_CALIBRATION.md)
+- **Gas Sensor**: MQ-6 (LPG/natural gas detection)
+  - Analog signal via ADS1115 16-bit I2C ADC (address 0x48)
+  - Threshold-based detection with voltage reporting
+  - Optional: disabled by default (enable_gas_sensor parameter)
+- **Jetson Monitoring**: System temperature and power consumption
+  - Uses jetson-stats (jtop) library
+  - Real-time hardware health monitoring
+
+### Actuators
+- **Active Buzzer**: Alert/alarm notifications
+  - Connected to Jetson GPIO (BOARD numbering)
+  - Auto-shutoff after 5 seconds for safety
+  - Optional: disabled by default (enable_buzzer parameter)
 
 ### Motor Drivers
 - 2× L298N dual H-bridge motor drivers
@@ -90,6 +104,13 @@ map
   - SDA → Pin 3 on J21 header
   - SCL → Pin 5 on J21 header
   - VCC → 3.3V, GND → GND
+- **Gas Sensor (Optional)**: MQ-6 via ADS1115 ADC on I2C bus 1
+  - ADS1115 address: 0x48
+  - MQ-6 analog output → ADS1115 channel A0
+  - VCC → 5V, GND → GND
+- **Buzzer (Optional)**: Active buzzer on Jetson GPIO
+  - Configure pin number in config/sensors_actuators.yaml
+  - Uses BOARD pin numbering
 
 ### Serial Permissions
 ```bash

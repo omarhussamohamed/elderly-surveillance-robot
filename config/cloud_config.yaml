@@ -1,0 +1,171 @@
+# AWS IoT Core Bridge Configuration for Elderly Bot
+# ==================================================
+# This file contains parameters for connecting the robot to AWS IoT Core.
+#
+# SAFETY: Cloud bridge is DISABLED by default until configured and tested.
+# To enable:
+#   1. Complete AWS IoT Core setup (create Thing, download certificates)
+#   2. Update all parameters below with your AWS configuration
+#   3. Set enable_cloud to true
+#   4. Launch with enable_cloud:=true
+
+cloud_bridge_node:
+  # ===== FEATURE ENABLE FLAG =====
+  # Set to true only after AWS IoT Core is fully configured
+  enable_cloud: false
+  
+  # ===== AWS IoT CORE CONNECTION =====
+  # Endpoint URL from AWS IoT Core console
+  # Get from: AWS IoT Core → Settings → Device data endpoint
+  # Example: "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com"
+  aws_endpoint: ""  # *** PASTE YOUR ENDPOINT HERE ***
+  
+  # Unique identifier for this robot (must match AWS IoT Thing name)
+  client_id: "robot_01"
+  
+  # MQTT port (default 8883 for TLS)
+  port: 8883
+  
+  # ===== CERTIFICATE PATHS =====
+  # Absolute paths to AWS IoT certificates
+  # Download from: AWS IoT Core → Security → Certificates
+  #
+  # IMPORTANT: Update these paths to match your certificate locations
+  # Linux example: "/home/jetson/aws_certs/"
+  # Windows example: "C:/aws_certs/"
+  
+  # Root CA certificate (Amazon Root CA 1)
+  # Download: https://www.amazontrust.com/repository/AmazonRootCA1.pem
+  root_ca_path: "/path/to/AmazonRootCA1.pem"
+  
+  # Device certificate (from AWS IoT Core, ends with .pem.crt)
+  cert_path: "/path/to/xxxxx-certificate.pem.crt"
+  
+  # Private key (from AWS IoT Core, ends with .pem.key)
+  # SECURITY: Keep this file secure! Never commit to git.
+  key_path: "/path/to/xxxxx-private.pem.key"
+  
+  # ===== MQTT TOPICS =====
+  # MQTT topics for bidirectional communication
+  # Customize these based on your cloud team's setup
+  
+  # Topic to publish robot sensor data TO cloud
+  mqtt_topic_sensors: "robot/sensors/data"
+  
+  # Topic to receive commands FROM cloud
+  mqtt_topic_commands: "robot/commands"
+  
+  # ===== PUBLISHING RATE =====
+  # How often to send sensor data to cloud (Hz)
+  publish_rate: 1.0  # 1 Hz = once per second (adjust as needed)
+  
+  # ===== CONNECTION SETTINGS =====
+  # MQTT keepalive interval (seconds)
+  keepalive_interval: 30
+  
+  # ===== SETUP GUIDE =====
+  # Step-by-step AWS IoT Core setup:
+  #
+  # 1. Create AWS Account:
+  #    - Go to https://aws.amazon.com/
+  #    - Create account or sign in
+  #
+  # 2. Create IoT Thing:
+  #    - AWS IoT Core Console → Manage → All devices → Things
+  #    - Click "Create things"
+  #    - Choose "Create single thing"
+  #    - Name: robot_01 (or your custom client_id)
+  #
+  # 3. Download Certificates:
+  #    - During Thing creation, choose "Auto-generate a new certificate"
+  #    - Download ALL 4 files:
+  #      * Device certificate (.pem.crt)
+  #      * Public key (.pem.key - not used but save it)
+  #      * Private key (.pem.key - KEEP SECURE!)
+  #      * Root CA certificate (Amazon Root CA 1)
+  #    - Click "Activate" certificate
+  #    - Attach a policy (next step)
+  #
+  # 4. Create IoT Policy (if not exists):
+  #    - AWS IoT Core Console → Security → Policies
+  #    - Create policy with these permissions:
+  #      {
+  #        "Version": "2012-10-17",
+  #        "Statement": [
+  #          {
+  #            "Effect": "Allow",
+  #            "Action": ["iot:Connect"],
+  #            "Resource": "arn:aws:iot:REGION:ACCOUNT:client/${iot:Connection.Thing.ThingName}"
+  #          },
+  #          {
+  #            "Effect": "Allow",
+  #            "Action": ["iot:Publish", "iot:Receive"],
+  #            "Resource": "arn:aws:iot:REGION:ACCOUNT:topic/robot/*"
+  #          },
+  #          {
+  #            "Effect": "Allow",
+  #            "Action": ["iot:Subscribe"],
+  #            "Resource": "arn:aws:iot:REGION:ACCOUNT:topicfilter/robot/*"
+  #          }
+  #        ]
+  #      }
+  #
+  # 5. Copy Certificates to Jetson:
+  #    - Create folder: mkdir ~/aws_certs
+  #    - Copy all .pem files to this folder
+  #    - Set permissions: chmod 600 ~/aws_certs/*.pem.key
+  #
+  # 6. Update This Config File:
+  #    - Set aws_endpoint (from AWS IoT Settings)
+  #    - Set certificate paths (absolute paths on Jetson)
+  #    - Set enable_cloud: true
+  #
+  # 7. Test Connection:
+  #    - Launch: roslaunch elderly_bot bringup.launch enable_cloud:=true
+  #    - Check logs: "Connected to AWS IoT Core"
+  #    - Monitor in AWS: IoT Core → Test → MQTT test client
+  #      Subscribe to: robot/sensors/data
+  
+  # ===== MESSAGE FORMATS =====
+  # Sensor data TO cloud (JSON):
+  # {
+  #   "timestamp": 1234567890.123,
+  #   "robot_id": "robot_01",
+  #   "sensors": {
+  #     "gas_level": 0.5,
+  #     "temperature": 45.2,
+  #     "power": 12.5
+  #   }
+  # }
+  #
+  # Commands FROM cloud (JSON):
+  # Buzzer control:
+  # {"command": "buzzer", "value": true}
+  #
+  # Emergency stop:
+  # {"command": "stop", "value": null}
+  #
+  # Movement (use with caution!):
+  # {"command": "move", "value": {"linear": 0.1, "angular": 0.0}}
+  
+  # ===== TROUBLESHOOTING =====
+  # "AWS IoT SDK not available"
+  #   → pip3 install AWSIoTPythonSDK
+  #
+  # "Root CA not found"
+  #   → Check file path, ensure absolute path
+  #   → Download from: https://www.amazontrust.com/repository/AmazonRootCA1.pem
+  #
+  # "Connection timeout"
+  #   → Check internet connection
+  #   → Verify endpoint URL (no typos)
+  #   → Check port 8883 not blocked by firewall
+  #
+  # "Certificate verification failed"
+  #   → Ensure certificate is activated in AWS IoT Console
+  #   → Verify policy is attached to certificate
+  #   → Check certificate and key file permissions
+  #
+  # "Permission denied"
+  #   → Verify IoT policy allows connect/publish/subscribe
+  #   → Check Thing name matches client_id

@@ -27,6 +27,18 @@ chmod +x install_dependencies.sh
 - ros-melodic-move-base
 - And more... (see install_dependencies.sh)
 
+**Optional Python packages (for sensors/actuators/cloud):**
+```bash
+# Gas sensor + buzzer + Jetson monitoring
+sudo pip3 install jetson-stats Jetson.GPIO adafruit-blinka adafruit-circuitpython-ads1x15
+
+# Cloud bridge (AWS IoT Core)
+sudo pip3 install AWSIoTPythonSDK
+
+# Reboot after jetson-stats installation
+sudo reboot
+```
+
 Log out and log back in (for serial port permissions).
 
 ## 2. Program ESP32 (One-Time Setup)
@@ -53,6 +65,9 @@ Log out and log back in (for serial port permissions).
   - SDA → Pin 3 (I2C2_SDA)
   - SCL → Pin 5 (I2C2_SCL)
   - VCC → 3.3V, GND → GND
+  - **Note**: Magnetometer DISABLED (indoor EMI), only gyro+accel used
+- **MQ-6 Gas Sensor (Optional)** → ADS1115 ADC → I2C Bus 1 (address 0x48)
+- **Active Buzzer (Optional)** → Jetson GPIO pin (configure in config/sensors_actuators.yaml)
 - **Power**: 12V to motors, ESP32 powered separately or via Jetson 5V
 
 ## 4. Verify System (MANDATORY AFTER ANY CHANGES)

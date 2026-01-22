@@ -104,6 +104,42 @@
     <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
   </node>
   
+  <!-- ========== OPTIONAL: SENSORS & ACTUATORS ========== -->
+  <!-- Gas sensor (MQ-6), buzzer, Jetson monitoring -->
+  <!-- Enable with: roslaunch elderly_bot bringup.launch enable_sensors:=true -->
+  <!-- Configure in: config/sensors_actuators.yaml -->
+  
+  <arg name="enable_sensors" default="false" />
+  
+  <group if="$(arg enable_sensors)">
+    <node name="sensors_actuators_node" 
+          pkg="elderly_bot" 
+          type="sensors_actuators_node.py"
+          output="screen"
+          respawn="true"
+          respawn_delay="5">
+      <rosparam command="load" file="$(find elderly_bot)/config/sensors_actuators.yaml" />
+    </node>
+  </group>
+  
+  <!-- ========== OPTIONAL: CLOUD BRIDGE ========== -->
+  <!-- AWS IoT Core MQTT bridge for remote monitoring/control -->
+  <!-- Enable with: roslaunch elderly_bot bringup.launch enable_cloud:=true -->
+  <!-- Configure in: config/cloud_config.yaml -->
+  
+  <arg name="enable_cloud" default="false" />
+  
+  <group if="$(arg enable_cloud)">
+    <node name="cloud_bridge_node" 
+          pkg="elderly_bot" 
+          type="cloud_bridge_node.py"
+          output="screen"
+          respawn="true"
+          respawn_delay="10">
+      <rosparam command="load" file="$(find elderly_bot)/config/cloud_config.yaml" />
+    </node>
+  </group>
+  
 </launch>
 
 
