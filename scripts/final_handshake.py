@@ -168,15 +168,15 @@ def test_connection():
     mqtt_client = AWSIoTMQTTClient(CLIENT_ID)
     mqtt_client.configureEndpoint(AWS_ENDPOINT, PORT)
     mqtt_client.configureCredentials(ROOT_CA, PRIVATE_KEY, DEVICE_CERT)
-    print("✓ MQTT client configured (Port {}, Standard MQTT/TLS)".format(PORT)ishQueueing(-1)
+    
+    # Configure connection parameters
+    mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
+    mqtt_client.configureOfflinePublishQueueing(-1)
     mqtt_client.configureDrainingFrequency(2)
     mqtt_client.configureConnectDisconnectTimeout(30)
     mqtt_client.configureMQTTOperationTimeout(10)
     
-    if PORT == 443:
-        print("✓ ALPN enabled for port 443")
-    
-    print("✓ MQTT client configured")
+    print("✓ MQTT client configured (Port {}, Standard MQTT/TLS)".format(PORT))
     
     # === CONNECT ===
     print("\n[4/6] Connecting to AWS IoT Core...")
@@ -203,15 +203,15 @@ def test_connection():
         print("\n✗ CONNECTION EXCEPTION")
         print("  Error: {}".format(str(e)))
         print("\nTroubleshooting:")
-        print("  1. Check internet connectivity")
-        print("  2. Verify endpoint URL is correct")
-        print("  3. Ensure port 443 is not blocked by firewall")
-        print("  4. Check AWS IoT Core CloudWat: ping google.com")
+        print("  1. Check internet connectivity: ping google.com")
         print("  2. Verify endpoint URL: {}".format(AWS_ENDPOINT))
         print("  3. Ensure port {} is not blocked: nc -zv {} {}".format(PORT, AWS_ENDPOINT, PORT))
         print("  4. Check AWS IoT Policy allows client '{}'".format(CLIENT_ID))
         print("  5. Verify certificate is ACTIVE in AWS Console")
-        print("  6E ===
+        print("  6. Check AWS IoT Core CloudWatch logs")
+        sys.exit(1)
+    
+    # === SUBSCRIBE ===
     print("\n[5/6] Testing Publish/Subscribe...")
     print("  Subscribing to: {}".format(TEST_TOPIC))
     
@@ -285,7 +285,6 @@ def test_connection():
         print("✅ FINAL HANDSHAKE SUCCESSFUL!")
         print("=" * 60)
         print("\nAWS IoT Core connection is fully functional:")
-        print("  ✓ Client ID: {} connected successfully".format(CLIENT_ID))
         print("  ✓ Thing Name: robot_nano")
         print("  ✓ Client ID: {} connected successfully".format(CLIENT_ID))
         print("  ✓ Endpoint: {}:{}".format(AWS_ENDPOINT, PORT))
@@ -294,7 +293,8 @@ def test_connection():
         print("  ✓ Bidirectional communication verified")
         print("\nREADY FOR ROS LAUNCH:")
         print("  cd ~/catkin_ws")
-        print("  source devel/setup.bashe_cloud:=true")
+        print("  source devel/setup.bash")
+        print("  roslaunch elderly_bot bringup.launch enable_cloud:=true")
         return 0
     else:
         print("⚠ PARTIAL SUCCESS")
