@@ -97,9 +97,6 @@ class SensorsActuatorsNode:
         self.last_gas_detected = False
         self.gas_detection_lock = threading.Lock()
         
-        # One-time warnings
-        self.voltage_warning_shown = False
-        
         # Polarity configuration: active_low (LM393 open-collector)
         # Hardware wiring: D0 → BOARD pin 18 with 2.2–4.7kΩ pull-up to 3.3V
         # MQ-6 LM393 pulls LOW when gas detected (open-collector output)
@@ -170,16 +167,10 @@ class SensorsActuatorsNode:
             with self.gas_detection_lock:
                 self.last_gas_detected = initial_detected
             
-            rospy.loginfo("="*60)
-            rospy.loginfo("MQ-6 GPIO 18 (BOARD pin 18) ready, active-low logic, 3.3V pull-up connected")
-            rospy.loginfo("Polling-based detection (no interrupts), 10Hz rate")
-            rospy.loginfo("Hardware: D0 → BOARD pin 18, 3.3V pull-up (2.2–4.7kΩ), GND to Jetson GND")
-            rospy.loginfo("Logic: GPIO.LOW = gas detected (LED ON), GPIO.HIGH = no gas (LED OFF)")
+            rospy.loginfo("MQ-6 gas sensor ready on BOARD pin 18 (active-low, 10Hz polling)")
             
             self.gas_gpio_initialized = True
             
-            rospy.loginfo("Gas sensor ready - monitoring started")
-            rospy.loginfo("="*60)
             
         except Exception as e:
             rospy.logerr("✗ Gas sensor failed: {}".format(e))
@@ -501,21 +492,10 @@ class SensorsActuatorsNode:
             
             # Publish every cycle
             self.gas_detected_pub.publish(Bool(data=detected))
-            
-            # Throttled debug logging (1 Hz)
-            rospy.loginfo_throttle(
-                1.0,
-                "MQ-6 GPIO {} = {} → detected={}".format(
-                    self.gas_sensor_gpio_pin,
-                    "HIGH" if raw == GPIO.HIGH else "LOW",
-                    detected
-                )
-            )
     
     def run(self):
         """Main loop - 10Hz polling rate for stable gas detection."""
         rate = rospy.Rate(10.0)  # 10 Hz = 100ms cycle
-        rospy.loginfo("Main loop running at 10 Hz")
         while not rospy.is_shutdown():
             self.publish_sensor_data()
             rate.sleep()
