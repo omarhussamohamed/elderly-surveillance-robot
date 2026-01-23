@@ -23,8 +23,9 @@ cloud_bridge_node:
   # Unique identifier for this robot (must match AWS IoT Thing name)
   client_id: "elderly_bot_nano"
   
-  # MQTT port (default 8883 for TLS/SSL)
-  port: 8883
+  # MQTT port (443 for ALPN/WebSocket, 8883 for direct TLS)
+  # Use 443 if port 8883 is blocked by firewall/ISP
+  port: 443
   
   # ===== CERTIFICATE PATHS =====
   # Absolute paths to AWS IoT certificates for user 'omar'

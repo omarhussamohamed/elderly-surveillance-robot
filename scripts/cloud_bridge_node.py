@@ -122,7 +122,7 @@ class CloudBridgeNode(object):
     def _validate_config(self):
         """Validate all required configuration parameters."""
         if not AWS_AVAILABLE:
-            rospy.logerr("AWS IoT SDK not available. Install: pip3 install AWSIoTPythonSDK")
+            rospy.logerr("AWS IoT SDK not available. Install: pip install AWSIoTPythonSDK")
             return False install AWSIoTPythonSDK")
             return False
         
@@ -164,12 +164,18 @@ class CloudBridgeNode(object):
                 self.cert_path
             )
             
+            # CRITICAL: Configure ALPN for port 443
+            # ALPN (Application Layer Protocol Negotiation) is REQUIRED for port 443
+            # The AWS SDK automatically enables ALPN when port 443 is used
+            if self.port == 443:
+                rospy.loginfo("Using port 443 with ALPN for AWS IoT Core")
+            
             # Configure MQTT client settings
             self.mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
             self.mqtt_client.configureOfflinePublishQueueing(-1)  # Infinite queue
             self.mqtt_client.configureDrainingFrequency(2)  # 2 Hz
-            self.mqtt_client.configureConnectDisconnectTimeout(10)  # 10 seconds
-            self.mqtt_client.configureMQTTOperationTimeout(5)  # 5 seconds
+            self.mqtt_client.configureConnectDisconnectTimeout(30)  # 30 seconds (increased)
+            self.mqtt_client.configureMQTTOperationTimeout(10)  # 10 seconds (increased)
             
             # Connect to AWS IoT Core
             rospy.loginfo("Connecting to AWS IoT Core...")
