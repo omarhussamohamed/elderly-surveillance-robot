@@ -59,8 +59,8 @@ class CloudBridgeNode(object):
         
         # AWS IoT Core connection parameters
         self.aws_endpoint = rospy.get_param('~aws_endpoint', '')
-        self.client_id = rospy.get_param('~client_id', 'elderly_bot_nano')
-        self.port = rospy.get_param('~port', 8883)
+        self.client_id = rospy.get_param('~client_id', 'robot_nano')
+        self.port = rospy.get_param('~port', 443)
         
         # Certificate paths (absolute paths required)
         self.root_ca_path = rospy.get_param('~root_ca_path', '')

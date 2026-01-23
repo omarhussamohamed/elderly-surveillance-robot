@@ -78,7 +78,7 @@ Please create an IoT Policy with the following JSON configuration:
 
 | Statement | Purpose |
 |-----------|---------|
-| **iot:Connect** | Allows only client `elderly_bot_nano` to connect, with condition that certificate is attached to a Thing |
+| **iot:Connect** | Allows only client `robot_nano` to connect, with condition that certificate is attached to a Thing |
 | **iot:Publish** | Robot can publish sensor data to `telemetry` and urgent notifications to `alerts` |
 | **iot:Subscribe** | Robot can subscribe to command topic to receive instructions from cloud |
 | **iot:Receive** | Robot can receive messages on the subscribed command topic |
