@@ -85,29 +85,16 @@ class SensorsActuatorsNode:
         self.buzzer_initialized = False
         self.jtop_handle = None
         
-        # Gas sensor state (for interrupt-driven detection)
+        # Gas sensor state (polling-based)
         self.last_gas_detected = False
         self.gas_detection_lock = threading.Lock()
-        
-        # Software debouncing and stability tracking
-        self.gas_pin_last_raw_state = None
-        self.gas_pin_state_timestamp = 0.0
-        self.gas_stability_required = rospy.get_param('~gas_stability_time', 0.1)  # REDUCED to 100ms for faster response
-        self.gas_interrupt_count = 0
-        self.gas_last_interrupt_time = 0.0
-        
-        # High-frequency polling for timing diagnosis
-        self.gas_poll_count = 0
-        self.gas_poll_start_time = 0.0
         
         # One-time warnings
         self.voltage_warning_shown = False
         
-        # Polarity configuration (auto-detect or manual)
-        # Options: 'active_low' (D0 LOW when gas detected), 'active_high' (D0 HIGH when gas detected)
-        # Standard 5V MQ-6: active_low (DO LOW when gas detected, LED ON)
-        # Some 3.3V modules: active_high
-        self.gas_polarity = rospy.get_param('~gas_polarity', 'active_low')  # Default for standard 5V modules
+        # Polarity configuration: active_high (hardware verified)
+        # MQ-6 with voltage divider: GPIO.HIGH = gas detected, LED ON
+        self.gas_polarity = rospy.get_param('~gas_polarity', 'active_high')
         
         # Buzzer warning pattern state (MANUAL CONTROL ONLY)
         self.buzzer_lock = threading.Lock()
@@ -168,115 +155,16 @@ class SensorsActuatorsNode:
             # MQ-6 DO has strong output, no pull needed
             GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             
-            # Read initial pin state and init
+            # Initialize state
             initial_state = GPIO.input(self.gas_sensor_gpio_pin)
-            rospy.loginfo("Gas sensor ready (pin {}, polarity: {})".format(self.gas_sensor_gpio_pin, self.gas_polarity))
-            initial_state_str = "LOW" if initial_state == GPIO.LOW else "HIGH"
-            
-            # Interpret based on configured polarity
-            if self.gas_polarity == 'active_low':
-                initial_detected = (initial_state == GPIO.LOW)
-            else:  # active_high
-                initial_detected = (initial_state == GPIO.HIGH)
+            initial_detected = (initial_state == GPIO.HIGH)  # active_high: HIGH = gas
             
             with self.gas_detection_lock:
                 self.last_gas_detected = initial_detected
-                self.gas_pin_last_raw_state = initial_state
-                self.gas_pin_state_timestamp = time.time()
             
-            # Setup interrupt-driven detection with comprehensive debugging
-            def gas_sensor_callback(channel):
-                """Interrupt callback with software debouncing and debug logging.
-                
-                MQ-6 Digital Output Behavior:
-                - Most modules: D0 LOW when gas detected, HIGH when clear (active-low)
-                - Some modules: D0 HIGH when gas detected, LOW when clear (active-high)
-                - Configurable via gas_polarity parameter
-                
-                Software Debouncing:
-                - Requires pin to be stable for gas_stability_time (default 500ms)
-                - Prevents false triggers from threshold oscillation
-                - Matches real gas detection physics (seconds, not milliseconds)
-                """
-                try:
-                    current_time = time.time()
-                    pin_state = GPIO.input(self.gas_sensor_gpio_pin)
-                    pin_state_str = "LOW" if pin_state == GPIO.LOW else "HIGH"
-                    
-                    # Interpret based on configured polarity
-                    if self.gas_polarity == 'active_low':
-                        detected = (pin_state == GPIO.LOW)
-                    else:  # active_high
-                        detected = (pin_state == GPIO.HIGH)
-                    
-                    with self.gas_detection_lock:
-                        # Count interrupts for debugging
-                        self.gas_interrupt_count += 1
-                        time_since_last = current_time - self.gas_last_interrupt_time
-                        self.gas_last_interrupt_time = current_time
-                        
-                        # CRITICAL DEBUG: Log EVERY interrupt with FULL state
-                        rospy.loginfo("[GAS DEBUG] Interrupt #{} | Time: {:.3f} | RAW PIN: {} | Polarity: {} | Interpreted: {} | Last published: {}".format(
-                            self.gas_interrupt_count, 
-                            current_time,
-                            pin_state_str,
-                            self.gas_polarity,
-                            "DETECTED" if detected else "CLEAR",
-                            "DETECTED" if self.last_gas_detected else "CLEAR"))
-                        
-                        # Check if raw pin state actually changed
-                        if pin_state != self.gas_pin_last_raw_state:
-                            # Pin changed - reset stability timer
-                            self.gas_pin_last_raw_state = pin_state
-                            self.gas_pin_state_timestamp = current_time
-                            rospy.loginfo("[GAS] Pin changed to {} (interpreted: {}), waiting {:.1f}s for stability...".format(
-                                pin_state_str,
-                                "GAS DETECTED" if detected else "NO GAS",
-                                self.gas_stability_required))
-                            return  # Don't publish yet - wait for stability
-                        
-                        # Pin stayed same - check if stable long enough
-                        stable_duration = current_time - self.gas_pin_state_timestamp
-                        
-                        if stable_duration < self.gas_stability_required:
-                            # Not stable long enough yet - log occasionally
-                            if int(stable_duration * 10) % 5 == 0:  # Every 0.5s
-                                rospy.logdebug("[GAS] Stable for {:.2f}s / {:.2f}s required".format(
-                                    stable_duration, self.gas_stability_required))
-                            return
-                        
-                        # Pin is stable AND different from last published state
-                        if detected != self.last_gas_detected:
-                            self.last_gas_detected = detected
-                            
-                            # NOW publish after confirmed stability
-                            self.gas_detected_pub.publish(Bool(data=detected))
-                            
-                            if detected:
-                                rospy.logwarn("[GAS SENSOR] ⚠⚠⚠ GAS DETECTED! ⚠⚠⚠")
-                                rospy.logwarn("  Pin: {} (polarity: {}) → ALARM".format(
-                                    pin_state_str, self.gas_polarity))
-                                rospy.logwarn("  Stable for: {:.2f} seconds".format(stable_duration))
-                                rospy.logwarn("  Total interrupts: {}".format(self.gas_interrupt_count))
-                            else:
-                                rospy.loginfo("[GAS SENSOR] ✓ Gas cleared")
-                                rospy.loginfo("  Pin: {} (polarity: {}) → SAFE".format(
-                                    pin_state_str, self.gas_polarity))
-                                rospy.loginfo("  Stable for: {:.2f} seconds".format(stable_duration))
-                            
-                except Exception as e:
-                    rospy.logerr("Gas sensor callback error: {}".format(e))
-                    import traceback
-                    rospy.logerr(traceback.format_exc())
-            
-            # Add event detection with MINIMAL hardware debounce for fast response
-            # Software stability filter provides main debouncing
-            GPIO.add_event_detect(
-                self.gas_sensor_gpio_pin,
-                GPIO.BOTH,
-                callback=gas_sensor_callback,
-                bouncetime=20  # 20ms hardware debounce (very fast for testing)
-            )
+            rospy.loginfo("MQ-6 gas sensor initialized: pin {} (BOARD), polarity: active_high".format(
+                self.gas_sensor_gpio_pin))
+            rospy.loginfo("Polling-based detection (no interrupts), 20Hz rate")
             
             self.gas_gpio_initialized = True
             
@@ -593,42 +481,36 @@ class SensorsActuatorsNode:
             return (0.0, 0.0)
     
     def publish_sensor_data(self):
-        """Publish sensor data - polls GPIO every cycle, logs every ~1 second."""
-        current_time = time.time()
-        
-        # Initialize poll timing on first call
-        if self.gas_poll_start_time == 0:
-            self.gas_poll_start_time = current_time
-        
-        # === DIRECT GPIO POLLING (PRIMARY SOURCE) ===
+        """Publish sensor data - direct GPIO polling only."""
+        # === MQ-6 GAS SENSOR (POLLING ONLY) ===
         if self.gas_gpio_initialized:
-            # Read raw pin state DIRECTLY
-            raw_pin_state = GPIO.input(self.gas_sensor_gpio_pin)
+            # Read GPIO pin directly
+            raw = GPIO.input(self.gas_sensor_gpio_pin)
             
-            # Interpret based on polarity (THIS is the source of truth)
-            if self.gas_polarity == 'active_low':
-                detected = (raw_pin_state == GPIO.LOW)
-            else:
-                detected = (raw_pin_state == GPIO.HIGH)
+            # Active-high: GPIO.HIGH = gas detected
+            detected = (raw == GPIO.HIGH)
             
-            # Update the state (no debouncing - direct reading)
+            # Update state
             with self.gas_detection_lock:
                 self.last_gas_detected = detected
             
-            self.gas_poll_count += 1
-            
-            # Log every 20th poll (~1 Hz at 20 Hz rate) - minimal format
-            if self.gas_poll_count % 20 == 0:
-                elapsed = current_time - self.gas_poll_start_time
-                rospy.loginfo("[{:.1f}s] Detected: {}".format(elapsed, detected))
-            
-            # Publish current state (from direct GPIO read, not interrupt cache)
+            # Publish every cycle
             self.gas_detected_pub.publish(Bool(data=detected))
+            
+            # Throttled debug logging (1 Hz)
+            rospy.loginfo_throttle(
+                1.0,
+                "MQ-6 GPIO {} = {} → detected={}".format(
+                    self.gas_sensor_gpio_pin,
+                    "HIGH" if raw == GPIO.HIGH else "LOW",
+                    detected
+                )
+            )
     
     def run(self):
-        """Main loop - INCREASED to 20Hz for high-frequency GPIO polling during diagnosis."""
-        rate = rospy.Rate(20.0)  # 20 Hz = 50ms cycle for fast state tracking
-        rospy.loginfo("Main loop running at 20 Hz (diagnosis mode - polls GPIO every 50ms)")
+        """Main loop - 10Hz polling rate for stable gas detection."""
+        rate = rospy.Rate(10.0)  # 10 Hz = 100ms cycle
+        rospy.loginfo("Main loop running at 10 Hz")
         while not rospy.is_shutdown():
             self.publish_sensor_data()
             rate.sleep()
@@ -641,9 +523,6 @@ class SensorsActuatorsNode:
         # Cleanup GPIO
         if self.gas_gpio_initialized or self.buzzer_initialized:
             try:
-                # Remove event detection before cleanup
-                if self.gas_gpio_initialized:
-                    GPIO.remove_event_detect(self.gas_sensor_gpio_pin)
                 GPIO.cleanup()
             except Exception as e:
                 rospy.logwarn("GPIO cleanup warning: {}".format(e))
