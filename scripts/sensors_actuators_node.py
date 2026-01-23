@@ -280,26 +280,10 @@ class SensorsActuatorsNode:
             
             self.gas_gpio_initialized = True
             
-            # Comprehensive startup diagnostics
             # Show voltage warning ONCE only (user has divider installed)
             if not self.voltage_warning_shown:
                 rospy.logwarn("⚠️ VOLTAGE NOTE: Ensure 10k+2k divider installed on DO pin")
                 self.voltage_warning_shown = True
-                        time.time() - start_time))
-                time.sleep(0.1)
-            
-            if state_changes == 0:
-                rospy.loginfo("✓ Pin stable (no changes in 2s) - good!")
-            elif state_changes < 3:
-                rospy.logwarn("⚠ Pin changed {} times - may be near threshold".format(state_changes))
-                rospy.logwarn("  Consider adjusting MQ-6 potentiometer for cleaner detection")
-            else:
-                rospy.logerr("✗ Pin very unstable ({} changes in 2s)!".format(state_changes))
-                rospy.logerr("  Possible causes:")
-                rospy.logerr("    1. Potentiometer tuned too sensitively")
-                rospy.logerr("    2. 5V signal on 3.3V pin (voltage level mismatch)")
-                rospy.logerr("    3. Electrical noise / poor grounding")
-                rospy.logerr("    4. Sensor needs warm-up time (wait 30-60 seconds)")
             
             rospy.loginfo("Gas sensor ready - monitoring started")
             rospy.loginfo("="*60)
