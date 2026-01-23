@@ -132,8 +132,8 @@ def main():
     
     # Extract parameters
     endpoint = config['aws_endpoint']
-    client_id = config['client_id'] + "_test"  # Add suffix to avoid conflicts
-    port = config.get('port', 8883)
+    client_id = config['client_id']  # Use exact client_id from config
+    port = config.get('port', 443)  # Default to 443 with ALPN
     root_ca = os.path.expanduser(config['root_ca_path'])
     cert = os.path.expanduser(config['cert_path'])
     key = os.path.expanduser(config['key_path'])
@@ -152,11 +152,15 @@ def main():
     mqtt_client.configureEndpoint(endpoint, port)
     mqtt_client.configureCredentials(root_ca, key, cert)
     
+    # Configure ALPN for port 443
+    if port == 443:
+        print("Port 443 detected - ALPN enabled automatically by AWS SDK")
+    
     # Configure connection parameters
     mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
     mqtt_client.configureOfflinePublishQueueing(-1)  # Infinite
     mqtt_client.configureDrainingFrequency(2)  # 2 Hz
-    mqtt_client.configureConnectDisconnectTimeout(30)  # 30 seconds (increased for diagnostics)
+    mqtt_client.configureConnectDisconnectTimeout(30)  # 30 seconds
     mqtt_client.configureMQTTOperationTimeout(10)  # 10 seconds
     
     # Enable verbose logging for TLS handshake

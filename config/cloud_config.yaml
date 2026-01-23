@@ -21,7 +21,7 @@ cloud_bridge_node:
   aws_endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
   
   # Unique identifier for this robot (must match AWS IoT Thing name)
-  client_id: "elderly_bot_nano"
+  client_id: "robot_nano"
   
   # MQTT port (443 for ALPN/WebSocket, 8883 for direct TLS)
   # Use 443 if port 8883 is blocked by firewall/ISP
