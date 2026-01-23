@@ -25,53 +25,46 @@ gas_sensor_mode: "gpio"  # "gpio" or "i2c"
 
 # --- GPIO MODE SETTINGS ---
 # GPIO pin for D0 digital output (BOARD numbering)
-# Physical Pin 24 = GPIO 8 (BCM)
+# Physical Pin 18 = GPIO 24 (BCM)
+# Hardware wiring: MQ-6 D0 → BOARD pin 18, 3.3V pull-up (2.2–4.7kΩ), GND to Jetson GND
 # See docs/GAS_SENSOR_WIRING.md for wiring diagram
-gas_sensor_gpio_pin: 24
+gas_sensor_gpio_pin: 18
 
 # Polarity of digital output (D0 pin)
 # Options:
-#   'active_low':  D0 LOW (0V) when gas detected (STANDARD 5V MODULES - LED ON = gas)
-#   'active_high': D0 HIGH when gas detected (rare, some 3.3V modules)
+#   'active_low':  D0 LOW (0V) when gas detected (LM393 open-collector output)
+#   'active_high': D0 HIGH when gas detected (rare, inverted modules)
 # 
-# ⚠️ IF LED TURNS ON WHEN GAS PRESENT → Use 'active_low'
+# ⚠️ MQ-6 LM393 OPEN-COLLECTOR OUTPUT
+# The D0 pin is open-collector and pulls LOW when gas is detected.
+# A pull-up resistor to 3.3V (2.2–4.7kΩ) is required for proper operation.
+# When no gas: pin floats HIGH via pull-up
+# When gas present: LM393 pulls pin LOW, sensor LED turns ON
+# 
 # Test: Wave lighter near sensor, watch LED. When LED ON:
-#   - If /gas_detected goes TRUE → correct polarity
-#   - If /gas_detected stays FALSE → flip polarity
+#   - Pin should read LOW
+#   - /gas_detected should publish TRUE
 gas_polarity: "active_low"
 
-# Software stability time (seconds)
-# Pin must be stable for this duration before accepting state change
-# Prevents false alarms from threshold oscillation
-# REDUCED for diagnosis: 0.1s (100ms) - adjust based on testing
-# Original: 0.5s (too slow for real-time LED tracking)
-gas_stability_time: 0.1
-
-# ⚠️⚠️⚠️ CRITICAL VOLTAGE WARNING (5V OPERATION) ⚠️⚠️⚠️
+# ⚠️ HARDWARE WIRING REQUIREMENTS
 # 
-# Current setup: MQ-6 powered with 5V
-#   - Sensor VCC: 5V (required for full sensitivity)
-#   - D0 output: ~5V HIGH / ~0V LOW
-#   - Jetson GPIO: 3.3V MAX (NOT 5V TOLERANT!)
+# Current setup: MQ-6 with open-collector output
+#   - Sensor VCC: 5V (required for heater and full sensitivity)
+#   - D0 output: Open-collector (pulls LOW when gas detected)
+#   - Required: Pull-up resistor 2.2–4.7kΩ from D0 to Jetson 3.3V
+#   - Jetson GPIO pin 18: Input with pull-up resistor
 # 
-# ⚡ RISK: 5V signal on Jetson pin = potential damage!
+# Wiring:
+#   MQ-6 VCC → 5V power
+#   MQ-6 GND → Jetson GND
+#   MQ-6 D0  → Pull-up resistor (2.2–4.7kΩ) → Jetson 3.3V
+#             └────────────────────────────→ Jetson BOARD pin 18
 # 
-# REQUIRED PROTECTION (choose one):
+# When no gas: D0 pulled HIGH by resistor (3.3V) → /gas_detected = False
+# When gas present: LM393 pulls D0 LOW (0V), LED ON → /gas_detected = True
 # 
-# Option 1: Voltage Divider (simple, cheap)
-#   MQ-6 DO → 2kΩ resistor → Jetson Pin 24 → 3kΩ resistor → GND
-#   Result: 5V → 3V safe signal
-# 
-# Option 2: Bi-directional Level Shifter
-#   Example: TXS0108E, 74LVC245, BSS138-based modules
-#   HV (high voltage) side: 5V MQ-6 DO
-#   LV (low voltage) side: 3.3V Jetson GPIO
-# 
-# Option 3: Power MQ-6 with 3.3V (if acceptable)
-#   - Sensor less sensitive but safe
-#   - Change gas_polarity to 'active_high' if using this
-# 
-# Current operation: TEST ONLY - ADD PROTECTION BEFORE LONG-TERM USE!
+# Detection: Polling-only at 10 Hz (no interrupts, no debouncing)
+# The MQ-6 sensor response time is slow (~1 second), so 10 Hz polling is sufficient.
 
 # --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
 # Voltage threshold for gas detection (volts)

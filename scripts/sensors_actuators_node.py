@@ -79,7 +79,7 @@ class SensorsActuatorsNode:
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
         self.gas_sensor_mode = rospy.get_param('~gas_sensor_mode', 'gpio')
-        # MQ-6 D0 → BOARD pin 18 (GPIO 24), 3.3V pull-up (10kΩ or lower), GND to Jetson GND
+        # MQ-6 D0 → BOARD pin 18, 3.3V pull-up (2.2–4.7kΩ), GND to Jetson GND
         self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
         self.gas_threshold_voltage = rospy.get_param('~gas_threshold_voltage', 1.0)
         self.buzzer_pin = rospy.get_param('~buzzer_pin', 0)
@@ -101,7 +101,7 @@ class SensorsActuatorsNode:
         self.voltage_warning_shown = False
         
         # Polarity configuration: active_low (LM393 open-collector)
-        # Hardware wiring: D0 → GPIO18 (BOARD pin 18) with 10kΩ pull-up to 3.3V
+        # Hardware wiring: D0 → BOARD pin 18 with 2.2–4.7kΩ pull-up to 3.3V
         # MQ-6 LM393 pulls LOW when gas detected (open-collector output)
         self.gas_polarity = rospy.get_param('~gas_polarity', 'active_low')
         
@@ -160,8 +160,7 @@ class SensorsActuatorsNode:
         try:
             setup_gpio_permissions(self.gas_sensor_gpio_pin)
             GPIO.setmode(GPIO.BOARD)
-            # Note: Jetson.GPIO ignores pull_up_down, so removed to suppress warning
-            # MQ-6 DO has strong output, no pull needed
+            # MQ-6 D0 is open-collector, external pull-up resistor (2.2–4.7kΩ) to 3.3V required
             GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             
             # Initialize state
@@ -172,9 +171,9 @@ class SensorsActuatorsNode:
                 self.last_gas_detected = initial_detected
             
             rospy.loginfo("="*60)
-            rospy.loginfo("MQ-6 GPIO 24 (BOARD pin 18) ready, active-low logic, 3.3V pull-up resistor connected")
+            rospy.loginfo("MQ-6 GPIO 18 (BOARD pin 18) ready, active-low logic, 3.3V pull-up connected")
             rospy.loginfo("Polling-based detection (no interrupts), 10Hz rate")
-            rospy.loginfo("Hardware: D0 → BOARD pin 18, 3.3V pull-up (10kΩ), GND to Jetson GND")
+            rospy.loginfo("Hardware: D0 → BOARD pin 18, 3.3V pull-up (2.2–4.7kΩ), GND to Jetson GND")
             rospy.loginfo("Logic: GPIO.LOW = gas detected (LED ON), GPIO.HIGH = no gas (LED OFF)")
             
             self.gas_gpio_initialized = True
