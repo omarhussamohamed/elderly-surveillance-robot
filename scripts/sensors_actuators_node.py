@@ -72,7 +72,7 @@ class SensorsActuatorsNode:
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
         self.gas_sensor_mode = rospy.get_param('~gas_sensor_mode', 'gpio')
-        self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 24)
+        self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
         self.gas_threshold_voltage = rospy.get_param('~gas_threshold_voltage', 1.0)
         self.buzzer_pin = rospy.get_param('~buzzer_pin', 0)
         self.adc_i2c_address = rospy.get_param('~adc_i2c_address', 0x48)
@@ -92,9 +92,10 @@ class SensorsActuatorsNode:
         # One-time warnings
         self.voltage_warning_shown = False
         
-        # Polarity configuration: active_high (hardware verified)
-        # MQ-6 with voltage divider: GPIO.HIGH = gas detected, LED ON
-        self.gas_polarity = rospy.get_param('~gas_polarity', 'active_high')
+        # Polarity configuration: active_low (LM393 open-collector)
+        # Hardware wiring: D0 → GPIO18 (BOARD pin 18) with 10kΩ pull-up to 3.3V
+        # MQ-6 LM393 pulls LOW when gas detected (open-collector output)
+        self.gas_polarity = rospy.get_param('~gas_polarity', 'active_low')
         
         # Buzzer warning pattern state (MANUAL CONTROL ONLY)
         self.buzzer_lock = threading.Lock()
@@ -157,21 +158,19 @@ class SensorsActuatorsNode:
             
             # Initialize state
             initial_state = GPIO.input(self.gas_sensor_gpio_pin)
-            initial_detected = (initial_state == GPIO.HIGH)  # active_high: HIGH = gas
+            initial_detected = (initial_state == GPIO.LOW)  # active_low: LOW = gas detected
             
             with self.gas_detection_lock:
                 self.last_gas_detected = initial_detected
             
-            rospy.loginfo("MQ-6 gas sensor initialized: pin {} (BOARD), polarity: active_high".format(
+            rospy.loginfo("="*60)
+            rospy.loginfo("MQ-6 GPIO {} (BOARD pin 18) ready, active-low logic with 10kΩ pull-up to 3.3V".format(
                 self.gas_sensor_gpio_pin))
-            rospy.loginfo("Polling-based detection (no interrupts), 20Hz rate")
+            rospy.loginfo("Polling-based detection (no interrupts), 10Hz rate")
+            rospy.loginfo("Hardware: D0 → GPIO18 with 10kΩ pull-up to 3.3V")
+            rospy.loginfo("Logic: GPIO.LOW = gas detected, GPIO.HIGH = no gas")
             
             self.gas_gpio_initialized = True
-            
-            # Show voltage warning ONCE only (user has divider installed)
-            if not self.voltage_warning_shown:
-                rospy.logwarn("⚠️ VOLTAGE NOTE: Ensure 10k+2k divider installed on DO pin")
-                self.voltage_warning_shown = True
             
             rospy.loginfo("Gas sensor ready - monitoring started")
             rospy.loginfo("="*60)
@@ -487,8 +486,8 @@ class SensorsActuatorsNode:
             # Read GPIO pin directly
             raw = GPIO.input(self.gas_sensor_gpio_pin)
             
-            # Active-high: GPIO.HIGH = gas detected
-            detected = (raw == GPIO.HIGH)
+            # Active-low: GPIO.LOW = gas detected (LM393 open-collector pulls low)
+            detected = (raw == GPIO.LOW)
             
             # Update state
             with self.gas_detection_lock:
