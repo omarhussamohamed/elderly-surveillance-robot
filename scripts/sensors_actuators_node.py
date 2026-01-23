@@ -600,30 +600,30 @@ class SensorsActuatorsNode:
         if self.gas_poll_start_time == 0:
             self.gas_poll_start_time = current_time
         
-        # === CONTINUOUS GPIO POLLING ===
+        # === DIRECT GPIO POLLING (PRIMARY SOURCE) ===
         if self.gas_gpio_initialized:
             # Read raw pin state DIRECTLY
             raw_pin_state = GPIO.input(self.gas_sensor_gpio_pin)
             
-            # Interpret based on polarity
+            # Interpret based on polarity (THIS is the source of truth)
             if self.gas_polarity == 'active_low':
-                raw_detected = (raw_pin_state == GPIO.LOW)
+                detected = (raw_pin_state == GPIO.LOW)
             else:
-                raw_detected = (raw_pin_state == GPIO.HIGH)
+                detected = (raw_pin_state == GPIO.HIGH)
             
-            # Get current published state
+            # Update the state (no debouncing - direct reading)
             with self.gas_detection_lock:
-                published_state = self.last_gas_detected
+                self.last_gas_detected = detected
             
             self.gas_poll_count += 1
             
             # Log every 20th poll (~1 Hz at 20 Hz rate) - minimal format
             if self.gas_poll_count % 20 == 0:
                 elapsed = current_time - self.gas_poll_start_time
-                rospy.loginfo("[{:.1f}s] Detected: {}".format(elapsed, published_state))
+                rospy.loginfo("[{:.1f}s] Detected: {}".format(elapsed, detected))
             
-            # Publish current state (from interrupt-driven cache)
-            self.gas_detected_pub.publish(Bool(data=published_state))
+            # Publish current state (from direct GPIO read, not interrupt cache)
+            self.gas_detected_pub.publish(Bool(data=detected))
     
     def run(self):
         """Main loop - INCREASED to 20Hz for high-frequency GPIO polling during diagnosis."""
