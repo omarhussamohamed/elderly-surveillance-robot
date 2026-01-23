@@ -18,42 +18,38 @@ cloud_bridge_node:
   # Endpoint URL from AWS IoT Core console
   # Get from: AWS IoT Core → Settings → Device data endpoint
   # Example: "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com"
-  aws_endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"  # *** PASTE YOUR ENDPOINT HERE ***
+  aws_endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
   
   # Unique identifier for this robot (must match AWS IoT Thing name)
-  client_id: "elderly_bot_01"
+  client_id: "elderly_bot_nano"
   
   # MQTT port (default 8883 for TLS/SSL)
   port: 8883
   
   # ===== CERTIFICATE PATHS =====
-  # Absolute paths to AWS IoT certificates (expand ~ for home directory)
-  # These paths will be resolved at runtime
-  #
-  # IMPORTANT: Use absolute paths or paths relative to home (~)
-  # On Jetson: ~/catkin_ws/src/elderly_bot/aws_certs/
+  # Absolute paths to AWS IoT certificates for user 'omar'
+  # Certificates validated and ready to use
   
   # Root CA certificate (Amazon Root CA 1)
-  # Download: https://www.amazontrust.com/repository/AmazonRootCA1.pem
-  root_ca_path: "~/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
+  root_ca_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
   
-  # Device certificate (from AWS IoT Core, ends with .pem.crt)
-  cert_path: "~/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
+  # Device certificate (from AWS IoT Core)
+  cert_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
   
-  # Private key (from AWS IoT Core, ends with .pem.key)
-  # SECURITY: Keep this file secure! Never commit to git.
-  # File permissions should be 600 (chmod 600 private.pem.key)
-  key_path: "~/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
+  # Private key (from AWS IoT Core) - SECURE! Permissions: 600
+  key_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
   
   # ===== MQTT TOPICS =====
   # MQTT topics for bidirectional communication
-  # Customize these based on your cloud team's setup
   
-  # Topic to publish robot sensor data TO cloud
-  mqtt_topic_sensors: "robot/sensors/data"
+  # Topic to publish robot telemetry TO cloud
+  mqtt_topic_telemetry: "elderly_bot/telemetry"
+  
+  # Topic to publish alerts TO cloud
+  mqtt_topic_alerts: "elderly_bot/alerts"
   
   # Topic to receive commands FROM cloud
-  mqtt_topic_commands: "robot/commands"
+  mqtt_topic_commands: "elderly_bot/commands"
   
   # ===== PUBLISHING RATE =====
   # How often to send sensor data to cloud (Hz)
