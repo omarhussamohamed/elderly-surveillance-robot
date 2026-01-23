@@ -3,6 +3,13 @@
 """
 Sensors and Actuators Node for Elderly Bot
 Handles MQ-6 gas sensor, active buzzer, and Jetson monitoring.
+
+Manual MQ-6 Test:
+    import Jetson.GPIO as GPIO
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(18, GPIO.IN)
+    print(GPIO.input(18))  # Should be LOW (0) when sensor LED lights up
+    GPIO.cleanup()
 """
 
 import rospy
@@ -72,6 +79,7 @@ class SensorsActuatorsNode:
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
         self.gas_sensor_mode = rospy.get_param('~gas_sensor_mode', 'gpio')
+        # MQ-6 D0 → BOARD pin 18 (GPIO 24), 3.3V pull-up (10kΩ or lower), GND to Jetson GND
         self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
         self.gas_threshold_voltage = rospy.get_param('~gas_threshold_voltage', 1.0)
         self.buzzer_pin = rospy.get_param('~buzzer_pin', 0)
@@ -164,11 +172,10 @@ class SensorsActuatorsNode:
                 self.last_gas_detected = initial_detected
             
             rospy.loginfo("="*60)
-            rospy.loginfo("MQ-6 GPIO {} (BOARD pin 18) ready, active-low logic with 10kΩ pull-up to 3.3V".format(
-                self.gas_sensor_gpio_pin))
+            rospy.loginfo("MQ-6 GPIO 24 (BOARD pin 18) ready, active-low logic, 3.3V pull-up resistor connected")
             rospy.loginfo("Polling-based detection (no interrupts), 10Hz rate")
-            rospy.loginfo("Hardware: D0 → GPIO18 with 10kΩ pull-up to 3.3V")
-            rospy.loginfo("Logic: GPIO.LOW = gas detected, GPIO.HIGH = no gas")
+            rospy.loginfo("Hardware: D0 → BOARD pin 18, 3.3V pull-up (10kΩ), GND to Jetson GND")
+            rospy.loginfo("Logic: GPIO.LOW = gas detected (LED ON), GPIO.HIGH = no gas (LED OFF)")
             
             self.gas_gpio_initialized = True
             
