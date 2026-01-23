@@ -12,6 +12,14 @@ __pycache__/
 *.so
 .Python
 
+# AWS IoT Core Certificates - NEVER COMMIT!
+aws_certs/*.pem
+aws_certs/*.crt
+aws_certs/*.key
+!aws_certs/PLACEHOLDER_*
+!aws_certs/README.md
+!aws_certs/.gitignore
+
 # Maps (generated files)
 maps/*.pgm
 maps/*.yaml
