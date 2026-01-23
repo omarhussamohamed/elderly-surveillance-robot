@@ -12,7 +12,7 @@
 cloud_bridge_node:
   # ===== FEATURE ENABLE FLAG =====
   # Set to true only after AWS IoT Core is fully configured and tested
-  enable_cloud: false
+  enable_cloud: true
   
   # ===== AWS IoT CORE CONNECTION =====
   # Endpoint URL from AWS IoT Core console
