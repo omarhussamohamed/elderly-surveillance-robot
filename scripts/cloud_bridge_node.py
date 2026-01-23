@@ -1,24 +1,41 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-AWS IoT Core Bridge Node for Elderly Bot
-=========================================
+AWS IoT Core Bridge Node
+
 Bridges local ROS topics with AWS IoT Core MQTT for cloud communication.
+Publishes telemetry and alerts, receives commands from cloud dashboard.
 
-Python 2.7 compatible for ROS Melodic.
+Subscribed Topics:
+    /jetson_temperature (sensor_msgs/Temperature): Jetson temperature
+    /jetson_power (std_msgs/Float32): Jetson power consumption
+    /gas_detected (std_msgs/Bool): Gas detection status
 
-FEATURES:
-- Publishes Jetson stats to elderly_bot/telemetry
-- Publishes gas alerts to elderly_bot/alerts
-- Receives commands from elderly_bot/commands
-- Automatic reconnection on connection loss
-- Clean shutdown with disconnect hook
+Published Topics:
+    /buzzer_command (std_msgs/UInt16): Buzzer frequency command
 
-DEPENDENCIES:
-  pip install AWSIoTPythonSDK
-  
-CERTIFICATES REQUIRED:
-  - Root CA, Device Certificate, Private Key (configured in cloud_config.yaml)
+MQTT Topics:
+    elderly_bot/telemetry (publish): Periodic sensor data
+    elderly_bot/alerts (publish): Event-driven notifications
+    elderly_bot/commands (subscribe): Commands from cloud
+
+Parameters:
+    ~enable_cloud (bool): Enable AWS connection (default: False)
+    ~aws_endpoint (str): AWS IoT endpoint URL
+    ~client_id (str): MQTT client ID (default: "robot_nano")
+    ~port (int): MQTT port (default: 8883)
+    ~root_ca_path (str): Root CA certificate path
+    ~cert_path (str): Device certificate path
+    ~key_path (str): Private key path
+    ~publish_rate (float): Telemetry publish rate Hz (default: 1.0)
+    ~keepalive_interval (int): MQTT keepalive seconds (default: 30)
+
+Dependencies:
+    - AWSIoTPythonSDK (pip install AWSIoTPythonSDK)
+
+Configuration:
+    See config/cloud_config.yaml for AWS IoT Core settings.
+    See aws_certs/README.md for certificate setup instructions.
 """
 
 from __future__ import print_function
@@ -123,7 +140,6 @@ class CloudBridgeNode(object):
         """Validate all required configuration parameters."""
         if not AWS_AVAILABLE:
             rospy.logerr("AWS IoT SDK not available. Install: pip install AWSIoTPythonSDK")
-            return False install AWSIoTPythonSDK")
             return False
         
         if not self.aws_endpoint:

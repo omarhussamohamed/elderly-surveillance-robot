@@ -1,24 +1,35 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Final AWS IoT Handshake Test - Robot Nano
-==========================================
-Production-ready connection test to verify AWS IoT Core configuration.
-Uses exact settings from cloud_config.yaml for robot_nano Thing.
+AWS IoT Core Connection Test (Standalone)
 
-USAGE:
+Production-ready connection test verifying AWS IoT Core configuration.
+Tests connection, publish, subscribe, and bidirectional communication.
+
+Usage:
     python final_handshake.py
 
-REQUIREMENTS:
-    pip install AWSIoTPythonSDK pyyaml
+Test Sequence:
+    1. Load configuration from config/cloud_config.yaml
+    2. Validate certificate files exist and are readable
+    3. Connect to AWS IoT Core (MQTT over TLS)
+    4. Subscribe to test topic
+    5. Publish test message
+    6. Verify message echo (bidirectional communication)
+    7. Report SUCCESS or failure with troubleshooting steps
 
-WHAT THIS SCRIPT DOES:
-    1. Loads configuration from cloud_config.yaml (aws_iot_config section)
-    2. Validates all certificates exist and are readable
-    3. Connects to AWS IoT Core using robot_nano client_id on port 8883
-    4. Tests publish/subscribe on elderly_bot/test topic
-    5. Verifies bidirectional MQTT communication
-    6. Reports SUCCESS or specific failure point with troubleshooting
+Configuration:
+    Uses exact settings from config/cloud_config.yaml (aws_iot_config section)
+    Client ID: robot_nano (must match AWS Thing name)
+    Port: 8883 (standard MQTT over TLS)
+
+Dependencies:
+    - AWSIoTPythonSDK (pip install AWSIoTPythonSDK)
+    - pyyaml (pip install pyyaml)
+
+Exit Codes:
+    0 = Success (full bidirectional communication verified)
+    1 = Failure (see error message for details)
 """
 
 from __future__ import print_function

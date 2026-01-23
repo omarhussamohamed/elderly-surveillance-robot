@@ -1,15 +1,38 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node for Elderly Bot
-Handles MQ-6 gas sensor, active buzzer, and Jetson monitoring.
+Sensors and Actuators Node
 
-Manual MQ-6 Test:
-    import Jetson.GPIO as GPIO
-    GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(18, GPIO.IN)
-    print(GPIO.input(18))  # Should be LOW (0) when sensor LED lights up
-    GPIO.cleanup()
+Manages MQ-6 gas sensor, active buzzer, and Jetson Nano system monitoring.
+Provides gas detection with alert system and hardware health telemetry.
+
+Subscribed Topics:
+    /buzzer_command (std_msgs/Bool): Manual buzzer control
+
+Published Topics:
+    /gas_detected (std_msgs/Bool): Gas detection status
+    /jetson_temperature (sensor_msgs/Temperature): Jetson temperature
+    /jetson_power (std_msgs/Float32): Jetson power consumption (watts)
+
+Parameters:
+    ~enable_gas_sensor (bool): Enable MQ-6 sensor (default: False)
+    ~enable_buzzer (bool): Enable buzzer actuator (default: False)
+    ~enable_jetson_stats (bool): Enable jtop monitoring (default: True)
+    ~gas_sensor_mode (str): "gpio" or "i2c" (default: "gpio")
+    ~gas_sensor_gpio_pin (int): BOARD pin number for D0 (default: 18)
+    ~gas_polarity (str): "active_low" or "active_high" (default: "active_low")
+    ~buzzer_pin (int): BOARD pin number for buzzer (default: 0)
+    ~publish_rate (float): Publishing frequency in Hz (default: 1.0)
+
+Hardware:
+    - MQ-6 D0 → Jetson Pin 18 (with 2.2-4.7kΩ pull-up to 3.3V)
+    - MQ-6 VCC → 3.3V, GND → GND
+    - Buzzer → Pin 16 via 2N2222 transistor (5V rail)
+
+Dependencies:
+    - Jetson.GPIO (pip install Jetson.GPIO)
+    - jtop (pip install jetson-stats)
+    - smbus2 (for I2C mode, pip install smbus2)
 """
 
 import rospy

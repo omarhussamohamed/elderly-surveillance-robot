@@ -1,21 +1,34 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-MPU9250 ROS Node for Jetson Nano (Gyro + Accel Only)
-Reads IMU data from MPU9250 connected directly to Jetson I2C bus
-and publishes sensor_msgs/Imu messages.
+MPU9250 IMU Driver Node
 
-NOTE: Magnetometer DISABLED - poisoned by indoor electromagnetic interference
-      (motors, PSU, battery). See TF_OWNERSHIP_AND_GUARDRAILS.md for details.
+Publishes raw gyroscope and accelerometer data from MPU-9250 IMU sensor
+connected to Jetson Nano via I2C. Magnetometer is disabled due to indoor
+electromagnetic interference.
 
-Hardware Setup:
-- MPU9250 SDA → Jetson I2C SDA (Pin 3 on J21 - I2C2_SDA)
-- MPU9250 SCL → Jetson I2C SCL (Pin 5 on J21 - I2C2_SCL)
-- MPU9250 VCC → Jetson 3.3V (Pin 1 on J21)
-- MPU9250 GND → Jetson GND (Pin 6, 9, 14, or 20 on J21)
+Published Topics:
+    /imu/data_raw (sensor_msgs/Imu): Raw IMU data (no orientation)
 
-Requirements:
-sudo apt-get install python3-smbus i2c-tools
+Parameters:
+    ~frame_id (str): TF frame for IMU (default: "imu_link")
+    ~publish_rate (float): Publishing frequency in Hz (default: 50.0)
+    ~i2c_bus (int): I2C bus number (default: 1)
+    ~i2c_address (str/int): MPU9250 I2C address (default: "0x68")
+
+Hardware:
+    - MPU9250 SDA → Jetson Pin 3 (I2C1 SDA)
+    - MPU9250 SCL → Jetson Pin 5 (I2C1 SCL)
+    - MPU9250 VCC → Jetson 3.3V (Pin 1)
+    - MPU9250 GND → Jetson GND (Pin 6, 9, 14, or 20)
+
+Dependencies:
+    - smbus or smbus2 (sudo apt-get install python3-smbus)
+    - i2c-tools (sudo apt-get install i2c-tools)
+
+Note:
+    Robot must be stationary during startup for gyroscope calibration.
+    Magnetometer is disabled - see TF_OWNERSHIP_AND_GUARDRAILS.md for details.
 """
 
 import rospy

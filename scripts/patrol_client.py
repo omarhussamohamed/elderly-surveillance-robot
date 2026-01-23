@@ -1,25 +1,38 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
-Elderly Bot Patrol Client
+Patrol Client Node
 
-This script implements an autonomous patrol system using the ROS navigation stack.
-It loads patrol waypoints from a YAML file and cycles through them indefinitely.
+Autonomous patrol system using move_base action client. Cycles through
+waypoints from patrol_goals.yaml indefinitely with recovery from failures.
 
-Features:
-- ActionClient interface to move_base
-- Indefinite patrol loop
-- Goal status monitoring
-- Recovery from navigation failures
-- Configurable via ROS parameters
+Subscribed Topics:
+    None (action client to move_base)
+
+Published Topics:
+    None (sends goals to move_base action server)
+
+Parameters:
+    ~patrol_file (str): Path to YAML waypoints file
+        (default: "$(find elderly_bot)/config/patrol_goals.yaml")
+    ~goal_timeout (float): Timeout for each goal in seconds (default: 300.0)
+    ~inter_goal_delay (float): Delay between goals in seconds (default: 2.0)
+    ~max_retries (int): Maximum retries for failed goal (default: 3)
+
+Action Clients:
+    /move_base (move_base_msgs/MoveBaseAction): Navigation goals
+
+Configuration:
+    Waypoints defined in config/patrol_goals.yaml with format:
+    patrol_goals:
+      - name: "waypoint1"
+        x: 1.0
+        y: 2.0
+        yaw: 0.0
 
 Usage:
+    roslaunch elderly_bot navigation.launch
     rosrun elderly_bot patrol_client.py
-    
-    or with custom patrol file:
-    
-    rosrun elderly_bot patrol_client.py _patrol_file:=/path/to/patrol.yaml
 """
 
 import rospy
