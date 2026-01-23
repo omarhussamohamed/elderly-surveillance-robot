@@ -1,43 +1,43 @@
-# AWS IoT Core Bridge Configuration for Elderly Bot
+# AWS IoT Core Bridge Configuration for Robot Nano
 # ==================================================
-# This file contains parameters for connecting the robot to AWS IoT Core.
+# This file contains parameters for connecting robot_nano to AWS IoT Core.
 #
-# SAFETY: Cloud bridge is DISABLED by default until configured and tested.
-# To enable:
-#   1. Complete AWS IoT Core setup (create Thing, download certificates)
-#   2. Update all parameters below with your AWS configuration
-#   3. Set enable_cloud to true
-#   4. Launch with enable_cloud:=true
+# STANDARDIZED CONFIGURATION
+# Thing Name: robot_nano (MUST match AWS Console exactly)
+# Endpoint: a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com
+# Port: 8883 (Standard MQTT over TLS)
+# Region: eu-north-1
+# Account: 011524750104
 
-cloud_bridge_node:
-  # ===== FEATURE ENABLE FLAG =====
-  # Set to true only after AWS IoT Core is fully configured and tested
-  enable_cloud: true
-  
-  # ===== AWS IoT CORE CONNECTION =====
-  # Endpoint URL from AWS IoT Core console
-  # Get from: AWS IoT Core → Settings → Device data endpoint
-  # Example: "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com"
-  aws_endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
-  
-  # Unique identifier for this robot (must match AWS IoT Thing name)
+# AWS IoT Core Configuration
+aws_iot_config:
+  # Thing identifier (MUST match AWS IoT Thing name exactly)
   client_id: "robot_nano"
   
-  # MQTT port (443 for ALPN/WebSocket, 8883 for direct TLS)
-  # Use 443 if port 8883 is blocked by firewall/ISP
-  port: 443
+  # AWS IoT endpoint (ATS endpoint from AWS Console)
+  endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
   
-  # ===== CERTIFICATE PATHS =====
-  # Absolute paths to AWS IoT certificates for user 'omar'
-  # Certificates validated and ready to use
+  # MQTT port (8883 = standard MQTT over TLS, no ALPN needed)
+  port: 8883
   
-  # Root CA certificate (Amazon Root CA 1)
+  # Certificate paths (absolute paths required)
+  root_ca: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
+  device_cert: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
+  private_key: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
+
+# ROS Cloud Bridge Node Configuration
+cloud_bridge_node:
+  # Enable/disable cloud connectivity
+  enable_cloud: true
+  
+  # AWS IoT parameters (loaded from aws_iot_config)
+  aws_endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
+  client_id: "robot_nano"
+  port: 8883
+  
+  # Certificate paths
   root_ca_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
-  
-  # Device certificate (from AWS IoT Core)
   cert_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
-  
-  # Private key (from AWS IoT Core) - SECURE! Permissions: 600
   key_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
   
   # ===== MQTT TOPICS =====

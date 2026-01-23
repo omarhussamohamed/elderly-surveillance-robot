@@ -60,7 +60,7 @@ class CloudBridgeNode(object):
         # AWS IoT Core connection parameters
         self.aws_endpoint = rospy.get_param('~aws_endpoint', '')
         self.client_id = rospy.get_param('~client_id', 'robot_nano')
-        self.port = rospy.get_param('~port', 443)
+        self.port = rospy.get_param('~port', 8883)
         
         # Certificate paths (absolute paths required)
         self.root_ca_path = rospy.get_param('~root_ca_path', '')
@@ -164,22 +164,25 @@ class CloudBridgeNode(object):
                 self.cert_path
             )
             
-            # CRITICAL: Configure ALPN for port 443
-            # ALPN (Application Layer Protocol Negotiation) is REQUIRED for port 443
-            # The AWS SDK automatically enables ALPN when port 443 is used
-            if self.port == 443:
-                rospy.loginfo("Using port 443 with ALPN for AWS IoT Core")
-            
             # Configure MQTT client settings
             self.mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
             self.mqtt_client.configureOfflinePublishQueueing(-1)  # Infinite queue
             self.mqtt_client.configureDrainingFrequency(2)  # 2 Hz
-            self.mqtt_client.configureConnectDisconnectTimeout(30)  # 30 seconds (increased)
-            self.mqtt_client.configureMQTTOperationTimeout(10)  # 10 seconds (increased)
+            self.mqtt_client.configureConnectDisconnectTimeout(30)  # 30 seconds
+            self.mqtt_client.configureMQTTOperationTimeout(10)  # 10 seconds
             
             # Connect to AWS IoT Core
             rospy.loginfo("Connecting to AWS IoT Core...")
-            connect_result = self.mqtt_client.connect(self.keepalive_interval)
+            rospy.loginfo("  Endpoint: {}:{}".format(self.aws_endpoint, self.port))
+            rospy.loginfo("  Client ID: {}".format(self.client_id))
+            
+            try:
+                connect_result = self.mqtt_client.connect(self.keepalive_interval)
+            except Exception as e:
+                rospy.logerr("Connection exception: {}".format(e))
+                rospy.logerr("Check: Internet connection, endpoint URL, certificate paths")
+                rospy.logerr("Check: Port {} is not blocked by firewall".format(self.port))
+                return False
             
             if connect_result:
                 rospy.loginfo("Connected to AWS IoT Core")

@@ -3,22 +3,22 @@
 """
 Final AWS IoT Handshake Test - Robot Nano
 ==========================================
-Standalone connection test to verify AWS IoT Core configuration.
-Uses exact production settings for robot_nano Thing.
+Production-ready connection test to verify AWS IoT Core configuration.
+Uses exact settings from cloud_config.yaml for robot_nano Thing.
 
 USAGE:
     python final_handshake.py
 
 REQUIREMENTS:
-    pip install AWSIoTPythonSDK
+    pip install AWSIoTPythonSDK pyyaml
 
 WHAT THIS SCRIPT DOES:
-    1. Loads configuration from cloud_config.yaml
-    2. Validates certificates exist and are readable
-    3. Connects to AWS IoT Core using robot_nano client_id
+    1. Loads configuration from cloud_config.yaml (aws_iot_config section)
+    2. Validates all certificates exist and are readable
+    3. Connects to AWS IoT Core using robot_nano client_id on port 8883
     4. Tests publish/subscribe on elderly_bot/test topic
-    5. Verifies bidirectional communication
-    6. Reports SUCCESS or specific failure point
+    5. Verifies bidirectional MQTT communication
+    6. Reports SUCCESS or specific failure point with troubleshooting
 """
 
 from __future__ import print_function
@@ -38,15 +38,15 @@ except ImportError:
     sys.exit(1)
 
 # === CONFIGURATION ===
-# These paths are relative to the script location
+# Paths relative to script location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PKG_ROOT = os.path.dirname(SCRIPT_DIR)
 CONFIG_FILE = os.path.join(PKG_ROOT, 'config', 'cloud_config.yaml')
 
-# AWS Configuration (loaded from YAML)
+# AWS Configuration (loaded from YAML aws_iot_config section)
 AWS_ENDPOINT = None
-CLIENT_ID = "robot_nano"  # Must match Thing name exactly
-PORT = 443  # ALPN enabled for port 443
+CLIENT_ID = "robot_nano"  # Must match AWS Thing name exactly
+PORT = 8883  # Standard MQTT over TLS
 
 # Certificate paths (loaded from YAML)
 ROOT_CA = None
@@ -80,19 +80,27 @@ def load_config():
         with open(CONFIG_FILE, 'r') as f:
             config = yaml.safe_load(f)
         
-        if 'cloud_bridge_node' not in config:
-            print("ERROR: 'cloud_bridge_node' section not found in config")
+        # Try aws_iot_config section first (new format)
+        if 'aws_iot_config' in config:
+            cfg = config['aws_iot_config']
+            AWS_ENDPOINT = cfg.get('endpoint', '')
+            CLIENT_ID = cfg.get('client_id', 'robot_nano')
+            PORT = cfg.get('port', 8883)
+            ROOT_CA = os.path.expanduser(cfg.get('root_ca', ''))
+            DEVICE_CERT = os.path.expanduser(cfg.get('device_cert', ''))
+            PRIVATE_KEY = os.path.expanduser(cfg.get('private_key', ''))
+        # Fallback to cloud_bridge_node section (old format)
+        elif 'cloud_bridge_node' in config:
+            cfg = config['cloud_bridge_node']
+            AWS_ENDPOINT = cfg.get('aws_endpoint', '')
+            CLIENT_ID = cfg.get('client_id', 'robot_nano')
+            PORT = cfg.get('port', 8883)
+            ROOT_CA = os.path.expanduser(cfg.get('root_ca_path', ''))
+            DEVICE_CERT = os.path.expanduser(cfg.get('cert_path', ''))
+            PRIVATE_KEY = os.path.expanduser(cfg.get('key_path', ''))
+        else:
+            print("ERROR: Neither 'aws_iot_config' nor 'cloud_bridge_node' section found")
             sys.exit(1)
-        
-        cfg = config['cloud_bridge_node']
-        
-        # Extract parameters
-        AWS_ENDPOINT = cfg.get('aws_endpoint', '')
-        CLIENT_ID = cfg.get('client_id', 'robot_nano')
-        PORT = cfg.get('port', 443)
-        ROOT_CA = os.path.expanduser(cfg.get('root_ca_path', ''))
-        DEVICE_CERT = os.path.expanduser(cfg.get('cert_path', ''))
-        PRIVATE_KEY = os.path.expanduser(cfg.get('key_path', ''))
         
         print("✓ Configuration loaded successfully")
         print("\n  Endpoint:  {}".format(AWS_ENDPOINT))
@@ -160,10 +168,7 @@ def test_connection():
     mqtt_client = AWSIoTMQTTClient(CLIENT_ID)
     mqtt_client.configureEndpoint(AWS_ENDPOINT, PORT)
     mqtt_client.configureCredentials(ROOT_CA, PRIVATE_KEY, DEVICE_CERT)
-    
-    # Configure connection parameters
-    mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
-    mqtt_client.configureOfflinePublishQueueing(-1)
+    print("✓ MQTT client configured (Port {}, Standard MQTT/TLS)".format(PORT)ishQueueing(-1)
     mqtt_client.configureDrainingFrequency(2)
     mqtt_client.configureConnectDisconnectTimeout(30)
     mqtt_client.configureMQTTOperationTimeout(10)
@@ -201,10 +206,12 @@ def test_connection():
         print("  1. Check internet connectivity")
         print("  2. Verify endpoint URL is correct")
         print("  3. Ensure port 443 is not blocked by firewall")
-        print("  4. Check AWS IoT Core CloudWatch logs")
-        sys.exit(1)
-    
-    # === SUBSCRIBE ===
+        print("  4. Check AWS IoT Core CloudWat: ping google.com")
+        print("  2. Verify endpoint URL: {}".format(AWS_ENDPOINT))
+        print("  3. Ensure port {} is not blocked: nc -zv {} {}".format(PORT, AWS_ENDPOINT, PORT))
+        print("  4. Check AWS IoT Policy allows client '{}'".format(CLIENT_ID))
+        print("  5. Verify certificate is ACTIVE in AWS Console")
+        print("  6E ===
     print("\n[5/6] Testing Publish/Subscribe...")
     print("  Subscribing to: {}".format(TEST_TOPIC))
     
@@ -279,12 +286,15 @@ def test_connection():
         print("=" * 60)
         print("\nAWS IoT Core connection is fully functional:")
         print("  ✓ Client ID: {} connected successfully".format(CLIENT_ID))
-        print("  ✓ Port: {} with ALPN working".format(PORT))
+        print("  ✓ Thing Name: robot_nano")
+        print("  ✓ Client ID: {} connected successfully".format(CLIENT_ID))
+        print("  ✓ Endpoint: {}:{}".format(AWS_ENDPOINT, PORT))
         print("  ✓ Publish to {} successful".format(TEST_TOPIC))
         print("  ✓ Subscribe to {} successful".format(TEST_TOPIC))
         print("  ✓ Bidirectional communication verified")
-        print("\nYou can now launch ROS with cloud enabled:")
-        print("  roslaunch elderly_bot bringup.launch enable_cloud:=true")
+        print("\nREADY FOR ROS LAUNCH:")
+        print("  cd ~/catkin_ws")
+        print("  source devel/setup.bashe_cloud:=true")
         return 0
     else:
         print("⚠ PARTIAL SUCCESS")
