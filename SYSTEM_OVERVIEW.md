@@ -42,14 +42,14 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
   - Subscribes: `/buzzer_command`
 - **kvs_streamer_node** (scripts/): AWS Kinesis Video Streams integration
   - Subscribes: `/camera/image_raw`
-  - Publishes: Encoded H.264 video to AWS KVS (eu-west-1, stream: RobotStream)
+  - Publishes: Encoded H.264 video to AWS KVS (us-east-1, stream: RobotStream)
   - Status: **Production Ready** (kvssink plugin compiled at `/home/omar/amazon-kinesis-video-streams-producer-sdk-cpp/build/libgstkvssink.so`)
   - Note: Requires Python 2.7 (ROS Melodic), GStreamer 1.0, kvssink plugin in GST_PLUGIN_PATH
 - **cloud_bridge_node** (scripts/, optional): AWS IoT Core integration
-  - Region: eu-north-1 (endpoint: a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com)
+  - Region: us-east-1 (endpoint: a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com)
   - Publishes telemetry to `elderly_bot/telemetry`, alerts to `elderly_bot/alerts`
   - Subscribes to `elderly_bot/commands`
-  - Note: Different region from KVS (eu-west-1) — service-specific regional deployment
+  - Note: All AWS services now unified in us-east-1 region
 
 ### Transforms
 - **robot_state_publisher**: Broadcasts URDF-defined static TFs (base_link, laser, imu_link)

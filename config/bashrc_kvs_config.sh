@@ -21,7 +21,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/omar/amazon-kinesis-video-streams-
 # These credentials are used by kvs_stream.launch and systemd service
 export AWS_ACCESS_KEY_ID="AKIAQFLXNXMMILSXZBPW"
 export AWS_SECRET_ACCESS_KEY="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"
-export AWS_DEFAULT_REGION="eu-west-1"
+export AWS_DEFAULT_REGION="us-east-1"
 
 # ============================================================================
 # VERIFICATION COMMANDS

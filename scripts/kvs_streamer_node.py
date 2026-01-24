@@ -2,7 +2,7 @@
 """
 AWS Kinesis Video Streams Integration Node
 Streams camera feed to AWS KVS for cloud AI inference
-Hardcoded for RobotStream in eu-west-1
+Hardcoded for RobotStream in us-east-1
 Note: Uses Python 2.7 compatible syntax for ROS Melodic
 """
 
@@ -23,7 +23,7 @@ class KVSStreamer:
         
         # Hardcoded parameters for RobotStream
         self.stream_name = 'RobotStream'
-        self.aws_region = 'eu-west-1'
+        self.aws_region = 'us-east-1'
         self.width = rospy.get_param('~width', 1280)
         self.height = rospy.get_param('~height', 720)
         self.fps = rospy.get_param('~fps', 30)

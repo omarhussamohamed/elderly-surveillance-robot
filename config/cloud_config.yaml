@@ -4,10 +4,9 @@
 #
 # STANDARDIZED CONFIGURATION
 # Thing Name: robot_nano (MUST match AWS Console exactly)
-# Endpoint: a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com
-# Port: 8883 (Standard MQTT over TLS)
-# Region: eu-north-1
-# Account: 011524750104
+  # Endpoint: a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com
+  # Port: 8883 (Standard MQTT over TLS)
+  # Region: us-east-1
 
 # AWS IoT Core Configuration
 aws_iot_config:
@@ -15,7 +14,7 @@ aws_iot_config:
   client_id: "robot_nano"
   
   # AWS IoT endpoint (ATS endpoint from AWS Console)
-  endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
+  endpoint: "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
   
   # MQTT port (8883 = standard MQTT over TLS, no ALPN needed)
   port: 8883
@@ -31,7 +30,7 @@ cloud_bridge_node:
   enable_cloud: true
   
   # AWS IoT parameters (loaded from aws_iot_config)
-  aws_endpoint: "a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com"
+  aws_endpoint: "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
   client_id: "robot_nano"
   port: 8883
   
