@@ -17,6 +17,9 @@ class KVSStreamerNode:
     def __init__(self):
         rospy.init_node('kvs_streamer_node', anonymous=True)
 
+        # Initialize GStreamer
+        Gst.init(None)
+
         # ROS Publisher
         self.status_pub = rospy.Publisher('/kvs/streaming', String, queue_size=10)
 
@@ -74,6 +77,7 @@ class KVSStreamerNode:
 
 if __name__ == '__main__':
     try:
+        Gst.init(None)  # Ensure GStreamer is initialized before creating the node
         node = KVSStreamerNode()
         rospy.spin()
     except rospy.ROSInterruptException:
