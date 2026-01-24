@@ -2,9 +2,12 @@
  * Unified ESP32 Firmware - Ground Truth Motor Behavior + ROS WiFi Communication
  * Motor control logic: EXACTLY from motor_and_encoder_HW_test.ino
  * ROS/WiFi communication: From elderly_bot_esp32_wifi.ino ground truth
+ * Wi-Fi Configuration: WiFiManager with persistent Jetson IP via Preferences
  */
  #include <WiFi.h>
  #include <WiFiClient.h>
+ #include <WiFiManager.h>
+ #include <Preferences.h>
  #include <ros.h>
  #include <geometry_msgs/Twist.h>
  #include <nav_msgs/Odometry.h>
@@ -35,11 +38,14 @@
    unsigned long time() { return millis(); }
    bool connected() { return (client && client->connected()); }
  };
- // ==================== WiFi CONFIGURATION ====================
- const char* ssid = "Maryse's Iphone12";
- const char* password = "Marysehani";
- IPAddress server(172,20,10,6);
+ // ==================== WiFi AND ROS IP CONFIGURATION ====================
+ // Wi-Fi credentials and ROS IP are configured via WiFiManager captive portal
+ // and persisted using Preferences.h
  const uint16_t serverPort = 11411;
+ IPAddress jetson_ip;  // Will be loaded from Preferences
+ bool ros_ip_valid = false;  // Track if we have a valid Jetson IP
+ // Global WiFiManager parameter (must persist beyond setup)
+ char jetson_ip_buffer[16] = "";
  // ==================== GROUND TRUTH MOTOR SETTINGS (FROM motor_and_encoder_HW_test.ino) ====================
  // Pin definitions - EXACT from ground truth
  const int FL_PWM = 13; const int FL_IN1 = 12; const int FL_IN2 = 14;
@@ -62,7 +68,8 @@
  #define ROS_SERIAL_BUFFER_SIZE 1024
  // ==================== GLOBALS ====================
  WiFiClient client;
- RosWiFiHardware ros_wifi_hw(&client, server, serverPort);
+ // Note: ros_wifi_hw initialized with placeholder IP, will be configured in setup()
+ RosWiFiHardware ros_wifi_hw(&client, IPAddress(0, 0, 0, 0), serverPort);
  ros::NodeHandle_<RosWiFiHardware, 25, 25, ROS_SERIAL_BUFFER_SIZE, ROS_SERIAL_BUFFER_SIZE> nh;
  // Ground truth encoder counters - EXACT from motor_and_encoder_HW_test.ino
  volatile long counts[4] = {0, 0, 0, 0}; // FL, FR, RL, RR
@@ -328,34 +335,122 @@ void IRAM_ATTR isrRR() {
    }
  }
  ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmdVelCallback);
+ // ==================== WIFI AND ROS IP CONFIGURATION FUNCTIONS ====================
+ void saveJetsonIP(String ip_string) {
+   Preferences prefs;
+   prefs.begin("ros_cfg", false);
+   prefs.putString("jetson_ip", ip_string);
+   prefs.end();
+   Serial.println("Jetson IP saved: " + ip_string);
+ }
+ String loadJetsonIP() {
+   Preferences prefs;
+   prefs.begin("ros_cfg", true);  // Read-only mode
+   String ip_string = prefs.getString("jetson_ip", "");
+   prefs.end();
+   return ip_string;
+ }
+ void configureWiFiAndROS() {
+   // Force station mode and disable sleep for reliability
+   WiFi.mode(WIFI_STA);
+   WiFi.setSleep(false);
+   
+   // Preload stored IP into buffer for portal
+   String stored_ip = loadJetsonIP();
+   if (stored_ip.length() > 0) {
+     stored_ip.toCharArray(jetson_ip_buffer, 16);
+   }
+   
+   WiFiManager wm;
+   
+   // Custom parameter for Jetson IP (uses global buffer)
+   WiFiManagerParameter custom_jetson_ip("jetson_ip", "Jetson ROS Master IP", jetson_ip_buffer, 16);
+   wm.addParameter(&custom_jetson_ip);
+   
+   // Set custom AP name
+   wm.setConfigPortalTimeout(180);  // 3 minute timeout
+   
+   // Launch captive portal
+   Serial.println("Starting WiFiManager...");
+   if (!wm.autoConnect("ElderlyBot_Config_AP")) {
+     Serial.println("Failed to connect to WiFi");
+     delay(3000);
+     ESP.restart();
+   }
+   
+   // Wi-Fi connected
+   Serial.println("WiFi connected!");
+   Serial.print("IP address: ");
+   Serial.println(WiFi.localIP());
+   
+   // Get custom parameter value
+   String jetson_ip_string = custom_jetson_ip.getValue();
+   
+   // Validate IP format first
+   IPAddress temp_ip;
+   if (jetson_ip_string.length() > 0 && temp_ip.fromString(jetson_ip_string)) {
+     // Valid IP entered - save and use it
+     jetson_ip = temp_ip;
+     saveJetsonIP(jetson_ip_string);
+     ros_ip_valid = true;
+     Serial.print("Jetson IP configured: ");
+     Serial.println(jetson_ip);
+   } else if (stored_ip.length() > 0 && jetson_ip.fromString(stored_ip)) {
+     // No new IP, use stored IP if valid
+     ros_ip_valid = true;
+     Serial.print("Jetson IP loaded from storage: ");
+     Serial.println(jetson_ip);
+   } else {
+     // No valid IP available
+     ros_ip_valid = false;
+     Serial.println("ERROR: Invalid or missing Jetson IP address");
+     Serial.println("Please reconnect to captive portal and configure IP");
+   }
+ }
  // ==================== SETUP (Ground Truth Hardware Initialization) ====================
  void setup() {
    Serial.begin(115200);
+   delay(1000);
+   Serial.println("\n\n=== ElderlyBot ESP32 Unified Firmware ===");
+   
    // Safe Boot Delay (EXACT from ground truth)
    pinMode(FL_IN1, INPUT); pinMode(RL_IN2, INPUT); delay(500);
+   
    // Create mutex for cmd_vel shared data
    cmd_vel_mutex = xSemaphoreCreateMutex();
-   // Connect to WiFi
-   WiFi.begin(ssid, password);
-   while(WiFi.status() != WL_CONNECTED) {
-     delay(500);
+   
+   // Configure WiFi and load Jetson IP via WiFiManager
+   configureWiFiAndROS();
+   
+   // Only proceed with ROS setup if we have a valid IP
+   if (ros_ip_valid) {
+     // Set ROS connection with validated IP
+     ros_wifi_hw.setConnection(jetson_ip, serverPort);
+     client.setNoDelay(true);  // Disable Nagle algorithm for low latency
+     Serial.println("ROS IP configuration applied");
+   } else {
+     Serial.println("WARNING: ROS disabled - no valid Jetson IP");
    }
+   
    // Initialize all Outputs (EXACT from ground truth)
    int pins[] = {FL_IN1, FL_IN2, FR_IN1, FR_IN2, RL_IN1, RL_IN2, RR_IN1, RR_IN2, FL_PWM, FR_PWM, RL_PWM, RR_PWM};
    for(int p : pins) {
      pinMode(p, OUTPUT);
      digitalWrite(p, LOW);
    }
+   
    // HW PWM Setup (EXACT from ground truth)
    ledcSetup(CH_FL, PWM_FREQ, PWM_RES); ledcSetup(CH_FR, PWM_FREQ, PWM_RES);
    ledcSetup(CH_RL, PWM_FREQ, PWM_RES); ledcSetup(CH_RR, PWM_FREQ, PWM_RES);
    ledcAttachPin(FL_PWM, CH_FL); ledcAttachPin(FR_PWM, CH_FR);
    ledcAttachPin(RL_PWM, CH_RL); ledcAttachPin(RR_PWM, CH_RR);
+   
    // Encoders (EXACT from ground truth - Internal Pullups for RL/RR, External 1k for FR)
    pinMode(FL_ENC_A, INPUT); pinMode(FL_ENC_B, INPUT);
    pinMode(FR_ENC_A, INPUT); pinMode(FR_ENC_B, INPUT);
    pinMode(RL_ENC_A, INPUT_PULLUP); pinMode(RL_ENC_B, INPUT_PULLUP);
    pinMode(RR_ENC_A, INPUT_PULLUP); pinMode(RR_ENC_B, INPUT_PULLUP);
+   
    // Attach interrupts (EXACT from ground truth)
    attachInterrupt(digitalPinToInterrupt(FL_ENC_A), isrFL, CHANGE);
    attachInterrupt(digitalPinToInterrupt(FR_ENC_A), isrFR, CHANGE);
@@ -371,13 +466,22 @@ void IRAM_ATTR isrRR() {
    odom_y = 0.0;
    odom_theta = 0.0;
    
-   // ROS setup (Core 0)
-   *nh.getHardware() = ros_wifi_hw;
-   nh.initNode();
-   nh.subscribe(cmd_vel_sub);
-   nh.advertise(odom_pub);
-   odom_msg.header.frame_id = "odom";
-   odom_msg.child_frame_id = "base_footprint";
+   // ROS setup (Core 0) - only if valid IP
+   if (ros_ip_valid) {
+     *nh.getHardware() = ros_wifi_hw;
+     ros_wifi_hw.init();  // Initiate initial TCP connection to ROS Master
+     nh.initNode();
+     nh.subscribe(cmd_vel_sub);
+     nh.advertise(odom_pub);
+     odom_msg.header.frame_id = "odom";
+     odom_msg.child_frame_id = "base_footprint";
+     Serial.println("ROS node initialized");
+     Serial.print("Connecting to ROS Master at ");
+     Serial.print(jetson_ip);
+     Serial.print(":");
+     Serial.println(serverPort);
+   }
+   
    // Create motor control task on Core 1
    xTaskCreatePinnedToCore(
      motorControlTask, // Task function
@@ -388,23 +492,30 @@ void IRAM_ATTR isrRR() {
      &motorTaskHandle, // Handle
      1 // Core 1
    );
+   
+   Serial.println("=== Setup Complete ===\n");
  }
  // ==================== LOOP (Core 0 - ROS/WiFi/Odometry Only) ====================
  void loop() {
    unsigned long now = millis();
-   // Connection management
-   if (!ros_wifi_hw.connected()) {
-     if (now - last_ros_connect > 1000) {
-        ros_wifi_hw.init();
-        last_ros_connect = now;
+   
+   // Only run ROS operations if we have a valid IP
+   if (ros_ip_valid) {
+     // Connection management
+     if (!ros_wifi_hw.connected()) {
+       if (now - last_ros_connect > 1000) {
+          client.stop();  // Clean disconnect before reconnect
+          ros_wifi_hw.init();
+          last_ros_connect = now;
+       }
      }
-   }
-   nh.spinOnce();
-   // Publish odometry (10Hz = every 100ms) - secondary priority
-   if (now - last_odom_time >= ODOM_PUBLISH_INTERVAL) {
-     updateOdometry(ODOM_PUBLISH_INTERVAL / 1000.0);
-     publishOdometry();
-     last_odom_time = now;
+     nh.spinOnce();
+     // Publish odometry (20Hz)
+     if (now - last_odom_time >= ODOM_PUBLISH_INTERVAL) {
+       updateOdometry(ODOM_PUBLISH_INTERVAL / 1000.0);
+       publishOdometry();
+       last_odom_time = now;
+     }
    }
    // Small delay to prevent overwhelming rosserial
    delay(1);

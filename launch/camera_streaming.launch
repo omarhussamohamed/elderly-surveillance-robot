@@ -1,0 +1,48 @@
+<!-- 
+  ElderlyBot Camera & AWS KVS Streaming Launch File
+  
+  Usage:
+    roslaunch elderly_bot camera_streaming.launch
+  
+  To disable KVS streaming:
+    roslaunch elderly_bot camera_streaming.launch enable_kvs:=false
+-->
+
+<launch>
+  <!-- Arguments -->
+  <arg name="device" default="/dev/video0" />
+  <arg name="width" default="1280" />
+  <arg name="height" default="720" />
+  <arg name="fps" default="30" />
+  <arg name="enable_kvs" default="true" />
+  <arg name="stream_name" default="elderly-bot-stream" />
+  <arg name="aws_region" default="eu-north-1" />
+  <arg name="bitrate" default="2048" />
+
+  <!-- Camera Publisher Node -->
+  <node pkg="elderly_bot" type="camera_node.py" name="camera_publisher" output="screen">
+    <param name="device" value="$(arg device)" />
+    <param name="width" value="$(arg width)" />
+    <param name="height" value="$(arg height)" />
+    <param name="fps" value="$(arg fps)" />
+    <param name="frame_id" value="camera_link" />
+  </node>
+
+  <!-- AWS Kinesis Video Streams Node -->
+  <node pkg="elderly_bot" type="kvs_streamer_node.py" name="kvs_streamer" 
+        output="screen" if="$(arg enable_kvs)">
+    <param name="stream_name" value="$(arg stream_name)" />
+    <param name="aws_region" value="$(arg aws_region)" />
+    <param name="device" value="$(arg device)" />
+    <param name="width" value="$(arg width)" />
+    <param name="height" value="$(arg height)" />
+    <param name="fps" value="$(arg fps)" />
+    <param name="bitrate" value="$(arg bitrate)" />
+    <param name="enable_streaming" value="true" />
+  </node>
+
+  <!-- Static transform for camera frame (adjust based on your robot's camera position) -->
+  <node pkg="tf" type="static_transform_publisher" name="camera_tf_broadcaster" 
+        args="0.15 0 0.25 0 0 0 base_link camera_link 100" />
+
+</launch>
