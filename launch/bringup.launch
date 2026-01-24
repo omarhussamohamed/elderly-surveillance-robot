@@ -26,8 +26,8 @@
   <arg name="imu_source" default="esp32" />
   
   <!-- Camera and KVS streaming -->
-  <arg name="enable_camera" default="false" 
-       doc="Enable camera and KVS streaming" />
+  <arg name="enable_camera" default="true" 
+       doc="Enable camera and KVS streaming (default: true)" />
   <arg name="kvs_silent" default="true" 
        doc="Suppress KVS debug output (logs to file)" />
   <arg name="camera_device" default="/dev/video0" 
@@ -151,9 +151,9 @@
     </node>
   </group>
   
-  <!-- ========== OPTIONAL: CAMERA & KVS STREAMING ========== -->
+  <!-- ========== CAMERA & KVS STREAMING ========== -->
   <!-- Camera capture and AWS Kinesis Video Streams -->
-  <!-- Enable with: roslaunch elderly_bot bringup.launch enable_camera:=true -->
+  <!-- Enabled by default. Disable with: enable_camera:=false -->
   <!-- Note: camera_link TF is already defined in URDF -->
   <!-- Resolution modes: production (640x480@15fps, default) or test (1280x720@30fps) -->
   
