@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-
 """
 AWS Kinesis Video Streams Integration Node - OPTIMIZED
 Streams 1280x720 @ 30fps camera feed to AWS KVS
