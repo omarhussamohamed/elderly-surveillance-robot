@@ -41,6 +41,14 @@ class KVSStreamerNode:
         self.pts = 0
         self.frame_duration = int(1e9 / 30)  # Assuming 30 FPS
 
+        # Remove old/invalid param:
+        # fragment_acceptance_duration = rospy.get_param('~fragment_acceptance_duration', 2000)
+
+        # Use correct property (choose one, here using fragment-duration as example):
+        self.fragment_duration = rospy.get_param('~fragment_duration', 2000)  # in ms
+        # Or, if you want buffer-duration (in seconds):
+        # buffer_duration = rospy.get_param('~buffer_duration', 120)
+
         # Attach bus watch
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()

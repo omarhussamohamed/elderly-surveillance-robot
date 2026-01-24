@@ -89,6 +89,7 @@
     <!-- Internal parameters (do not change) -->
     <param name="~stream_name" value="$(arg stream_name)" />
     <param name="~aws_region" value="$(arg aws_region)" />
+    <param name="fragment_duration" value="$(arg fragment_duration)" />
   </node>
 
   <!-- ========================================== -->
