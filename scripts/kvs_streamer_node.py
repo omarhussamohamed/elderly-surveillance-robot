@@ -27,7 +27,6 @@ if 'GST_DEBUG' not in os.environ:
     os.environ['GST_DEBUG'] = '1'  # Only show errors (level 1)
 if 'GST_DEBUG_NO_COLOR' not in os.environ:
     os.environ['GST_DEBUG_NO_COLOR'] = '1'
-    os.environ['GST_DEBUG_NO_COLOR'] = '1'
 
 class KVSStreamerNode:
     def __init__(self):
@@ -135,6 +134,7 @@ class KVSStreamerNode:
         # Calculate fragment duration in seconds (2 seconds is recommended minimum)
         fragment_duration = 2
         
+        # Build pipeline string without fragment-acceptance-duration
         pipeline_str = (
             "appsrc name=source is-live=true format=time do-timestamp=true "
             "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 "
@@ -146,8 +146,7 @@ class KVSStreamerNode:
             "video/x-h264,stream-format=avc,alignment=au,profile=baseline ! "
             "kvssink stream-name={stream_name} storage-size={storage_size} "
             "aws-region={aws_region} connection-timeout={connection_timeout} "
-            "buffer-duration={buffer_duration} fragment-duration={fragment_duration} "
-            "fragment-acceptance-duration={fragment_duration}"
+            "buffer-duration={buffer_duration} fragment-duration={fragment_duration}"
         ).format(
             width=self.width,
             height=self.height,
