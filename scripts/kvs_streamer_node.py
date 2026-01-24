@@ -27,6 +27,7 @@ if 'GST_DEBUG' not in os.environ:
     os.environ['GST_DEBUG'] = '1'  # Only show errors (level 1)
 if 'GST_DEBUG_NO_COLOR' not in os.environ:
     os.environ['GST_DEBUG_NO_COLOR'] = '1'
+    os.environ['GST_DEBUG_NO_COLOR'] = '1'
 
 class KVSStreamerNode:
     def __init__(self):
@@ -135,15 +136,14 @@ class KVSStreamerNode:
             "appsrc name=source is-live=true format=time do-timestamp=true "
             "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 "
             "max-bytes=0 block=true ! "
-            "videoconvert ! "
-            "video/x-raw,format=I420,width={width},height={height},framerate={fps}/1 ! "
+            "videoconvert ! videoscale ! "
+            "video/x-raw,format=I420,width={width},height={height} ! "
             "x264enc bframes=0 key-int-max={keyframe_interval} bitrate={bitrate} "
-            "tune=zerolatency speed-preset=ultrafast threads=2 sync=false ! "
+            "tune=zerolatency speed-preset=ultrafast ! "
             "video/x-h264,stream-format=avc,alignment=au,profile=baseline ! "
             "kvssink stream-name={stream_name} storage-size={storage_size} "
             "aws-region={aws_region} connection-timeout={connection_timeout} "
-            "buffer-duration={buffer_duration} framerate={fps}/1 "
-            "streaming-type=realtime enable-fragment-metadata=true"
+            "buffer-duration={buffer_duration}"
         ).format(
             width=self.width,
             height=self.height,
