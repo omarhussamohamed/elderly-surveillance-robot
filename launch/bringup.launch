@@ -25,6 +25,16 @@
   <!-- "jetson": IMU directly on Jetson I2C (more reliable) -->
   <arg name="imu_source" default="esp32" />
   
+  <!-- Camera and KVS streaming -->
+  <arg name="enable_camera" default="false" 
+       doc="Enable camera and KVS streaming" />
+  <arg name="kvs_silent" default="true" 
+       doc="Suppress KVS debug output (logs to file)" />
+  <arg name="camera_device" default="/dev/video0" 
+       doc="USB camera device path" />
+  <arg name="kvs_test_mode" default="false" 
+       doc="Use test resolution (1280x720@30fps) instead of production (640x480@15fps)" />
+  
   <!-- Robot geometry parameters -->
   <param name="robot_description" 
          textfile="$(find elderly_bot)/urdf/elderly_bot.urdf" />
@@ -139,6 +149,42 @@
           respawn_delay="10">
       <rosparam command="load" file="$(find elderly_bot)/config/cloud_config.yaml" />
     </node>
+  </group>
+  
+  <!-- ========== OPTIONAL: CAMERA & KVS STREAMING ========== -->
+  <!-- Camera capture and AWS Kinesis Video Streams -->
+  <!-- Enable with: roslaunch elderly_bot bringup.launch enable_camera:=true -->
+  <!-- Note: camera_link TF is already defined in URDF -->
+  <!-- Resolution modes: production (640x480@15fps, default) or test (1280x720@30fps) -->
+  
+  <group if="$(arg enable_camera)">
+    <!-- Production mode: 640x480 @ 15fps, 512kbps (default) -->
+    <group unless="$(arg kvs_test_mode)">
+      <include file="$(find elderly_bot)/launch/kvs_stream.launch">
+        <arg name="device" value="$(arg camera_device)" />
+        <arg name="width" value="640" />
+        <arg name="height" value="480" />
+        <arg name="fps" value="15" />
+        <arg name="bitrate" value="512" />
+        <arg name="output_to_screen" value="false" if="$(arg kvs_silent)" />
+        <arg name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
+        <arg name="enable_kvs" value="true" />
+      </include>
+    </group>
+    
+    <!-- Test mode: 1280x720 @ 30fps, 2048kbps -->
+    <group if="$(arg kvs_test_mode)">
+      <include file="$(find elderly_bot)/launch/kvs_stream.launch">
+        <arg name="device" value="$(arg camera_device)" />
+        <arg name="width" value="1280" />
+        <arg name="height" value="720" />
+        <arg name="fps" value="30" />
+        <arg name="bitrate" value="2048" />
+        <arg name="output_to_screen" value="false" if="$(arg kvs_silent)" />
+        <arg name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
+        <arg name="enable_kvs" value="true" />
+      </include>
+    </group>
   </group>
   
 </launch>

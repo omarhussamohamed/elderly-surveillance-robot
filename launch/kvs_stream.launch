@@ -48,6 +48,22 @@
        doc="AWS KVS stream name" />
   <arg name="aws_region" default="us-east-1" 
        doc="AWS region" />
+  
+  <!-- KVS Stability Parameters -->
+  <arg name="retry_count" default="3" 
+       doc="Number of stream reconnection attempts" />
+  <arg name="retry_delay" default="5" 
+       doc="Seconds between retries" />
+  <arg name="buffer_duration" default="120" 
+       doc="Buffer time in seconds for network drops" />
+  <arg name="connection_timeout" default="30" 
+       doc="Connection timeout in seconds" />
+  <arg name="storage_size" default="256" 
+       doc="Buffer storage in MB" />
+  
+  <!-- Output Management -->
+  <arg name="output_to_screen" default="true" 
+       doc="Output KVS logs to screen (false = silent mode, logs to file)" />
 
   <!-- ========================================== -->
   <!-- CAMERA NODE -->
@@ -85,6 +101,16 @@
     <param name="fps" value="$(arg fps)" />
     <param name="bitrate" value="$(arg bitrate)" />
     <param name="enable_streaming" value="$(arg enable_kvs)" />
+    
+    <!-- Stability parameters -->
+    <param name="~retry_count" value="$(arg retry_count)" />
+    <param name="~retry_delay" value="$(arg retry_delay)" />
+    <param name="~buffer_duration" value="$(arg buffer_duration)" />
+    <param name="~connection_timeout" value="$(arg connection_timeout)" />
+    <param name="~storage_size" value="$(arg storage_size)" />
+    
+    <!-- Output management -->
+    <param name="~output_to_screen" value="$(arg output_to_screen)" />
     
     <!-- Internal parameters (do not change) -->
     <param name="~stream_name" value="$(arg stream_name)" />
