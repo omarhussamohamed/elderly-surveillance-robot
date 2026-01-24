@@ -40,6 +40,10 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
 - **sensors_actuators_node** (scripts/): Gas sensor, buzzer, Jetson stats
   - Publishes: `/gas_detected`, `/jetson_temperature`, `/jetson_power`
   - Subscribes: `/buzzer_command`
+- **kvs_streamer_node** (scripts/): AWS Kinesis Video Streams integration
+  - Subscribes: `/camera/image_raw`
+  - Publishes: Encoded H.264 video to AWS KVS (eu-west-1, stream: RobotStream)
+  - Note: Requires Python 3 environment; runs alongside ROS Melodic core
 - **cloud_bridge_node** (scripts/, optional): AWS IoT Core integration
   - Publishes telemetry to `elderly_bot/telemetry`, alerts to `elderly_bot/alerts`
   - Subscribes to `elderly_bot/commands`
@@ -59,6 +63,7 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
 | `/imu/data_raw` | Imu | mpu9250_node | imu_filter_madgwick | Raw gyro + accel |
 | `/imu/data` | Imu | imu_filter_madgwick | ekf | Fused IMU with orientation |
 | `/map` | OccupancyGrid | map_server or gmapping | amcl, move_base | Occupancy grid map |
+| `/camera/image_raw` | Image | camera_node | kvs_streamer_node | Raw camera frames (1280x720 BGR) |
 | `/gas_detected` | Bool | sensors_actuators_node | cloud_bridge (optional) | Gas detection status |
 | `/buzzer_command` | Bool | cloud_bridge or manual | sensors_actuators_node | Buzzer control |
 

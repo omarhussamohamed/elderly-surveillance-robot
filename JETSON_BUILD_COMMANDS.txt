@@ -1,0 +1,98 @@
+###############################################################################
+# AWS KVS BUILD COMMANDS FOR JETSON NANO
+# Execute these commands ON THE JETSON NANO (Ubuntu 18.04)
+# DO NOT run on Windows development machine
+###############################################################################
+
+# ============================================================================
+# PHASE 1: UPGRADE BUILD INFRASTRUCTURE
+# ============================================================================
+
+# Update system and install dependencies
+sudo apt-get update
+sudo apt-get install -y python3-pip libssl-dev libcurl4-openssl-dev \
+    liblog4cplus-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly
+
+# Install CMake 3.18+ via pip (user space, no system conflict)
+pip3 install --upgrade pip
+pip3 install --user cmake
+
+# Update PATH for current session
+export PATH=$HOME/.local/bin:$PATH
+
+# Verify CMake version (must be >= 3.18)
+cmake --version
+
+# ============================================================================
+# PHASE 2: CLEAN & REBUILD KVS PRODUCER SDK
+# ============================================================================
+
+# Navigate to SDK directory (adjust path if different)
+cd ~/amazon-kinesis-video-streams-producer-sdk-cpp
+
+# Clean previous failed builds
+rm -rf build open-source dependency
+
+# Create build directory and configure
+mkdir build && cd build
+cmake .. -DBUILD_GSTREAMER_PLUGIN=ON -DBUILD_DEPENDENCIES=ON
+
+# Build with parallel jobs (use -j2 if system hangs)
+make -j4
+
+# ============================================================================
+# PHASE 3: LINK GSTREAMER PLUGIN
+# ============================================================================
+
+# Find the compiled library
+find $(pwd) -name libgstkvssink.so
+
+# Permanently add to environment (append to .bashrc)
+echo "export GST_PLUGIN_PATH=\$GST_PLUGIN_PATH:$(pwd)" >> ~/.bashrc
+source ~/.bashrc
+
+# Verify plugin is visible to GStreamer
+gst-inspect-1.0 kvssink
+
+# Expected output: "Factory Details" with kvssink information
+
+# ============================================================================
+# PHASE 5: FINAL SYSTEM VALIDATION
+# ============================================================================
+
+# Navigate to workspace
+cd ~/catkin_ws
+
+# Build ROS workspace
+catkin_make
+
+# Source workspace
+source devel/setup.bash
+
+# Launch camera streaming system
+roslaunch elderly_bot camera_streaming.launch
+
+# Expected success logs:
+# [INFO] KVS streaming started successfully
+# [INFO] AWS credentials verified: Key=AKIAQFLX..., Region=eu-west-1
+# [INFO] GStreamer pipeline with appsrc...
+
+# ============================================================================
+# TROUBLESHOOTING
+# ============================================================================
+
+# If kvssink not found after build:
+export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:~/amazon-kinesis-video-streams-producer-sdk-cpp/build
+
+# If CMake version is still old:
+hash -r  # Clear bash hash table
+which cmake  # Should show ~/.local/bin/cmake
+
+# If GStreamer errors appear:
+gst-inspect-1.0 kvssink  # Check for plugin errors
+GST_DEBUG=3 gst-launch-1.0 ...  # Run with debug level 3
+
+# View ROS logs:
+cat ~/.ros/log/latest/rosout.log | grep kvs_streamer

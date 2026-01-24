@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 """
 AWS Kinesis Video Streams Integration Node
 Streams camera feed to AWS KVS for cloud AI inference
