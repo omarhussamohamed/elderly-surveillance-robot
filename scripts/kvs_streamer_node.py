@@ -1,7 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 AWS Kinesis Video Streams Integration Node
 Streams camera feed to AWS KVS for cloud AI inference
+Compatible with ROS Melodic (Python 2.7)
 """
 
 import rospy
