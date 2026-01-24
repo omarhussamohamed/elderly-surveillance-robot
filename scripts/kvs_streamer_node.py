@@ -16,6 +16,9 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
+import time
+import gi
+from gi.repository import Gst
 
 class KVSStreamer:
     def __init__(self):
@@ -31,7 +34,11 @@ class KVSStreamer:
         self.enable_streaming = rospy.get_param('~enable_streaming', True)
         
         # Publisher for stream status
-        self.status_pub = rospy.Publisher('/kvs/streaming', Bool, queue_size=1)
+        self.status_pub = rospy.Publisher(
+            "/kvs/streaming",
+            std_msgs.msg.String,
+            queue_size=10
+        )
         
         # Subscriber to enable/disable streaming
         rospy.Subscriber('/kvs/enable', Bool, self.enable_callback)
@@ -46,7 +53,15 @@ class KVSStreamer:
         self.process = None
         self.streaming = False
         self.frame_count = 0  # Initialize frame counter
-        
+        self.last_status_time = rospy.Time.now()
+
+        # Ensure KVS logging configuration
+        log_config_path = os.path.join(os.path.dirname(__file__), "kvs_log_configuration")
+        os.environ["KVS_LOG_CONFIG"] = log_config_path
+        if not os.path.exists(log_config_path):
+            with open(log_config_path, "w") as log_file:
+                log_file.write("log4cplus.rootLogger=INFO, stdout\n")
+
         rospy.loginfo("KVS Streamer initialized for stream: {}".format(self.stream_name))
         rospy.loginfo("Region: {}, Resolution: {}x{}".format(self.aws_region, self.width, self.height))
         
@@ -113,9 +128,8 @@ class KVSStreamer:
         rospy.loginfo("Expected frame size: {} bytes".format(expected_frame_size))
         
         gst_pipeline = (
-            "gst-launch-1.0 -v "
-            "appsrc name=source is-live=true format=time do-timestamp=true emit-signals=true "
-            "caps=video/x-raw,format=I420,width={},height={},framerate={}/1 ! "
+            "appsrc name=source is-live=true format=time do-timestamp=false emit-signals=true "
+            "caps=video/x-raw,format=BGR,width={},height={},framerate={}/1 ! "
             "videoconvert ! "
             "videoscale ! "
             "video/x-raw,format=I420,width={},height={} ! "
@@ -163,6 +177,13 @@ class KVSStreamer:
             self.feed_thread.daemon = True
             self.feed_thread.start()
             
+            # Attach GStreamer bus watch
+            bus = self.process.get_bus()
+            bus.add_signal_watch()
+            bus.connect("message::error", self.on_gst_error)
+            bus.connect("message::warning", self.on_gst_warning)
+            bus.connect("message::eos", self.on_gst_eos)
+            
         except Exception as e:
             rospy.logerr("Failed to start streaming: {}".format(e))
             self.streaming = False
@@ -199,7 +220,35 @@ class KVSStreamer:
         """Feed frames to GStreamer appsrc"""
         rate = rospy.Rate(self.fps)
         expected_size = self.width * self.height * 3
-        
+        self.pts = 0  # Initialize running PTS counter
+        self.frame_duration = int(1e9 / self.fps)  # Duration per frame in nanoseconds
+        start_time = time.time()
+
+        # Configure appsrc properties
+        appsrc = self.process.args[0]
+        appsrc.set_property("is-live", True)
+        appsrc.set_property("format", Gst.Format.TIME)
+        appsrc.set_property("do-timestamp", False)
+
+        # Attach GStreamer bus watch
+        def on_message(bus, message):
+            t = message.type
+            if t == Gst.MessageType.ERROR:
+                err, debug = message.parse_error()
+                rospy.logerr(f"GStreamer ERROR: {err}, {debug}")
+                self.status_pub.publish(f"ERROR: {err}")
+            elif t == Gst.MessageType.WARNING:
+                warn, debug = message.parse_warning()
+                rospy.logwarn(f"GStreamer WARNING: {warn}, {debug}")
+                self.status_pub.publish(f"WARNING: {warn}")
+            elif t == Gst.MessageType.EOS:
+                rospy.loginfo("GStreamer EOS reached")
+                self.status_pub.publish("EOS")
+
+        bus = self.process.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", on_message)
+
         while self.streaming and not rospy.is_shutdown():
             if self.latest_frame is not None and self.process and self.process.stdin:
                 self.frame_processing = True
@@ -212,10 +261,10 @@ class KVSStreamer:
                         self.frame_processing = False
                         rate.sleep()
                         continue
-                    
+
                     # Convert to raw BGR byte array
                     frame_bytes = self.latest_frame.tobytes()
-                    
+
                     # Verify byte size
                     if len(frame_bytes) != expected_size:
                         rospy.logerr("Frame byte size mismatch! Expected {}, got {}".format(
@@ -223,16 +272,26 @@ class KVSStreamer:
                         self.frame_processing = False
                         rate.sleep()
                         continue
-                    
+
+                    # Create Gst.Buffer
+                    buffer = Gst.Buffer.new_allocate(None, len(frame_bytes), None)
+                    buffer.fill(0, frame_bytes)
+
+                    # Set timestamps using running PTS counter
+                    buffer.pts = self.pts
+                    buffer.dts = self.pts
+                    buffer.duration = self.frame_duration
+                    self.pts += self.frame_duration
+
                     # Write to appsrc stdin
                     self.process.stdin.write(frame_bytes)
                     self.process.stdin.flush()
-                    rospy.loginfo("Pushing frame to appsrc")
 
-                    # Increment frame counter
+                    # Publish status
                     self.frame_count += 1
                     if self.frame_count % 10 == 0:
                         rospy.loginfo("Pushed {} frames to appsrc".format(self.frame_count))
+                        self.status_pub.publish("FRAME_PUSHED")
 
                 except IOError as e:
                     # Handle Broken Pipe (Errno 32)
@@ -244,16 +303,31 @@ class KVSStreamer:
                         rospy.logerr("IOError while feeding frame: {}".format(e))
                     self.frame_processing = False
                     self.streaming = False
+                    self.status_pub.publish("ERROR: Broken pipe")
                     break
-                    
+
                 except Exception as e:
                     rospy.logerr("Failed to feed frame: {}".format(e))
                     self.frame_processing = False
+                    self.status_pub.publish("ERROR: {}".format(str(e)))
                     break
                 finally:
                     self.frame_processing = False
-            
+
             rate.sleep()
+    
+    def on_gst_error(self, bus, message):
+        err, debug = message.parse_error()
+        rospy.logerr("GStreamer ERROR: {}".format(err))
+        self.status_pub.publish("ERROR: {}".format(err))
+
+    def on_gst_warning(self, bus, message):
+        warn, debug = message.parse_warning()
+        rospy.logwarn("GStreamer WARNING: {}".format(warn))
+
+    def on_gst_eos(self, bus, message):
+        rospy.loginfo("GStreamer EOS (End of Stream) reached")
+        self.status_pub.publish("EOS")
     
     def stop_streaming(self):
         """Stop GStreamer pipeline"""
