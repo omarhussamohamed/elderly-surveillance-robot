@@ -9,6 +9,9 @@ Note: Uses Python 2.7 compatible syntax for ROS Melodic
 import rospy
 from std_msgs.msg import String
 import gi
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image
 
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject
@@ -17,11 +20,12 @@ class KVSStreamerNode:
     def __init__(self):
         rospy.init_node('kvs_streamer_node', anonymous=True)
 
-        # Initialize GStreamer
-        Gst.init(None)
-
         # ROS Publisher
         self.status_pub = rospy.Publisher('/kvs/streaming', String, queue_size=10)
+
+        # ROS Subscriber
+        self.bridge = CvBridge()
+        rospy.Subscriber('/camera/image_raw', Image, self.camera_callback)
 
         # GStreamer Pipeline
         self.pipeline = Gst.parse_launch(
@@ -45,6 +49,13 @@ class KVSStreamerNode:
         # Start pipeline
         self.pipeline.set_state(Gst.State.PLAYING)
         self.status_pub.publish(String("STREAMING_STARTED"))
+
+    def camera_callback(self, msg):
+        try:
+            frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            self.push_frame(frame.tobytes())
+        except CvBridgeError as e:
+            rospy.logerr("CvBridge Error: %s" % e)
 
     def push_frame(self, frame):
         buffer = Gst.Buffer.new_allocate(None, len(frame), None)
