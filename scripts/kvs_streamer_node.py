@@ -104,9 +104,13 @@ class KVSStreamer:
             return
         
         # GStreamer pipeline using appsrc with explicit format negotiation
+        # Frame size: width * height * 3 (BGR channels)
+        expected_frame_size = self.width * self.height * 3
+        rospy.loginfo("Expected frame size: {} bytes".format(expected_frame_size))
+        
         gst_pipeline = (
             "gst-launch-1.0 -v "
-            "appsrc name=source is-live=true format=time do-timestamp=true "
+            "appsrc name=source is-live=true format=time do-timestamp=true emit-signals=true "
             "caps=video/x-raw,format=BGR,width={},height={},framerate={}/1 ! "
             "videoconvert ! "
             "videoscale ! "
@@ -144,8 +148,13 @@ class KVSStreamer:
             rospy.loginfo("KVS streaming started successfully")
             self.status_pub.publish(Bool(data=True))
             
-            # Start frame feeding thread
+            # Start stderr monitoring thread
             import threading
+            self.stderr_thread = threading.Thread(target=self.monitor_stderr)
+            self.stderr_thread.daemon = True
+            self.stderr_thread.start()
+            
+            # Start frame feeding thread
             self.feed_thread = threading.Thread(target=self.feed_frames)
             self.feed_thread.daemon = True
             self.feed_thread.start()
@@ -155,18 +164,78 @@ class KVSStreamer:
             self.streaming = False
             self.status_pub.publish(Bool(data=False))
     
+    def monitor_stderr(self):
+        """Monitor GStreamer stderr output for debugging"""
+        if not self.process or not self.process.stderr:
+            return
+        
+        rospy.loginfo("Started GStreamer stderr monitoring")
+        
+        while self.streaming and not rospy.is_shutdown():
+            try:
+                line = self.process.stderr.readline()
+                if line:
+                    line_str = line.strip()
+                    # Log important GStreamer messages
+                    if 'ERROR' in line_str or 'error' in line_str:
+                        rospy.logerr("GStreamer ERROR: {}".format(line_str))
+                    elif 'WARNING' in line_str or 'warning' in line_str:
+                        rospy.logwarn("GStreamer WARNING: {}".format(line_str))
+                    elif 'caps' in line_str.lower() or 'negotiation' in line_str.lower():
+                        rospy.loginfo("GStreamer CAPS: {}".format(line_str))
+                else:
+                    # Process closed stderr
+                    break
+            except:
+                break
+        
+        rospy.loginfo("GStreamer stderr monitoring stopped")
+    
     def feed_frames(self):
         """Feed frames to GStreamer appsrc"""
         rate = rospy.Rate(self.fps)
+        expected_size = self.width * self.height * 3
         
         while self.streaming and not rospy.is_shutdown():
             if self.latest_frame is not None and self.process and self.process.stdin:
                 self.frame_processing = True
                 try:
-                    # Write raw BGR frame to appsrc stdin
+                    # Verify frame dimensions
+                    if self.latest_frame.shape[0] != self.height or self.latest_frame.shape[1] != self.width:
+                        rospy.logwarn("Frame size mismatch! Expected {}x{}, got {}x{}".format(
+                            self.width, self.height, 
+                            self.latest_frame.shape[1], self.latest_frame.shape[0]))
+                        self.frame_processing = False
+                        rate.sleep()
+                        continue
+                    
+                    # Convert to raw BGR byte array
                     frame_bytes = self.latest_frame.tobytes()
+                    
+                    # Verify byte size
+                    if len(frame_bytes) != expected_size:
+                        rospy.logerr("Frame byte size mismatch! Expected {}, got {}".format(
+                            expected_size, len(frame_bytes)))
+                        self.frame_processing = False
+                        rate.sleep()
+                        continue
+                    
+                    # Write to appsrc stdin
                     self.process.stdin.write(frame_bytes)
                     self.process.stdin.flush()
+                    
+                except IOError as e:
+                    # Handle Broken Pipe (Errno 32)
+                    if e.errno == 32:
+                        rospy.logerr("[Errno 32] Broken pipe - GStreamer pipeline closed stdin")
+                        rospy.logerr("This usually means the pipeline crashed or rejected the frame format")
+                        rospy.logerr("Check GStreamer stderr output above for specific error")
+                    else:
+                        rospy.logerr("IOError while feeding frame: {}".format(e))
+                    self.frame_processing = False
+                    self.streaming = False
+                    break
+                    
                 except Exception as e:
                     rospy.logerr("Failed to feed frame: {}".format(e))
                     self.frame_processing = False
