@@ -235,20 +235,21 @@ class KVSStreamer:
             t = message.type
             if t == Gst.MessageType.ERROR:
                 err, debug = message.parse_error()
-                rospy.logerr(f"GStreamer ERROR: {err}, {debug}")
-                self.status_pub.publish(f"ERROR: {err}")
+                rospy.logerr("GStreamer ERROR: %s, %s" % (err, debug))
+                self.status_pub.publish("ERROR: %s" % err)
             elif t == Gst.MessageType.WARNING:
                 warn, debug = message.parse_warning()
-                rospy.logwarn(f"GStreamer WARNING: {warn}, {debug}")
-                self.status_pub.publish(f"WARNING: {warn}")
+                rospy.logwarn("GStreamer WARNING: %s, %s" % (warn, debug))
+                self.status_pub.publish("WARNING: %s" % warn)
             elif t == Gst.MessageType.EOS:
                 rospy.loginfo("GStreamer EOS reached")
                 self.status_pub.publish("EOS")
 
-        bus = self.process.get_bus()
+        bus = pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message", on_message)
 
+        # Update frame feeding loop
         while self.streaming and not rospy.is_shutdown():
             if self.latest_frame is not None and self.process and self.process.stdin:
                 self.frame_processing = True
@@ -300,7 +301,7 @@ class KVSStreamer:
                         rospy.logerr("This usually means the pipeline crashed or rejected the frame format")
                         rospy.logerr("Check GStreamer stderr output above for specific error")
                     else:
-                        rospy.logerr("IOError while feeding frame: {}".format(e))
+                        rospy.logerr("IOError while feeding frame: %s" % e)
                     self.frame_processing = False
                     self.streaming = False
                     self.status_pub.publish("ERROR: Broken pipe")
