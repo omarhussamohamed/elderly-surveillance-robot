@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """
 AWS Kinesis Video Streams Integration Node
 Streams camera feed to AWS KVS for cloud AI inference
-Compatible with ROS Melodic (Python 2.7)
-"""
+Hardcoded for RobotStream in eu-west-1
+""
 
 import rospy
 import subprocess
@@ -16,9 +16,9 @@ class KVSStreamer:
     def __init__(self):
         rospy.init_node('kvs_streamer', anonymous=False)
         
-        # Parameters
-        self.stream_name = rospy.get_param('~stream_name', 'elderly-bot-stream')
-        self.aws_region = rospy.get_param('~aws_region', 'eu-north-1')
+        # Hardcoded parameters for RobotStream
+        self.stream_name = 'RobotStream'
+        self.aws_region = 'eu-west-1'
         self.device = rospy.get_param('~device', '/dev/video0')
         self.width = rospy.get_param('~width', 1280)
         self.height = rospy.get_param('~height', 720)

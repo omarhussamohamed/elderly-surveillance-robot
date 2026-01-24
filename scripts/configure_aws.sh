@@ -19,44 +19,19 @@ fi
 echo "✅ AWS CLI found"
 echo ""
 
-# Configure AWS credentials and settings interactively
-echo "AWS Configuration Setup"
-echo "========================"
-echo ""
-echo "Enter your AWS credentials:"
-read -p "AWS Access Key ID: " AWS_ACCESS_KEY
-read -sp "AWS Secret Access Key: " AWS_SECRET_KEY
-echo ""
-echo ""
+# Hardcoded AWS Configuration for RobotStream
+echo "Configuring AWS credentials..."
+AWS_ACCESS_KEY="AKIAQFLXNXMMILSXZBPW"
+AWS_SECRET_KEY="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"
+AWS_REGION="eu-west-1"
+STREAM_NAME="RobotStream"
+RETENTION_HOURS="24"
 
-echo "Enter AWS region (default: eu-north-1):"
-read -p "AWS Region [eu-north-1]: " AWS_REGION
-AWS_REGION=${AWS_REGION:-eu-north-1}
-echo ""
-
-echo "Enter Kinesis Video Stream name (default: elderly-bot-stream):"
-read -p "Stream Name [elderly-bot-stream]: " STREAM_NAME
-STREAM_NAME=${STREAM_NAME:-elderly-bot-stream}
-echo ""
-
-echo "Enter stream retention hours (default: 24):"
-read -p "Retention Hours [24]: " RETENTION_HOURS
-RETENTION_HOURS=${RETENTION_HOURS:-24}
-echo ""
-
-mkdir -p ~/.aws
-
-cat > ~/.aws/credentials << EOF
-[default]
-aws_access_key_id = $AWS_ACCESS_KEY
-aws_secret_access_key = $AWS_SECRET_KEY
-EOF
-
-cat > ~/.aws/config << EOF
-[default]
-region = $AWS_REGION
-output = json
-EOF
+# Use aws configure set to programmatically write credentials
+aws configure set aws_access_key_id "$AWS_ACCESS_KEY" --profile default
+aws configure set aws_secret_access_key "$AWS_SECRET_KEY" --profile default
+aws configure set region "$AWS_REGION" --profile default
+aws configure set output json --profile default
 
 chmod 600 ~/.aws/credentials
 chmod 644 ~/.aws/config
@@ -75,6 +50,17 @@ else
     echo "Please check your credentials and internet connection"
     exit 1
 fi
+
+# Verify AWS connection
+echo "Verifying AWS credentials..."
+if aws sts get-caller-identity &> /dev/null; then
+    echo "✅ AWS connection verified!"
+    aws sts get-caller-identity
+else
+    echo "❌ AWS connection failed!"
+    exit 1
+fi
+echo ""
 
 # Create KVS stream
 echo "Creating Kinesis Video Stream: $STREAM_NAME"

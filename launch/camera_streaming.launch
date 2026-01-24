@@ -15,8 +15,7 @@
   <arg name="height" default="720" />
   <arg name="fps" default="30" />
   <arg name="enable_kvs" default="true" />
-  <arg name="stream_name" default="elderly-bot-stream" />
-  <arg name="aws_region" default="eu-north-1" />
+  <!-- Hardcoded: stream_name=RobotStream, region=eu-west-1 -->
   <arg name="bitrate" default="2048" />
 
   <!-- Camera Publisher Node -->
