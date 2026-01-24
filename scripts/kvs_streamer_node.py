@@ -18,7 +18,11 @@ import cv2
 import numpy as np
 import time
 import gi
-from gi.repository import Gst
+# Ensure GStreamer version is specified before importing Gst
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst, GObject
+
+from std_msgs.msg import String
 
 class KVSStreamer:
     def __init__(self):
@@ -36,7 +40,7 @@ class KVSStreamer:
         # Publisher for stream status
         self.status_pub = rospy.Publisher(
             "/kvs/streaming",
-            std_msgs.msg.String,
+            String,
             queue_size=10
         )
         
@@ -164,7 +168,7 @@ class KVSStreamer:
             )
             self.streaming = True
             rospy.loginfo("KVS streaming started successfully")
-            self.status_pub.publish(Bool(data=True))
+            self.status_pub.publish(String("STREAMING_STARTED"))
             
             # Start stderr monitoring thread
             import threading
@@ -292,7 +296,7 @@ class KVSStreamer:
                     self.frame_count += 1
                     if self.frame_count % 10 == 0:
                         rospy.loginfo("Pushed {} frames to appsrc".format(self.frame_count))
-                        self.status_pub.publish("FRAME_PUSHED")
+                        self.status_pub.publish(String("FRAME_PUSHED"))
 
                 except IOError as e:
                     # Handle Broken Pipe (Errno 32)
