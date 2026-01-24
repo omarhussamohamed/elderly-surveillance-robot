@@ -1,0 +1,45 @@
+[Unit]
+Description=ElderlyBot AWS Kinesis Video Streams Service
+Documentation=https://github.com/elderly-bot/documentation
+After=network-online.target roscore.service
+Wants=network-online.target
+Requires=roscore.service
+
+[Service]
+Type=simple
+User=omar
+Group=omar
+WorkingDirectory=/home/omar/catkin_ws
+
+# Environment setup
+Environment="ROS_MASTER_URI=http://localhost:11311"
+Environment="ROS_IP=127.0.0.1"
+Environment="GST_PLUGIN_PATH=/home/omar/amazon-kinesis-video-streams-producer-sdk-cpp/build"
+Environment="LD_LIBRARY_PATH=/home/omar/amazon-kinesis-video-streams-producer-sdk-cpp/build"
+
+# AWS credentials sourced from user's ~/.bashrc (see config/bashrc_kvs_config.sh)
+# This is more secure than embedding credentials in systemd service files
+
+# ROS workspace setup
+ExecStartPre=/bin/bash -c 'source /opt/ros/melodic/setup.bash && source /home/omar/catkin_ws/devel/setup.bash'
+
+# Launch KVS stream with production settings (640x480, ultrafast, 512kbps)
+ExecStart=/bin/bash -c 'source /opt/ros/melodic/setup.bash && source /home/omar/catkin_ws/devel/setup.bash && roslaunch elderly_bot kvs_stream.launch width:=640 height:=480 fps:=15 bitrate:=512 preset:=ultrafast'
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Resource limits (protect navigation stack)
+CPUQuota=25%
+MemoryLimit=400M
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=elderly-bot-kvs
+
+[Install]
+WantedBy=multi-user.target

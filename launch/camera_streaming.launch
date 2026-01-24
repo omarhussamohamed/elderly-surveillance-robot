@@ -1,10 +1,21 @@
 <!-- 
-  ElderlyBot Camera & AWS KVS Streaming Launch File
+  ⚠️ DEPRECATED LEGACY FILE ⚠️
   
-  Usage:
+  This launch file is OBSOLETE. Use kvs_stream.launch instead.
+  
+  WARNING: Contains hardcoded AWS credentials (security risk)
+  WARNING: May conflict with kvs_stream.launch (both access /dev/video0)
+  
+  Kept for backward compatibility only. Will be removed in future releases.
+  
+  Migration:
+    OLD: roslaunch elderly_bot camera_streaming.launch
+    NEW: roslaunch elderly_bot kvs_stream.launch
+  
+  See SYSTEM_OVERVIEW.md for details.
+  
+  Original usage (deprecated):
     roslaunch elderly_bot camera_streaming.launch
-  
-  To disable KVS streaming:
     roslaunch elderly_bot camera_streaming.launch enable_kvs:=false
 -->
 

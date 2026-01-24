@@ -1,6 +1,6 @@
 # System Architecture Overview — Current Truth
 
-**Last Updated**: January 23, 2026
+**Last Updated**: January 24, 2026
 
 This is the **only authoritative source** for system architecture. Do not trust other documents.
 
@@ -43,10 +43,13 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
 - **kvs_streamer_node** (scripts/): AWS Kinesis Video Streams integration
   - Subscribes: `/camera/image_raw`
   - Publishes: Encoded H.264 video to AWS KVS (eu-west-1, stream: RobotStream)
-  - Note: Requires Python 3 environment; runs alongside ROS Melodic core
+  - Status: **Production Ready** (kvssink plugin compiled at `/home/omar/amazon-kinesis-video-streams-producer-sdk-cpp/build/libgstkvssink.so`)
+  - Note: Requires Python 2.7 (ROS Melodic), GStreamer 1.0, kvssink plugin in GST_PLUGIN_PATH
 - **cloud_bridge_node** (scripts/, optional): AWS IoT Core integration
+  - Region: eu-north-1 (endpoint: a1k8itxfx77i0w-ats.iot.eu-north-1.amazonaws.com)
   - Publishes telemetry to `elderly_bot/telemetry`, alerts to `elderly_bot/alerts`
   - Subscribes to `elderly_bot/commands`
+  - Note: Different region from KVS (eu-west-1) — service-specific regional deployment
 
 ### Transforms
 - **robot_state_publisher**: Broadcasts URDF-defined static TFs (base_link, laser, imu_link)
@@ -119,6 +122,8 @@ All configurations in `~/catkin_ws/src/elderly_bot/config/`:
 | `mapping.launch` | SLAM mode (create new map) | LiDAR, odom, IMU |
 | `navigation.launch` | Autonomous navigation (use existing map) | All + map file |
 | `imu_nav.launch` | IMU + sensor fusion only | IMU only |
+| `kvs_stream.launch` | AWS KVS video streaming (production: 640x480@15fps) | USB camera |
+| `camera_streaming.launch` | Camera + KVS (legacy, use kvs_stream.launch) | USB camera |
 
 **Typical Usage**:
 ```bash
@@ -179,6 +184,14 @@ rosrun elderly_bot patrol_client.py
 - **AMCL requires good initial pose**: Manual 2D Pose Estimate in RViz needed after large movements
 - **Gas sensor burn-in**: MQ-6 requires 24-48 hours of continuous power for stable operation
 
+### Resource Constraints (AWS KVS)
+- **CPU-intensive encoding**: KVS H.264 encoding constrained to protect navigation stack
+  - Resolution: 640x480 (downscaled from camera's 1280x720)
+  - Encoder preset: ultrafast (minimal CPU impact on move_base/DWA)
+  - Bitrate: 512 kbps (low-bandwidth mode)
+- **Memory overhead**: kvssink plugin + dependencies ~150MB RSS
+- **Network dependency**: Requires stable WiFi for AWS KVS streaming (stream will auto-restart on reconnect)
+
 ---
 
 ## Debugging Tools
@@ -199,6 +212,11 @@ rviz -d $(rospack find elderly_bot)/rviz/navigation.rviz
 
 # ROS logs
 cat ~/.ros/log/latest/rosout.log
+
+# AWS KVS debugging
+gst-inspect-1.0 kvssink  # Verify plugin is loaded
+rostopic hz /camera/image_raw  # Verify camera feed
+rostopic echo /kvs/streaming  # Check KVS stream status
 ```
 
 ---

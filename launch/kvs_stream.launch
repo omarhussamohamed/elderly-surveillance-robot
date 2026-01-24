@@ -1,0 +1,131 @@
+<!-- 
+  ElderlyBot KVS Stream Launch File
+  
+  Launches camera capture and AWS KVS streaming with optimized settings for Jetson Nano.
+  Uses direct GStreamer pipeline with kvssink plugin (no high-memory Python wrappers).
+  
+  CRITICAL: Requires kvssink plugin in GST_PLUGIN_PATH
+  Verify with: gst-inspect-1.0 kvssink
+  
+  Usage:
+    # Full resolution (1280x720) - for testing only
+    roslaunch elderly_bot kvs_stream.launch
+    
+    # Production (640x480, ultrafast) - protects navigation stack
+    roslaunch elderly_bot kvs_stream.launch width:=640 height:=480 preset:=ultrafast bitrate:=512
+    
+    # Disable streaming (camera only)
+    roslaunch elderly_bot kvs_stream.launch enable_kvs:=false
+-->
+
+<launch>
+  <!-- ========================================== -->
+  <!-- ARGUMENTS -->
+  <!-- ========================================== -->
+  <arg name="device" default="/dev/video0" 
+       doc="USB camera device path" />
+  
+  <!-- Camera resolution - Production: 640x480 to reduce CPU load -->
+  <arg name="width" default="640" 
+       doc="Camera width (production: 640, testing: 1280)" />
+  <arg name="height" default="480" 
+       doc="Camera height (production: 480, testing: 720)" />
+  <arg name="fps" default="15" 
+       doc="Frame rate (production: 15fps, testing: 30fps)" />
+  
+  <!-- KVS Encoder settings - optimized for Jetson Nano -->
+  <arg name="enable_kvs" default="true" 
+       doc="Enable AWS KVS streaming" />
+  <arg name="bitrate" default="512" 
+       doc="H.264 bitrate in kbps (production: 512, testing: 2048)" />
+  <arg name="preset" default="ultrafast" 
+       doc="x264 speed preset (ultrafast/superfast/veryfast)" />
+  <arg name="keyframe_interval" default="30" 
+       doc="I-frame interval (2x fps recommended)" />
+  
+  <!-- AWS KVS stream configuration -->
+  <arg name="stream_name" default="RobotStream" 
+       doc="AWS KVS stream name" />
+  <arg name="aws_region" default="eu-west-1" 
+       doc="AWS region" />
+
+  <!-- ========================================== -->
+  <!-- CAMERA NODE -->
+  <!-- ========================================== -->
+  <node pkg="elderly_bot" type="camera_node.py" name="camera_publisher" 
+        output="screen">
+    <param name="device" value="$(arg device)" />
+    <param name="width" value="$(arg width)" />
+    <param name="height" value="$(arg height)" />
+    <param name="fps" value="$(arg fps)" />
+    <param name="frame_id" value="camera_link" />
+  </node>
+
+  <!-- ========================================== -->
+  <!-- AWS KVS STREAMER NODE -->
+  <!-- ========================================== -->
+  <!-- 
+    ARCHITECTURE: 
+    - camera_node.py opens /dev/video0, publishes to /camera/image_raw
+    - kvs_streamer_node.py subscribes to /camera/image_raw, feeds to GStreamer appsrc
+    - GStreamer pipeline: appsrc -> videoconvert -> x264enc -> kvssink
+    - No hardware conflict (single camera access point)
+  -->
+  <node pkg="elderly_bot" type="kvs_streamer_node.py" name="kvs_streamer" 
+        output="screen" if="$(arg enable_kvs)">
+    
+    <!-- AWS Credentials from environment variables (set in ~/.bashrc or systemd service) -->
+    <!-- Ensure these are set: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION -->
+    <env name="AWS_DEFAULT_REGION" value="$(arg aws_region)" />
+    <env name="KVS_STREAM_NAME" value="$(arg stream_name)" />
+    
+    <!-- Encoder parameters -->
+    <param name="width" value="$(arg width)" />
+    <param name="height" value="$(arg height)" />
+    <param name="fps" value="$(arg fps)" />
+    <param name="bitrate" value="$(arg bitrate)" />
+    <param name="enable_streaming" value="$(arg enable_kvs)" />
+    
+    <!-- Internal parameters (do not change) -->
+    <param name="~stream_name" value="$(arg stream_name)" />
+    <param name="~aws_region" value="$(arg aws_region)" />
+  </node>
+
+  <!-- ========================================== -->
+  <!-- PERFORMANCE NOTES -->
+  <!-- ========================================== -->
+  <!-- 
+  RESOURCE IMPACT ON JETSON NANO (4GB RAM):
+  
+  Configuration         | CPU Usage | Impact on Navigation
+  =====================|===========|=====================
+  640x480 @ 15fps      | ~15-20%   | ✓ Safe (recommended)
+  ultrafast preset     |           |
+  512 kbps             |           |
+  =====================|===========|=====================
+  1280x720 @ 30fps     | ~40-50%   | ⚠ May degrade DWA
+  ultrafast preset     |           | performance during
+  2048 kbps            |           | complex navigation
+  
+  PRODUCTION RECOMMENDATION:
+  Use default settings (640x480, 15fps, ultrafast, 512kbps) to ensure
+  move_base and DWA local planner have sufficient CPU headroom.
+  
+  TESTING ONLY:
+  roslaunch elderly_bot kvs_stream.launch width:=1280 height:=720 fps:=30 bitrate:=2048
+  -->
+
+  <!-- ========================================== -->
+  <!-- TF INTEGRATION -->
+  <!-- ========================================== -->
+  <!--
+  Camera frame (camera_link) is defined in elderly_bot.urdf:
+  - Parent: base_link
+  - Translation: (0.15, 0, 0.25) meters
+  - Rotation: (0, 0, 0) radians
+  
+  Published by robot_state_publisher when bringup.launch loads URDF.
+  No additional static_transform_publisher needed.
+  -->
+
+</launch>

@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 """
 AWS Kinesis Video Streams Integration Node
 Streams camera feed to AWS KVS for cloud AI inference
 Hardcoded for RobotStream in eu-west-1
+Note: Uses Python 2.7 compatible syntax for ROS Melodic
 """
 
 import rospy
