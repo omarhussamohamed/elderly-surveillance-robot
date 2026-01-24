@@ -113,7 +113,18 @@ install(DIRECTORY firmware/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/firmware
 )
 
-# Install scripts
+# Install Python node scripts
+catkin_install_python(PROGRAMS
+  scripts/camera_node.py
+  scripts/kvs_streamer_node.py
+  scripts/cloud_bridge_node.py
+  scripts/sensors_actuators_node.py
+  scripts/mpu9250_node.py
+  scripts/patrol_client.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+# Install shell scripts
 install(PROGRAMS
   install_dependencies.sh
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}

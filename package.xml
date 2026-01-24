@@ -57,6 +57,7 @@
   <exec_depend>python-catkin-pkg</exec_depend>
   <exec_depend>python-opencv</exec_depend>
   <exec_depend>python-yaml</exec_depend>
+  <exec_depend>python-boto3</exec_depend>
 
   <!-- Optional Python packages (install via pip):
        - jetson-stats (Jetson monitoring)

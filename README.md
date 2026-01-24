@@ -212,27 +212,45 @@ map
 
 ---
 
-## AWS IoT Cloud Integration (Optional)
+## AWS IoT & Video Streaming Integration
 
-### Setup
+### AWS Kinesis Video Streams (KVS)
+
+The robot streams live camera feed to AWS for remote monitoring. Credentials are embedded in the launch file for seamless operation.
+
+**Launch Camera Streaming:**
+```bash
+# Camera only (no AWS streaming)
+roslaunch elderly_bot camera_streaming.launch enable_kvs:=false
+
+# Camera + AWS KVS streaming (default)
+roslaunch elderly_bot camera_streaming.launch
+```
+
+**Features:**
+- 1280x720 @ 30fps MJPEG camera feed
+- Streams to AWS KVS stream: `RobotStream` in `eu-west-1` region
+- Automatic reconnection on network interruptions
+- Publishes `/camera/image_raw` and `/camera/image_raw/compressed` topics
+
+**View Stream:**
+- AWS Console: https://eu-west-1.console.aws.amazon.com/kinesisvideo/
+
+### AWS IoT Core (Optional)
 
 1. Follow instructions in `aws_certs/README.md` to download certificates
 2. Update `config/cloud_config.yaml` with your endpoint and Thing name
-3. Test connection: `python scripts/final_handshake.py`
+3. Test connection: `python2 scripts/final_handshake.py` (if final_handshake.py is available)
 
-### Features
-
+**Features:**
 - Publishes telemetry to `elderly_bot/telemetry` (1 Hz)
 - Publishes alerts to `elderly_bot/alerts` (event-driven)
 - Receives commands from `elderly_bot/commands`
 
-### Launch with Cloud
-
+**Launch with Cloud:**
 ```bash
 roslaunch elderly_bot bringup.launch enable_cloud:=true
 ```
-
-See PRE_LAUNCH_CHECKLIST.md for AWS IoT configuration validation.
 
 ---
 
