@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #!/usr/bin/env python2
 """
 AWS Kinesis Video Streams Integration Node - OPTIMIZED
@@ -137,7 +138,7 @@ class KVSStreamerNode:
         """
         Jetson Nano optimized pipeline using hardware encoding (omxh264enc).
         - omxh264enc: low CPU, reliable on Nano
-        - 15 fps + 2000 kbps: balances quality/stability on limited hardware + high-latency link
+        - 15 fps + 2000 kbps: balances quality/stability on limited hardware and high-latency link
         - 8s fragments: reduces upload frequency, tolerates jitter
         - keyframe every fragment for clean seeking/playback
         """
@@ -149,7 +150,7 @@ class KVSStreamerNode:
             "max-bytes=0 block=true ! "
             "videoconvert n-threads=2 ! "
             "video/x-raw,format=I420 ! "
-            "omxh264enc bitrate={bitrate}000 "  # bitrate in bits/sec → multiply by 1000
+            "omxh264enc bitrate={bitrate}000 "  # bitrate in bits/sec -> multiply by 1000
             "control-rate=1 preset-level=4 "    # 4 = ultrafast/low-latency preset
             "iframeinterval={keyframe_interval} insert-sps-pps=true ! "
             "h264parse config-interval=1 ! "     # Send SPS/PPS every second
