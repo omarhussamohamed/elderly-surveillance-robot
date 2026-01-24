@@ -135,34 +135,36 @@ class KVSStreamerNode:
     
     def build_pipeline_string(self):
         """
-        Build a Jetson-optimized GStreamer pipeline for 1280x720@15fps H.264 streaming to AWS KVS.
-        Uses nvh264enc (hardware encoder) and nvvidconv for color conversion/scaling.
-        Key parameters:
-          - FPS: 15 (lowers CPU/network load, increases stability)
-          - Bitrate: 2000 kbps (safe for 720p, stable on WiFi)
-          - fragment_duration: 8s (reduces fragment churn, better for high-latency)
-          - key-int-max: FPS * fragment_duration (120)
-          - profile: main, tune: zerolatency
-          - kvssink: realtime=true, do-timestamp=true, retry=TRUE
+        Jetson Nano optimized pipeline using hardware encoding (omxh264enc).
+        - omxh264enc: low CPU, reliable on Nano
+        - 15 fps + 2000 kbps: balances quality/stability on limited hardware + high-latency link
+        - 8s fragments: reduces upload frequency, tolerates jitter
+        - keyframe every fragment for clean seeking/playback
         """
-        keyframe_interval = self.fps * self.fragment_duration  # e.g., 15 * 8 = 120
+        keyframe_interval = self.fps * self.fragment_duration  # e.g. 15*8 = 120 frames
+
         pipeline_str = (
-            # Accepts BGR from ROS, converts to NV12, scales to 1280x720 if needed
             "appsrc name=source is-live=true format=time do-timestamp=true "
             "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 "
             "max-bytes=0 block=true ! "
-            "nvvidconv ! video/x-raw(memory:NVMM),format=NV12,width={width},height={height},framerate={fps}/1 ! "
-            "nvh264enc preset=1 bitrate={bitrate} profile=1 iframeinterval={keyframe_interval} insert-sps-pps=true insert-vui=true zerolatency=true ! "
-            "h264parse config-interval=1 ! "
-            "kvssink stream-name={stream_name} storage-size={storage_size} aws-region={aws_region} "
-            "connection-timeout={connection_timeout} buffer-duration={buffer_duration} fragment-duration={fragment_duration} "
-            "realtime=true do-timestamp=true retry=TRUE"
+            "videoconvert n-threads=2 ! "
+            "video/x-raw,format=I420 ! "
+            "omxh264enc bitrate={bitrate}000 "  # bitrate in bits/sec → multiply by 1000
+            "control-rate=1 preset-level=4 "    # 4 = ultrafast/low-latency preset
+            "iframeinterval={keyframe_interval} insert-sps-pps=true ! "
+            "h264parse config-interval=1 ! "     # Send SPS/PPS every second
+            "kvssink stream-name={stream_name} "
+            "storage-size={storage_size} "
+            "aws-region={aws_region} "
+            "connection-timeout={connection_timeout} "
+            "buffer-duration={buffer_duration} "
+            "fragment-duration={fragment_duration}"
         ).format(
             width=self.width,
             height=self.height,
             fps=self.fps,
+            bitrate=self.bitrate,           # Now correct: 2000 → 2000000 bits/sec
             keyframe_interval=keyframe_interval,
-            bitrate=self.bitrate,
             stream_name=self.stream_name,
             storage_size=self.storage_size,
             aws_region=self.aws_region,
