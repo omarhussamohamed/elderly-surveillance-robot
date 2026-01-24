@@ -47,6 +47,11 @@
   <depend>rosserial_python</depend>
   <depend>rosserial_arduino</depend>
   
+  <!-- Camera and image processing -->
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>compressed_image_transport</depend>
+
   <!-- Optional Python packages (install via pip):
        - jetson-stats (Jetson monitoring)
        - Jetson.GPIO (buzzer control)

@@ -1,7 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 ROS Camera Publisher Node for ElderlyBot
 Publishes MJPEG camera feed at 1280x720 @ 30fps
+Compatible with ROS Melodic (Python 2.7)
 """
 
 import rospy
