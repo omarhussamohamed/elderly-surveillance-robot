@@ -181,29 +181,6 @@ class KVSStreamerNode:
                 bus.add_signal_watch()
                 bus.connect("message", self.on_bus_message)
 
-<<<<<<< HEAD
-        self.appsrc = self.pipeline.get_by_name("source")
-        self.pts = 0
-        self.frame_duration = int(1e9 / 30)  # Assuming 30 FPS
-
-        # Remove old/invalid param:
-        # fragment_acceptance_duration = rospy.get_param('~fragment_acceptance_duration', 2000)
-
-        # Use correct property (choose one, here using fragment-duration as example):
-        self.fragment_duration = rospy.get_param('~fragment_duration', 2000)  # in ms
-        # Or, if you want buffer-duration (in seconds):
-        # buffer_duration = rospy.get_param('~buffer_duration', 120)
-
-        # Attach bus watch
-        bus = self.pipeline.get_bus()
-        bus.add_signal_watch()
-        bus.connect("message", self.on_bus_message)
-
-        # Start pipeline
-        self.pipeline.set_state(Gst.State.PLAYING)
-        self.status_pub.publish(String("STREAMING_STARTED"))
-
-=======
                 # Start pipeline
                 ret = self.pipeline.set_state(Gst.State.PLAYING)
                 if ret == Gst.StateChangeReturn.FAILURE:
@@ -256,7 +233,6 @@ class KVSStreamerNode:
                     self.log_err("Max retry attempts reached. Stream not started.")
                     self.status_pub.publish(String("ERROR: Max retries exceeded"))
     
->>>>>>> 648400fe9cdd862ccb00be2bfeeedc096c8674b8
     def camera_callback(self, msg):
         """Callback for camera image messages"""
         if not self.is_streaming or not self.appsrc:
