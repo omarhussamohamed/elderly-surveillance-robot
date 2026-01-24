@@ -1,21 +1,14 @@
 <!-- 
-  ElderlyBot KVS Stream Launch File
-  
-  Launches camera capture and AWS KVS streaming with optimized settings for Jetson Nano.
-  Uses direct GStreamer pipeline with kvssink plugin (no high-memory Python wrappers).
-  
-  CRITICAL: Requires kvssink plugin in GST_PLUGIN_PATH
-  Verify with: gst-inspect-1.0 kvssink
+  ElderlyBot KVS Stream Launch File - HIGH RESOLUTION
+  Optimized for 1280x720 @ 30fps streaming
+  Enhanced for stability on Jetson Nano
   
   Usage:
-    # Full resolution (1280x720) - for testing only
+    # High resolution streaming (1280x720 @ 30fps)
     roslaunch elderly_bot kvs_stream.launch
     
-    # Production (640x480, ultrafast) - protects navigation stack
-    roslaunch elderly_bot kvs_stream.launch width:=640 height:=480 preset:=ultrafast bitrate:=512
-    
-    # Disable streaming (camera only)
-    roslaunch elderly_bot kvs_stream.launch enable_kvs:=false
+    # Lower resolution for testing
+    roslaunch elderly_bot kvs_stream.launch width:=640 height:=480 fps:=15 bitrate:=512
 -->
 
 <launch>
@@ -25,23 +18,19 @@
   <arg name="device" default="/dev/video0" 
        doc="USB camera device path" />
   
-  <!-- Camera resolution - Production: 640x480 to reduce CPU load -->
-  <arg name="width" default="640" 
-       doc="Camera width (production: 640, testing: 1280)" />
-  <arg name="height" default="480" 
-       doc="Camera height (production: 480, testing: 720)" />
-  <arg name="fps" default="15" 
-       doc="Frame rate (production: 15fps, testing: 30fps)" />
+  <!-- HIGH RESOLUTION SETTINGS - 1280x720 @ 30fps -->
+  <arg name="width" default="1280" 
+       doc="Camera width (1280 for high resolution)" />
+  <arg name="height" default="720" 
+       doc="Camera height (720 for high resolution)" />
+  <arg name="fps" default="30" 
+       doc="Frame rate (30fps for smooth video)" />
   
-  <!-- KVS Encoder settings - optimized for Jetson Nano -->
+  <!-- KVS Streaming -->
   <arg name="enable_kvs" default="true" 
        doc="Enable AWS KVS streaming" />
-  <arg name="bitrate" default="512" 
-       doc="H.264 bitrate in kbps (production: 512, testing: 2048)" />
-  <arg name="preset" default="ultrafast" 
-       doc="x264 speed preset (ultrafast/superfast/veryfast)" />
-  <arg name="keyframe_interval" default="30" 
-       doc="I-frame interval (2x fps recommended)" />
+  <arg name="bitrate" default="3000" 
+       doc="H.264 bitrate in kbps (3000 for 1280x720)" />
   
   <!-- AWS KVS stream configuration -->
   <arg name="stream_name" default="RobotStream" 
@@ -49,31 +38,31 @@
   <arg name="aws_region" default="us-east-1" 
        doc="AWS region" />
   
-  <!-- KVS Stability Parameters -->
-  <arg name="retry_count" default="3" 
+  <!-- KVS Stability Parameters - Enhanced -->
+  <arg name="retry_count" default="5" 
        doc="Number of stream reconnection attempts" />
-  <arg name="retry_delay" default="5" 
+  <arg name="retry_delay" default="3" 
        doc="Seconds between retries" />
-  <arg name="buffer_duration" default="120" 
+  <arg name="buffer_duration" default="180" 
        doc="Buffer time in seconds for network drops" />
-  <arg name="connection_timeout" default="30" 
+  <arg name="connection_timeout" default="45" 
        doc="Connection timeout in seconds" />
-  <arg name="storage_size" default="256" 
+  <arg name="storage_size" default="512" 
        doc="Buffer storage in MB" />
   
-  <!-- ADD THE MISSING ARGUMENT HERE -->
-  <arg name="fragment_duration" default="2" 
-       doc="Fragment duration in seconds for KVS streaming (default: 2)" />
+  <!-- AWS Console playback optimization -->
+  <arg name="fragment_duration" default="5" 
+       doc="Fragment duration in seconds (5s for AWS console)" />
   
   <!-- Output Management -->
   <arg name="output_to_screen" default="true" 
-       doc="Output KVS logs to screen (false = silent mode, logs to file)" />
+       doc="Output KVS logs to screen" />
 
   <!-- ========================================== -->
   <!-- CAMERA NODE -->
   <!-- ========================================== -->
   <node pkg="elderly_bot" type="camera_node.py" name="camera_publisher" 
-        output="screen">
+        output="screen" respawn="true" respawn_delay="5">
     <param name="device" value="$(arg device)" />
     <param name="width" value="$(arg width)" />
     <param name="height" value="$(arg height)" />
@@ -84,30 +73,20 @@
   <!-- ========================================== -->
   <!-- AWS KVS STREAMER NODE -->
   <!-- ========================================== -->
-  <!-- 
-    ARCHITECTURE: 
-    - camera_node.py opens /dev/video0, publishes to /camera/image_raw
-    - kvs_streamer_node.py subscribes to /camera/image_raw, feeds to GStreamer appsrc
-    - GStreamer pipeline: appsrc -> videoconvert -> x264enc -> kvssink
-    - No hardware conflict (single camera access point)
-  -->
   <node pkg="elderly_bot" type="kvs_streamer_node.py" name="kvs_streamer" 
-        output="log" if="$(arg enable_kvs)">
+        output="screen" respawn="true" respawn_delay="10" if="$(arg enable_kvs)">
     
-    <!-- AWS Credentials from environment variables (set in ~/.bashrc or systemd service) -->
-    <!-- Ensure these are set: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION -->
+    <!-- AWS Environment Variables -->
     <env name="AWS_DEFAULT_REGION" value="$(arg aws_region)" />
-    <env name="KVS_STREAM_NAME" value="$(arg stream_name)" />
-    <!-- Suppress GStreamer kvssink plugin debug logs -->
+    <!-- Suppress GStreamer logs -->
     <env name="GST_DEBUG" value="1" />
     <env name="GST_DEBUG_NO_COLOR" value="1" />
     
-    <!-- Encoder parameters -->
+    <!-- Video parameters -->
     <param name="width" value="$(arg width)" />
     <param name="height" value="$(arg height)" />
     <param name="fps" value="$(arg fps)" />
     <param name="bitrate" value="$(arg bitrate)" />
-    <param name="enable_streaming" value="$(arg enable_kvs)" />
     
     <!-- Stability parameters -->
     <param name="~retry_count" value="$(arg retry_count)" />
@@ -115,14 +94,14 @@
     <param name="~buffer_duration" value="$(arg buffer_duration)" />
     <param name="~connection_timeout" value="$(arg connection_timeout)" />
     <param name="~storage_size" value="$(arg storage_size)" />
+    <param name="~fragment_duration" value="$(arg fragment_duration)" />
     
     <!-- Output management -->
     <param name="~output_to_screen" value="$(arg output_to_screen)" />
     
-    <!-- Internal parameters (do not change) -->
+    <!-- AWS configuration -->
     <param name="~stream_name" value="$(arg stream_name)" />
     <param name="~aws_region" value="$(arg aws_region)" />
-    <param name="fragment_duration" value="$(arg fragment_duration)" />
   </node>
 
   <!-- ========================================== -->
@@ -131,35 +110,30 @@
   <!-- 
   RESOURCE IMPACT ON JETSON NANO (4GB RAM):
   
-  Configuration         | CPU Usage | Impact on Navigation
-  =====================|===========|=====================
-  640x480 @ 15fps      | ~15-20%   | ✓ Safe (recommended)
-  ultrafast preset     |           |
-  512 kbps             |           |
-  =====================|===========|=====================
-  1280x720 @ 30fps     | ~40-50%   | ⚠ May degrade DWA
-  ultrafast preset     |           | performance during
-  2048 kbps            |           | complex navigation
+  Configuration         | CPU Usage | RAM Usage | Network
+  =====================|===========|===========|==========
+  1280x720 @ 30fps     | 40-55%    | 200-300MB | 3 Mbps
+  3000 kbps            |           |           |
   
-  PRODUCTION RECOMMENDATION:
-  Use default settings (640x480, 15fps, ultrafast, 512kbps) to ensure
-  move_base and DWA local planner have sufficient CPU headroom.
+  RECOMMENDATIONS:
+  1. Ensure good WiFi signal (5GHz preferred)
+  2. Monitor CPU temperature with: watch -n 1 sensors
+  3. If CPU > 80°C, consider adding heatsink/fan
+  4. Reduce resolution if navigation becomes laggy
   
-  TESTING ONLY:
-  roslaunch elderly_bot kvs_stream.launch width:=1280 height:=720 fps:=30 bitrate:=2048
+  TROUBLESHOOTING AWS CONSOLE:
+  1. Wait 30-60 seconds for first fragments
+  2. Use HLS playback instead of MPEG-DASH
+  3. Check IAM permissions for KVS
+  4. Verify network connectivity to AWS
   -->
 
   <!-- ========================================== -->
-  <!-- TF INTEGRATION -->
+  <!-- HEALTH MONITORING -->
   <!-- ========================================== -->
-  <!--
-  Camera frame (camera_link) is defined in elderly_bot.urdf:
-  - Parent: base_link
-  - Translation: (0.15, 0, 0.25) meters
-  - Rotation: (0, 0, 0) radians
-  
-  Published by robot_state_publisher when bringup.launch loads URDF.
-  No additional static_transform_publisher needed.
-  -->
+  <!-- Monitor streaming status -->
+  <node pkg="rostopic" type="rostopic" name="stream_monitor" 
+        args="echo -n /kvs/streaming" 
+        output="screen" if="$(arg output_to_screen)" />
 
 </launch>

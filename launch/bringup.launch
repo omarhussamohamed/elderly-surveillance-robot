@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <!--
-  Elderly Bot Bringup Launch File
-
+  Elderly Bot Bringup Launch File - UPDATED FOR HIGH RESOLUTION
   Starts:
   - rosserial WiFi connection to ESP32
   - RPLidar node
   - Static TF transforms
+  - High resolution camera (1280x720 @ 30fps) with KVS streaming
 
   This launch file brings up the core hardware interfaces.
 -->
@@ -32,8 +32,11 @@
        doc="Suppress KVS debug output (logs to file)" />
   <arg name="camera_device" default="/dev/video0" 
        doc="USB camera device path" />
-  <arg name="kvs_test_mode" default="false" 
-       doc="Use test resolution (1280x720@30fps) instead of production (640x480@15fps)" />
+  
+  <!-- Note: kvs_test_mode is deprecated. All streaming is now high resolution -->
+  <!-- Use production_mode instead for lower resolution if needed -->
+  <arg name="production_mode" default="false" 
+       doc="Use production resolution (640x480@15fps) instead of high resolution (1280x720@30fps)" />
   
   <!-- Robot geometry parameters -->
   <param name="robot_description" 
@@ -155,36 +158,35 @@
   <!-- Camera capture and AWS Kinesis Video Streams -->
   <!-- Enabled by default. Disable with: enable_camera:=false -->
   <!-- Note: camera_link TF is already defined in URDF -->
-  <!-- Resolution modes: production (640x480@15fps, default) or test (1280x720@30fps) -->
   
   <group if="$(arg enable_camera)">
-    <!-- Start camera node directly -->
-    <node name="camera_publisher" 
-          pkg="elderly_bot" 
-          type="camera_node.py"
-          output="screen"
-          respawn="true"
-          respawn_delay="5">
-      <param name="device" value="$(arg camera_device)" />
-      <param name="width" value="640" />
-      <param name="height" value="480" />
-      <param name="fps" value="15" />
-    </node>
-    
-    <!-- Start KVS streamer directly -->
-    <node name="kvs_streamer_node" 
-          pkg="elderly_bot" 
-          type="kvs_streamer_node.py"
-          output="screen"
-          respawn="true"
-          respawn_delay="5">
-      <param name="width" value="640" />
-      <param name="height" value="480" />
-      <param name="fps" value="15" />
-      <param name="bitrate" value="512" />
-      <param name="output_to_screen" value="false" if="$(arg kvs_silent)" />
-      <param name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
-    </node>
+    <!-- Include the updated kvs_stream.launch with high-resolution settings -->
+    <include file="$(find elderly_bot)/launch/kvs_stream.launch">
+      <arg name="device" value="$(arg camera_device)" />
+      <arg name="output_to_screen" value="false" if="$(arg kvs_silent)" />
+      <arg name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
+      <arg name="enable_kvs" value="true" />
+      
+      <!-- HIGH RESOLUTION MODE: 1280x720 @ 30fps, 3000kbps (DEFAULT) -->
+      <group unless="$(arg production_mode)">
+        <arg name="width" value="1280" />
+        <arg name="height" value="720" />
+        <arg name="fps" value="30" />
+        <arg name="bitrate" value="3000" />
+        <arg name="fragment_duration" value="5" />
+        <arg name="storage_size" value="512" />
+      </group>
+      
+      <!-- PRODUCTION MODE: 640x480 @ 15fps, 512kbps (if needed for lower CPU) -->
+      <group if="$(arg production_mode)">
+        <arg name="width" value="640" />
+        <arg name="height" value="480" />
+        <arg name="fps" value="15" />
+        <arg name="bitrate" value="512" />
+        <arg name="fragment_duration" value="2" />
+        <arg name="storage_size" value="256" />
+      </group>
+    </include>
   </group>
   
 </launch>
