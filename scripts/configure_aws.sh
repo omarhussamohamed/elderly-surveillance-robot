@@ -11,12 +11,12 @@ echo ""
 
 # Check if AWS CLI is installed
 if ! command -v aws &> /dev/null; then
-    echo "❌ AWS CLI not found!"
+    echo "[ERROR] AWS CLI not found!"
     echo "Please run setup_camera_kvs.sh first to install dependencies"
     exit 1
 fi
 
-echo "✅ AWS CLI found"
+echo "[OK] AWS CLI found"
 echo ""
 
 # Hardcoded AWS Configuration for RobotStream
@@ -54,10 +54,10 @@ fi
 # Verify AWS connection
 echo "Verifying AWS credentials..."
 if aws sts get-caller-identity &> /dev/null; then
-    echo "✅ AWS connection verified!"
+    echo "[OK] AWS connection verified!"
     aws sts get-caller-identity
 else
-    echo "❌ AWS connection failed!"
+    echo "[ERROR] AWS connection failed!"
     exit 1
 fi
 echo ""
@@ -67,7 +67,7 @@ echo "Creating Kinesis Video Stream: $STREAM_NAME"
 echo ""
 
 if aws kinesisvideo describe-stream --stream-name $STREAM_NAME --region $AWS_REGION &> /dev/null; then
-    echo "ℹ️  Stream already exists"
+    echo "[INFO] Stream already exists"
     aws kinesisvideo describe-stream --stream-name $STREAM_NAME --region $AWS_REGION
 else
     echo "Creating new stream..."
@@ -76,7 +76,7 @@ else
         --data-retention-in-hours $RETENTION_HOURS \
         --region $AWS_REGION
     
-    echo "✅ Stream created successfully!"
+    echo "[OK] Stream created successfully!"
     echo ""
     
     # Wait for stream to be active
@@ -87,7 +87,7 @@ fi
 
 echo ""
 echo "================================================"
-echo "✅ AWS Configuration Complete!"
+echo "[OK] AWS Configuration Complete!"
 echo "================================================"
 echo ""
 echo "Stream Details:"

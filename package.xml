@@ -51,6 +51,12 @@
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
   <depend>compressed_image_transport</depend>
+  
+  <!-- Python runtime dependencies -->
+  <exec_depend>python-rospkg</exec_depend>
+  <exec_depend>python-catkin-pkg</exec_depend>
+  <exec_depend>python-opencv</exec_depend>
+  <exec_depend>python-yaml</exec_depend>
 
   <!-- Optional Python packages (install via pip):
        - jetson-stats (Jetson monitoring)
