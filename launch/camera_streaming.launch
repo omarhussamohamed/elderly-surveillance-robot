@@ -42,7 +42,12 @@
   </node>
 
   <!-- Static transform for camera frame (adjust based on your robot's camera position) -->
+  <!-- NOTE: Camera frame is now defined in elderly_bot.urdf, published by robot_state_publisher -->
+  <!-- This static_transform_publisher is a fallback if URDF is not loaded -->
+  <!-- Remove this node if running with bringup.launch (which loads URDF) -->
+  <!--
   <node pkg="tf" type="static_transform_publisher" name="camera_tf_broadcaster" 
         args="0.15 0 0.25 0 0 0 base_link camera_link 100" />
+  -->
 
 </launch>
