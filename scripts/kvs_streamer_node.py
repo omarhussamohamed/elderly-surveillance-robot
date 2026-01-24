@@ -45,6 +45,7 @@ class KVSStreamer:
         
         self.process = None
         self.streaming = False
+        self.frame_count = 0  # Initialize frame counter
         
         rospy.loginfo("KVS Streamer initialized for stream: {}".format(self.stream_name))
         rospy.loginfo("Region: {}, Resolution: {}x{}".format(self.aws_region, self.width, self.height))
@@ -68,6 +69,8 @@ class KVSStreamer:
         
         try:
             self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            rospy.loginfo("Received frame from camera, encoding: bgr8, size: {}x{}".format(
+                self.latest_frame.shape[1], self.latest_frame.shape[0]))
         except Exception as e:
             rospy.logerr("Failed to convert image: {}".format(e))
     
@@ -112,7 +115,7 @@ class KVSStreamer:
         gst_pipeline = (
             "gst-launch-1.0 -v "
             "appsrc name=source is-live=true format=time do-timestamp=true emit-signals=true "
-            "caps=video/x-raw,format=BGR,width={},height={},framerate={}/1 ! "
+            "caps=video/x-raw,format=I420,width={},height={},framerate={}/1 ! "
             "videoconvert ! "
             "videoscale ! "
             "video/x-raw,format=I420,width={},height={} ! "
@@ -224,7 +227,13 @@ class KVSStreamer:
                     # Write to appsrc stdin
                     self.process.stdin.write(frame_bytes)
                     self.process.stdin.flush()
-                    
+                    rospy.loginfo("Pushing frame to appsrc")
+
+                    # Increment frame counter
+                    self.frame_count += 1
+                    if self.frame_count % 10 == 0:
+                        rospy.loginfo("Pushed {} frames to appsrc".format(self.frame_count))
+
                 except IOError as e:
                     # Handle Broken Pipe (Errno 32)
                     if e.errno == 32:
