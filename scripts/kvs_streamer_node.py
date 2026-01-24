@@ -151,7 +151,7 @@ class KVSStreamerNode:
             "videoconvert n-threads=2 ! "
             "video/x-raw,format=I420 ! "
             "omxh264enc bitrate={bitrate}000 "  # bitrate in bits/sec -> multiply by 1000
-            "control-rate=1 preset-level=4 "    # 4 = ultrafast/low-latency preset
+            "control-rate=1 "    # Removed preset-level=4 for compatibility
             "iframeinterval={keyframe_interval} insert-sps-pps=true ! "
             "h264parse config-interval=1 ! "     # Send SPS/PPS every second
             "kvssink stream-name={stream_name} "

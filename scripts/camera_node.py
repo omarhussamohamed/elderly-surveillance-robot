@@ -46,7 +46,10 @@ class CameraPublisher:
         
         # Additional performance tweaks
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)  # Reduce buffer to minimize latency
-        self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)   # Disable autofocus for consistency
+        try:
+            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)   # Disable autofocus for consistency
+        except Exception as e:
+            rospy.logwarn("Failed to disable autofocus: {}".format(e))
         
         # Verify settings
         actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
