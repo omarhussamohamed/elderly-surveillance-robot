@@ -148,14 +148,13 @@ class KVSStreamerNode:
             "h264parse ! "
             "kvssink stream-name={stream_name} storage-size={storage_size} "
             "aws-region={aws_region} connection-timeout={connection_timeout} "
-            "buffer-duration={buffer_duration} fragment-duration={fragment_duration} "
-            "max-latency=1 log-config=/tmp/kvs.log"
+            "buffer-duration={buffer_duration} fragment-duration={fragment_duration}"
         ).format(
             width=self.width,
             height=self.height,
             fps=self.fps,
             keyframe_interval=keyframe_interval,
-            bitrate=int(self.bitrate * 1000),
+            bitrate=self.bitrate,
             stream_name=self.stream_name,
             storage_size=self.storage_size,
             aws_region=self.aws_region,
