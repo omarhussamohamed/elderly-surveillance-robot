@@ -61,6 +61,10 @@
   <arg name="storage_size" default="256" 
        doc="Buffer storage in MB" />
   
+  <!-- ADD THE MISSING ARGUMENT HERE -->
+  <arg name="fragment_duration" default="2" 
+       doc="Fragment duration in seconds for KVS streaming (default: 2)" />
+  
   <!-- Output Management -->
   <arg name="output_to_screen" default="true" 
        doc="Output KVS logs to screen (false = silent mode, logs to file)" />
