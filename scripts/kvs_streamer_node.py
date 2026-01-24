@@ -51,8 +51,8 @@ class KVSStreamerNode:
         self.storage_size = rospy.get_param('~storage_size', 512)  # Increased for 720p
         
         # AWS Console playback optimization
-        # Longer fragments improve stability on high-latency networks
-        self.fragment_duration = rospy.get_param('~fragment_duration', 8)
+        # Live streaming mode for low-latency
+        self.fragment_duration = rospy.get_param('~fragment_duration', 0)
         
         # Output management
         self.output_to_screen = rospy.get_param('~output_to_screen', True)
