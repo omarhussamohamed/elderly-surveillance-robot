@@ -35,6 +35,10 @@
   <arg name="kvs_test_mode" default="false" 
        doc="Use test resolution (1280x720@30fps) instead of production (640x480@15fps)" />
   
+  <!-- Add fragment_duration argument for KVS -->
+  <arg name="fragment_duration" default="2" 
+       doc="Fragment duration in seconds for KVS streaming (default: 2)" />
+  
   <!-- Robot geometry parameters -->
   <param name="robot_description" 
          textfile="$(find elderly_bot)/urdf/elderly_bot.urdf" />
@@ -166,6 +170,7 @@
         <arg name="height" value="480" />
         <arg name="fps" value="15" />
         <arg name="bitrate" value="512" />
+        <arg name="fragment_duration" value="$(arg fragment_duration)" />
         <arg name="output_to_screen" value="false" if="$(arg kvs_silent)" />
         <arg name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
         <arg name="enable_kvs" value="true" />
@@ -180,6 +185,7 @@
         <arg name="height" value="720" />
         <arg name="fps" value="30" />
         <arg name="bitrate" value="2048" />
+        <arg name="fragment_duration" value="$(arg fragment_duration)" />
         <arg name="output_to_screen" value="false" if="$(arg kvs_silent)" />
         <arg name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
         <arg name="enable_kvs" value="true" />
@@ -188,5 +194,3 @@
   </group>
   
 </launch>
-
-
