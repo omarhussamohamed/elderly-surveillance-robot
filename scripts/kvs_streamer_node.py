@@ -3,7 +3,7 @@
 AWS Kinesis Video Streams Integration Node
 Streams camera feed to AWS KVS for cloud AI inference
 Hardcoded for RobotStream in eu-west-1
-""
+"""
 
 import rospy
 import subprocess
@@ -35,8 +35,8 @@ class KVSStreamer:
         self.process = None
         self.streaming = False
         
-        rospy.loginfo(f"KVS Streamer initialized for stream: {self.stream_name}")
-        rospy.loginfo(f"Region: {self.aws_region}, Resolution: {self.width}x{self.height}")
+        rospy.loginfo("KVS Streamer initialized for stream: {}".format(self.stream_name))
+        rospy.loginfo("Region: {}, Resolution: {}x{}".format(self.aws_region, self.width, self.height))
         
         # Check AWS credentials
         if not self.check_aws_credentials():
@@ -64,21 +64,22 @@ class KVSStreamer:
         
         # GStreamer pipeline for USB camera -> AWS KVS
         gst_pipeline = (
-            f"gst-launch-1.0 -v "
-            f"v4l2src device={self.device} ! "
-            f"image/jpeg,width={self.width},height={self.height},framerate={self.fps}/1 ! "
-            f"jpegdec ! "
-            f"videoconvert ! "
-            f"video/x-raw,format=I420 ! "
-            f"x264enc bframes=0 key-int-max={self.fps*2} bitrate={self.bitrate} tune=zerolatency ! "
-            f"video/x-h264,stream-format=avc,alignment=au,profile=baseline ! "
-            f"kvssink stream-name={self.stream_name} "
-            f"storage-size=128 "
-            f"aws-region={self.aws_region}"
-        )
+            "gst-launch-1.0 -v "
+            "v4l2src device={} ! "
+            "image/jpeg,width={},height={},framerate={}/1 ! "
+            "jpegdec ! "
+            "videoconvert ! "
+            "video/x-raw,format=I420 ! "
+            "x264enc bframes=0 key-int-max={} bitrate={} tune=zerolatency ! "
+            "video/x-h264,stream-format=avc,alignment=au,profile=baseline ! "
+            "kvssink stream-name={} "
+            "storage-size=128 "
+            "aws-region={}"
+        ).format(self.device, self.width, self.height, self.fps, 
+                 self.fps*2, self.bitrate, self.stream_name, self.aws_region)
         
         rospy.loginfo("Starting GStreamer pipeline...")
-        rospy.loginfo(f"Command: {gst_pipeline}")
+        rospy.loginfo("Command: {}".format(gst_pipeline))
         
         try:
             self.process = subprocess.Popen(
@@ -93,7 +94,7 @@ class KVSStreamer:
             self.status_pub.publish(Bool(data=True))
             
         except Exception as e:
-            rospy.logerr(f"Failed to start streaming: {e}")
+            rospy.logerr("Failed to start streaming: {}".format(e))
             self.streaming = False
             self.status_pub.publish(Bool(data=False))
     
@@ -133,7 +134,7 @@ class KVSStreamer:
                 # Check if process is still running
                 poll = self.process.poll()
                 if poll is not None:
-                    rospy.logwarn(f"Streaming process died with code {poll}")
+                    rospy.logwarn("Streaming process died with code {}".format(poll))
                     self.streaming = False
                     self.status_pub.publish(Bool(data=False))
                     

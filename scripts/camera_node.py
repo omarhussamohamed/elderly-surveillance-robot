@@ -3,7 +3,7 @@
 ROS Camera Publisher Node for ElderlyBot
 Publishes MJPEG camera feed at 1280x720 @ 30fps
 Compatible with ROS Melodic (Python 2.7)
-""
+"""
 
 import rospy
 import cv2
@@ -31,7 +31,7 @@ class CameraPublisher:
         # Open camera
         self.cap = cv2.VideoCapture(self.device)
         if not self.cap.isOpened():
-            rospy.logerr(f"Failed to open camera: {self.device}")
+            rospy.logerr("Failed to open camera: {}".format(self.device))
             sys.exit(1)
         
         # Set camera properties (MJPEG format for best performance)
@@ -45,8 +45,8 @@ class CameraPublisher:
         actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = int(self.cap.get(cv2.CAP_PROP_FPS))
         
-        rospy.loginfo(f"Camera opened: {self.device}")
-        rospy.loginfo(f"Resolution: {actual_width}x{actual_height} @ {actual_fps}fps")
+        rospy.loginfo("Camera opened: {}".format(self.device))
+        rospy.loginfo("Resolution: {}x{} @ {}fps".format(actual_width, actual_height, actual_fps))
         
         self.rate = rospy.Rate(self.fps)
         
@@ -74,7 +74,7 @@ class CameraPublisher:
                 self.compressed_pub.publish(compressed_msg)
                 
             except Exception as e:
-                rospy.logerr(f"Error publishing image: {e}")
+                rospy.logerr("Error publishing image: {}".format(e))
             
             self.rate.sleep()
     
