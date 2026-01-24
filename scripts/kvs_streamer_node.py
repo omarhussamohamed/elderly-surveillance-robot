@@ -132,6 +132,9 @@ class KVSStreamerNode:
     
     def build_pipeline_string(self):
         """Build GStreamer pipeline string with stability parameters"""
+        # Calculate fragment duration in seconds (2 seconds is recommended minimum)
+        fragment_duration = 2
+        
         pipeline_str = (
             "appsrc name=source is-live=true format=time do-timestamp=true "
             "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 "
@@ -143,7 +146,8 @@ class KVSStreamerNode:
             "video/x-h264,stream-format=avc,alignment=au,profile=baseline ! "
             "kvssink stream-name={stream_name} storage-size={storage_size} "
             "aws-region={aws_region} connection-timeout={connection_timeout} "
-            "buffer-duration={buffer_duration}"
+            "buffer-duration={buffer_duration} fragment-duration={fragment_duration} "
+            "fragment-acceptance-duration={fragment_duration}"
         ).format(
             width=self.width,
             height=self.height,
@@ -154,7 +158,8 @@ class KVSStreamerNode:
             storage_size=self.storage_size,
             aws_region=self.aws_region,
             connection_timeout=self.connection_timeout,
-            buffer_duration=self.buffer_duration
+            buffer_duration=self.buffer_duration,
+            fragment_duration=fragment_duration
         )
         return pipeline_str
     
@@ -184,7 +189,7 @@ class KVSStreamerNode:
                 # Wait for pipeline to transition to playing state
                 state_result = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
                 timeout = 0
-                while state_result[0] != Gst.StateChangeReturn.SUCCESS and timeout < 5:
+                while state_result[0] != Gst.StateChangeReturn.SUCCESS and timeout < 10:
                     time.sleep(0.5)
                     state_result = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
                     timeout += 1
@@ -192,7 +197,10 @@ class KVSStreamerNode:
                 if state_result[0] == Gst.StateChangeReturn.FAILURE:
                     raise Exception("Pipeline failed to start")
                 
-                # Reset frame tracking
+                # Wait a bit more to ensure kvssink connects to AWS
+                time.sleep(2.0)
+                
+                # Reset frame tracking - start from 0 for proper fragment creation
                 self.pts = 0
                 self.frame_count = 0
                 self.last_frame_time = None
@@ -202,6 +210,10 @@ class KVSStreamerNode:
                 self.status_pub.publish(String("STREAMING_STARTED"))
                 self.log_info("KVS stream started successfully - Stream: %s, Region: %s" % 
                             (self.stream_name, self.aws_region))
+                self.log_info("Pipeline configuration: %dx%d @ %dfps, bitrate=%dkbps" % 
+                            (self.width, self.height, self.fps, self.bitrate))
+                self.log_info("Fragment duration: 2 seconds (keyframe every %d frames)" % 
+                            int(2 * self.fps))
                 return
                 
             except Exception as e:
@@ -246,31 +258,30 @@ class KVSStreamerNode:
             return
         
         try:
-            # Get current timestamp
-            current_time = rospy.Time.now()
-            
-            # Calculate PTS based on actual time for better synchronization
+            # Use monotonic timestamps starting from 0
+            # This ensures proper fragment creation in kvssink
             if self.last_frame_time is None:
                 self.pts = 0
-                self.last_frame_time = current_time
+                self.last_frame_time = rospy.Time.now()
             else:
-                # Calculate time difference in nanoseconds
-                time_diff = (current_time - self.last_frame_time).to_nsec()
-                self.pts += time_diff
-                self.last_frame_time = current_time
+                # Increment PTS by frame duration for consistent timing
+                self.pts += self.frame_duration
             
             # Create buffer with proper size
             buffer = Gst.Buffer.new_allocate(None, len(frame), None)
             buffer.fill(0, frame)
             
-            # Set timestamps
+            # Set timestamps - critical for fragment creation
             buffer.pts = self.pts
             buffer.dts = self.pts
             buffer.duration = self.frame_duration
             
-            # Add timestamp metadata
+            # Add timestamp metadata for debugging
             buffer.offset = self.frame_count
             buffer.offset_end = self.frame_count + 1
+            
+            # Update last frame time for rate limiting
+            self.last_frame_time = rospy.Time.now()
             
             # Push buffer
             ret = self.appsrc.emit("push-buffer", buffer)
@@ -335,6 +346,14 @@ class KVSStreamerNode:
         elif t == Gst.MessageType.STREAM_COLLECTION:
             collection = message.parse_stream_collection()
             self.log_debug("Stream collection: %d streams" % collection.get_n_streams())
+        elif t == Gst.MessageType.ELEMENT:
+            # Check for kvssink-specific messages
+            if message.src and hasattr(message.src, 'get_name'):
+                element_name = message.src.get_name()
+                if 'kvssink' in element_name.lower():
+                    structure = message.get_structure()
+                    if structure:
+                        self.log_debug("kvssink message: %s" % structure.get_name())
 
     def shutdown(self):
         """Clean shutdown"""
