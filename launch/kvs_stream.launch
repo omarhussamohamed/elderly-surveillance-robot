@@ -1,14 +1,12 @@
-<!-- 
-  ElderlyBot KVS Stream Launch File - HIGH RESOLUTION
-  Optimized for 1280x720 @ 30fps streaming
-  Enhanced for stability on Jetson Nano
-  
-  Usage:
-    # High resolution streaming (1280x720 @ 30fps)
-    roslaunch elderly_bot kvs_stream.launch
-    
-    # Lower resolution for testing
-    roslaunch elderly_bot kvs_stream.launch width:=640 height:=480 fps:=15 bitrate:=512
+<!--
+     ElderlyBot KVS Stream Launch File - FINAL PRODUCTION SETTINGS
+     - 1280x720 @ 15fps, 2000kbps, 8s fragment (no low-res fallback)
+     - Hardware encoding (nvh264enc) for Jetson Nano
+     - 15fps and 2000kbps for stable streaming on limited CPU/network
+     - 8s fragment for high-latency tolerance (Cairo → us-east-1)
+     - No low-res fallback: always 720p for cloud/live viewing
+     - See kvs_streamer_node.py for pipeline details and rationale
+     - If instability occurs, check WiFi signal and AWS region latency
 -->
 
 <launch>
@@ -105,28 +103,13 @@
   </node>
 
   <!-- ========================================== -->
-  <!-- PERFORMANCE NOTES -->
-  <!-- ========================================== -->
-  <!-- 
-  RESOURCE IMPACT ON JETSON NANO (4GB RAM):
-  
-  Configuration         | CPU Usage | RAM Usage | Network
-  =====================|===========|===========|==========
-  1280x720 @ 30fps     | 40-55%    | 200-300MB | 3 Mbps
-  3000 kbps            |           |           |
-  
-  RECOMMENDATIONS:
-  1. Ensure good WiFi signal (5GHz preferred)
-  2. Monitor CPU temperature with: watch -n 1 sensors
-  3. If CPU > 80°C, consider adding heatsink/fan
-  4. Reduce resolution if navigation becomes laggy
-  
-  TROUBLESHOOTING AWS CONSOLE:
-  1. Wait 30-60 seconds for first fragments
-  2. Use HLS playback instead of MPEG-DASH
-  3. Check IAM permissions for KVS
-  4. Verify network connectivity to AWS
-  -->
+  <!-- FINAL PRODUCTION SETTINGS FOR STABILITY (Jetson Nano, AWS KVS):
+       - 1280x720 @ 15fps, 2000kbps, 8s fragment
+       - Hardware encoding (nvh264enc) ensures low CPU usage
+       - 8s fragment improves reliability on high-latency networks
+       - No low-res fallback: 720p is always used for cloud and live viewing
+       - If instability occurs, check WiFi signal and AWS region latency
+  ========================================== -->
 
   <!-- ========================================== -->
   <!-- HEALTH MONITORING -->

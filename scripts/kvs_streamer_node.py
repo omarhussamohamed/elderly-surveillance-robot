@@ -38,8 +38,9 @@ class KVSStreamerNode:
         # VIDEO PARAMETERS - HIGH RESOLUTION
         self.width = rospy.get_param('~width', 1280)
         self.height = rospy.get_param('~height', 720)
-        self.fps = rospy.get_param('~fps', 30)
-        self.bitrate = rospy.get_param('~bitrate', 3000)  # Increased for 720p
+        # For Jetson Nano, 15fps and 2000kbps is optimal for 720p stability
+        self.fps = rospy.get_param('~fps', 15)
+        self.bitrate = rospy.get_param('~bitrate', 2000)
         
         # Stability parameters - enhanced
         self.retry_count = rospy.get_param('~retry_count', 5)
@@ -49,7 +50,8 @@ class KVSStreamerNode:
         self.storage_size = rospy.get_param('~storage_size', 512)  # Increased for 720p
         
         # AWS Console playback optimization
-        self.fragment_duration = rospy.get_param('~fragment_duration', 5)  # 5 seconds for AWS console
+        # Longer fragments improve stability on high-latency networks
+        self.fragment_duration = rospy.get_param('~fragment_duration', 8)
         
         # Output management
         self.output_to_screen = rospy.get_param('~output_to_screen', True)
@@ -132,23 +134,29 @@ class KVSStreamerNode:
         rospy.logerr(message)
     
     def build_pipeline_string(self):
-        """Build optimized GStreamer pipeline for 1280x720"""
-        # Calculate keyframe interval for 5-second fragments
-        keyframe_interval = self.fps * self.fragment_duration  # 30 * 5 = 150 frames
-        
+        """
+        Build a Jetson-optimized GStreamer pipeline for 1280x720@15fps H.264 streaming to AWS KVS.
+        Uses nvh264enc (hardware encoder) and nvvidconv for color conversion/scaling.
+        Key parameters:
+          - FPS: 15 (lowers CPU/network load, increases stability)
+          - Bitrate: 2000 kbps (safe for 720p, stable on WiFi)
+          - fragment_duration: 8s (reduces fragment churn, better for high-latency)
+          - key-int-max: FPS * fragment_duration (120)
+          - profile: main, tune: zerolatency
+          - kvssink: realtime=true, do-timestamp=true, retry=TRUE
+        """
+        keyframe_interval = self.fps * self.fragment_duration  # e.g., 15 * 8 = 120
         pipeline_str = (
+            # Accepts BGR from ROS, converts to NV12, scales to 1280x720 if needed
             "appsrc name=source is-live=true format=time do-timestamp=true "
             "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 "
             "max-bytes=0 block=true ! "
-            "videoconvert ! videoscale ! "
-            "video/x-raw,format=I420,width={width},height={height} ! "
-            "x264enc bframes=0 key-int-max={keyframe_interval} bitrate={bitrate} "
-            "tune=zerolatency speed-preset=ultrafast ! "
-            "video/x-h264,stream-format=avc,alignment=au,profile=main ! "  # Changed to main profile
-            "h264parse ! "
-            "kvssink stream-name={stream_name} storage-size={storage_size} "
-            "aws-region={aws_region} connection-timeout={connection_timeout} "
-            "buffer-duration={buffer_duration} fragment-duration={fragment_duration}"
+            "nvvidconv ! video/x-raw(memory:NVMM),format=NV12,width={width},height={height},framerate={fps}/1 ! "
+            "nvh264enc preset=1 bitrate={bitrate} profile=1 iframeinterval={keyframe_interval} insert-sps-pps=true insert-vui=true zerolatency=true ! "
+            "h264parse config-interval=1 ! "
+            "kvssink stream-name={stream_name} storage-size={storage_size} aws-region={aws_region} "
+            "connection-timeout={connection_timeout} buffer-duration={buffer_duration} fragment-duration={fragment_duration} "
+            "realtime=true do-timestamp=true retry=TRUE"
         ).format(
             width=self.width,
             height=self.height,
