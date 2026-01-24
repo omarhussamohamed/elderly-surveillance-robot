@@ -229,12 +229,12 @@ roslaunch elderly_bot camera_streaming.launch
 
 **Features:**
 - 1280x720 @ 30fps MJPEG camera feed
-- Streams to AWS KVS stream: `RobotStream` in `eu-west-1` region
+- Streams to AWS KVS stream: `RobotStream` in `us-east-1` region
 - Automatic reconnection on network interruptions
 - Publishes `/camera/image_raw` and `/camera/image_raw/compressed` topics
 
 **View Stream:**
-- AWS Console: https://eu-west-1.console.aws.amazon.com/kinesisvideo/
+- AWS Console: https://us-east-1.console.aws.amazon.com/kinesisvideo/
 
 ### AWS IoT Core (Optional)
 

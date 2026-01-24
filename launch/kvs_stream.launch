@@ -46,7 +46,7 @@
   <!-- AWS KVS stream configuration -->
   <arg name="stream_name" default="RobotStream" 
        doc="AWS KVS stream name" />
-  <arg name="aws_region" default="eu-west-1" 
+  <arg name="aws_region" default="us-east-1" 
        doc="AWS region" />
 
   <!-- ========================================== -->
