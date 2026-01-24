@@ -88,12 +88,15 @@
     - No hardware conflict (single camera access point)
   -->
   <node pkg="elderly_bot" type="kvs_streamer_node.py" name="kvs_streamer" 
-        output="screen" if="$(arg enable_kvs)">
+        output="log" if="$(arg enable_kvs)">
     
     <!-- AWS Credentials from environment variables (set in ~/.bashrc or systemd service) -->
     <!-- Ensure these are set: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION -->
     <env name="AWS_DEFAULT_REGION" value="$(arg aws_region)" />
     <env name="KVS_STREAM_NAME" value="$(arg stream_name)" />
+    <!-- Suppress GStreamer kvssink plugin debug logs -->
+    <env name="GST_DEBUG" value="1" />
+    <env name="GST_DEBUG_NO_COLOR" value="1" />
     
     <!-- Encoder parameters -->
     <param name="width" value="$(arg width)" />

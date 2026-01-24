@@ -15,9 +15,18 @@ from sensor_msgs.msg import Image
 import os
 import time
 import logging
+import sys
 
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject
+
+# Suppress GStreamer debug output from kvssink plugin
+# Level 0 = none, 1 = ERROR only, 2 = WARNING, 3 = FIXME, 4 = INFO, 5 = DEBUG
+# Set to 1 to only show errors, kvssink plugin logs are at DEBUG level
+if 'GST_DEBUG' not in os.environ:
+    os.environ['GST_DEBUG'] = '1'  # Only show errors (level 1)
+if 'GST_DEBUG_NO_COLOR' not in os.environ:
+    os.environ['GST_DEBUG_NO_COLOR'] = '1'
 
 class KVSStreamerNode:
     def __init__(self):
@@ -54,6 +63,8 @@ class KVSStreamerNode:
         self.frame_duration = int(1e9 / self.fps)
         self.current_retry = 0
         self.is_streaming = False
+        self.last_frame_time = None
+        self.frame_count = 0
         
         # ROS Publisher
         self.status_pub = rospy.Publisher('/kvs/streaming', String, queue_size=10)
@@ -121,15 +132,18 @@ class KVSStreamerNode:
     def build_pipeline_string(self):
         """Build GStreamer pipeline string with stability parameters"""
         pipeline_str = (
-            "appsrc name=source is-live=true format=time do-timestamp=false "
-            "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 ! "
-            "videoconvert ! videoscale ! video/x-raw,format=I420,width={width},height={height} ! "
+            "appsrc name=source is-live=true format=time do-timestamp=true "
+            "caps=video/x-raw,format=BGR,width={width},height={height},framerate={fps}/1 "
+            "max-bytes=0 block=true ! "
+            "videoconvert ! "
+            "video/x-raw,format=I420,width={width},height={height},framerate={fps}/1 ! "
             "x264enc bframes=0 key-int-max={keyframe_interval} bitrate={bitrate} "
-            "tune=zerolatency speed-preset=ultrafast ! "
+            "tune=zerolatency speed-preset=ultrafast threads=2 sync=false ! "
             "video/x-h264,stream-format=avc,alignment=au,profile=baseline ! "
             "kvssink stream-name={stream_name} storage-size={storage_size} "
             "aws-region={aws_region} connection-timeout={connection_timeout} "
-            "buffer-duration={buffer_duration}"
+            "buffer-duration={buffer_duration} framerate={fps}/1 "
+            "streaming-type=realtime enable-fragment-metadata=true"
         ).format(
             width=self.width,
             height=self.height,
@@ -167,18 +181,27 @@ class KVSStreamerNode:
                 if ret == Gst.StateChangeReturn.FAILURE:
                     raise Exception("Failed to set pipeline to PLAYING state")
                 
-                # Wait for pipeline to start
-                time.sleep(1.0)
-                
-                # Check if pipeline is actually playing
+                # Wait for pipeline to transition to playing state
                 state_result = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+                timeout = 0
+                while state_result[0] != Gst.StateChangeReturn.SUCCESS and timeout < 5:
+                    time.sleep(0.5)
+                    state_result = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+                    timeout += 1
+                
                 if state_result[0] == Gst.StateChangeReturn.FAILURE:
                     raise Exception("Pipeline failed to start")
+                
+                # Reset frame tracking
+                self.pts = 0
+                self.frame_count = 0
+                self.last_frame_time = None
                 
                 self.is_streaming = True
                 self.current_retry = 0  # Reset retry counter on success
                 self.status_pub.publish(String("STREAMING_STARTED"))
-                self.log_info("KVS stream started successfully")
+                self.log_info("KVS stream started successfully - Stream: %s, Region: %s" % 
+                            (self.stream_name, self.aws_region))
                 return
                 
             except Exception as e:
@@ -205,6 +228,12 @@ class KVSStreamerNode:
         
         try:
             frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            
+            # Resize frame if camera resolution doesn't match pipeline resolution
+            frame_height, frame_width = frame.shape[:2]
+            if frame_width != self.width or frame_height != self.height:
+                frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_LINEAR)
+            
             self.push_frame(frame.tobytes())
         except CvBridgeError as e:
             self.log_err("CvBridge Error: %s" % e)
@@ -213,19 +242,53 @@ class KVSStreamerNode:
 
     def push_frame(self, frame):
         """Push frame to GStreamer pipeline"""
-        if not self.appsrc:
+        if not self.appsrc or not self.is_streaming:
             return
         
         try:
+            # Get current timestamp
+            current_time = rospy.Time.now()
+            
+            # Calculate PTS based on actual time for better synchronization
+            if self.last_frame_time is None:
+                self.pts = 0
+                self.last_frame_time = current_time
+            else:
+                # Calculate time difference in nanoseconds
+                time_diff = (current_time - self.last_frame_time).to_nsec()
+                self.pts += time_diff
+                self.last_frame_time = current_time
+            
+            # Create buffer with proper size
             buffer = Gst.Buffer.new_allocate(None, len(frame), None)
             buffer.fill(0, frame)
+            
+            # Set timestamps
             buffer.pts = self.pts
             buffer.dts = self.pts
             buffer.duration = self.frame_duration
-            self.pts += self.frame_duration
-
-            self.appsrc.emit("push-buffer", buffer)
-            self.status_pub.publish(String("FRAME_PUSHED"))
+            
+            # Add timestamp metadata
+            buffer.offset = self.frame_count
+            buffer.offset_end = self.frame_count + 1
+            
+            # Push buffer
+            ret = self.appsrc.emit("push-buffer", buffer)
+            if ret == Gst.FlowReturn.OK:
+                self.frame_count += 1
+                # Only publish status every 30 frames to reduce overhead
+                if self.frame_count % 30 == 0:
+                    self.status_pub.publish(String("FRAME_PUSHED:%d" % self.frame_count))
+            elif ret == Gst.FlowReturn.FLUSHING:
+                # Pipeline is shutting down, stop pushing
+                self.is_streaming = False
+                self.log_warn("Pipeline is flushing, stopping frame push")
+            elif ret == Gst.FlowReturn.FULL:
+                # Buffer is full, drop frame (shouldn't happen with proper rate limiting)
+                self.log_debug("Buffer full, frame dropped")
+            else:
+                self.log_warn("Push buffer returned: %s" % ret)
+                
         except Exception as e:
             self.log_err("Error pushing frame: %s" % e)
 
@@ -264,6 +327,14 @@ class KVSStreamerNode:
                 old_state, new_state, pending_state = message.parse_state_changed()
                 self.log_debug("Pipeline state changed: %s -> %s" % 
                              (old_state.value_nick, new_state.value_nick))
+                if new_state == Gst.State.PLAYING:
+                    self.log_info("Pipeline is now PLAYING - streaming to AWS")
+        elif t == Gst.MessageType.STREAM_START:
+            self.log_info("Stream started - AWS KVS connection established")
+            self.status_pub.publish(String("AWS_CONNECTED"))
+        elif t == Gst.MessageType.STREAM_COLLECTION:
+            collection = message.parse_stream_collection()
+            self.log_debug("Stream collection: %d streams" % collection.get_n_streams())
 
     def shutdown(self):
         """Clean shutdown"""
