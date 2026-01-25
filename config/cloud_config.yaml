@@ -3,10 +3,10 @@ enable_cloud: true
 
 # AWS IoT Core Configuration
 aws_endpoint: "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
-client_id: "robot_nano"
+client_id: "robot"  # CHANGED FROM "robot_nano" TO "robot"
 port: 8883
 
-# Certificate paths - CORRECTED
+# Certificate paths
 root_ca_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
 cert_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
 key_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
