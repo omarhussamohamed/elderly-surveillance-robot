@@ -327,24 +327,24 @@ class CloudBridgeNode(object):
     
     def run(self):
         """Main loop: periodically publish telemetry to cloud."""
-        if not self.cloud_connected:
-            rospy.logwarn("Cloud not connected, node exiting")
+        if not self.enable_cloud or not self.cloud_connected:
+            rospy.logwarn("Cloud not connected, exiting node")
             return
         
-        rate = rospy.Rate(self.publish_rate)
+        rospy.loginfo("Cloud Bridge Main loop starting at {} Hz".format(self.publish_rate))
         
-        rospy.loginfo("Main loop starting at {} Hz".format(self.publish_rate))
-        
-        while not rospy.is_shutdown():
+        # Create a timer instead of using rate.sleep() in a loop
+        # This is more robust for ROS nodes
+        timer = rospy.Timer(rospy.Duration(1.0/self.publish_rate), self.timer_callback)
+        rospy.spin()
+
+    def timer_callback(self, event):
+        """Timer callback for periodic telemetry publishing."""
+        if self.cloud_connected:
             try:
                 self.publish_telemetry()
-                rate.sleep()
-                
-            except rospy.ROSInterruptException:
-                break
             except Exception as e:
-                rospy.logerr("Error in main loop: {}".format(e))
-                rospy.sleep(1.0)
+                rospy.logerr("Error publishing telemetry: {}".format(e))
     
     def shutdown_hook(self):
         """Clean shutdown: disconnect from AWS IoT Core."""
@@ -363,9 +363,12 @@ class CloudBridgeNode(object):
 if __name__ == '__main__':
     try:
         node = CloudBridgeNode()
-        if node.enable_cloud:
+        # Only run if cloud is enabled AND connected
+        if node.enable_cloud and node.cloud_connected:
             node.run()
+        else:
+            rospy.logwarn("Cloud bridge disabled or failed to connect")
     except rospy.ROSInterruptException:
         pass
     except Exception as e:
-        rospy.logerr("Fatal error: {}".format(e))
+        rospy.logerr("Fatal error in cloud_bridge_node: {}".format(e))
