@@ -3,7 +3,7 @@ enable_cloud: true
 
 # AWS IoT Core Configuration
 aws_endpoint: "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
-client_id: "robot"  # CHANGED FROM "robot_nano" TO "robot"
+client_id: "robot"
 port: 8883
 
 # Certificate paths
@@ -12,10 +12,10 @@ cert_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
 key_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
 
 # MQTT Topics
-mqtt_topic_telemetry: "elderly_bot/telemetry"
-mqtt_topic_alerts: "elderly_bot/alerts"
-mqtt_topic_commands: "elderly_bot/commands"
+mqtt_topic_telemetry: "robot/telemetry"
+mqtt_topic_alerts: "robot/alerts" 
+mqtt_topic_commands: "robot/commands"
 
 # Publishing Settings
-publish_rate: 2.0  # Hz
-keepalive_interval: 30  # seconds
+publish_rate: 2.0
+keepalive_interval: 30
