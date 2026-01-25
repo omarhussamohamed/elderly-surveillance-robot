@@ -439,4 +439,12 @@ cat ~/.ros/log/latest/rosout.log
 
 For hardware/architecture questions, refer to HARDWARE.md and SYSTEM_OVERVIEW.md.
 
+### Dependencies
+
+Ensure the following Python packages are installed:
+- `paho-mqtt`: MQTT client library for Python. Install using:
+  ```bash
+  sudo pip install paho-mqtt
+  ```
+
 

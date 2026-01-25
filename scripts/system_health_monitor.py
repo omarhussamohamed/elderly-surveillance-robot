@@ -11,9 +11,9 @@ class SystemHealthMonitor:
         self.optional_nodes = rospy.get_param('~optional_nodes', '').split(',')
         
         rospy.loginfo("=== System Health Monitor Started ===")
-        rospy.loginfo(f"Critical nodes: {self.critical_nodes}")
-        rospy.loginfo(f"Optional nodes: {self.optional_nodes}")
-        rospy.loginfo(f"Check interval: {self.check_interval}s")
+        rospy.loginfo("Critical nodes: %s", self.critical_nodes)
+        rospy.loginfo("Optional nodes: %s", self.optional_nodes)
+        rospy.loginfo("Check interval: %s", self.check_interval)
         
         self.monitor_loop()
     
@@ -35,15 +35,15 @@ class SystemHealthMonitor:
             # Check critical nodes
             for node in self.critical_nodes:
                 if node and node not in all_nodes:
-                    rospy.logwarn(f"Critical node {node} is not running!")
+                    rospy.logwarn("Critical node %s is not running!", node)
             
             # Check optional nodes
             for node in self.optional_nodes:
                 if node and node not in all_nodes:
-                    rospy.loginfo(f"Optional node {node} is not running")
+                    rospy.loginfo("Optional node %s is not running", node)
             
             # Log status
-            rospy.logdebug(f"Active nodes: {len(all_nodes)}")
+            rospy.logdebug("Active nodes: %s", len(all_nodes))
             
             rate.sleep()
 
