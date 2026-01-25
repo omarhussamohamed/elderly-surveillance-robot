@@ -134,7 +134,7 @@
   </group>
   
   <!-- ========== CLOUD BRIDGE ========== -->
-  <arg name="enable_cloud" default="false" />
+  <arg name="enable_cloud" default="true" />
   
   <group if="$(arg enable_cloud)">
     <node name="cloud_bridge_node" 

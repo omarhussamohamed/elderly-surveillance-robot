@@ -1,19 +1,14 @@
 <?xml version="1.0"?>
 <launch>
-  <!-- Cloud Bridge Node for AWS IoT Core -->
-  <!-- Launches: cloud_bridge_node.py -->
+  <!-- Cloud Bridge Node - SIMPLIFIED WORKING VERSION -->
   
-  <arg name="enable_cloud" default="true" 
-       doc="Enable AWS IoT Core connectivity" />
+  <node name="cloud_bridge_node" 
+        pkg="elderly_bot" 
+        type="cloud_bridge_node.py"
+        output="screen"
+        respawn="true"
+        respawn_delay="10">
+    <rosparam command="load" file="$(find elderly_bot)/config/cloud_config.yaml" />
+  </node>
   
-  <group if="$(arg enable_cloud)">
-    <node name="cloud_bridge_node" 
-          pkg="elderly_bot" 
-          type="cloud_bridge_node.py"
-          output="screen"
-          respawn="true"
-          respawn_delay="10">
-      <rosparam command="load" file="$(find elderly_bot)/config/cloud_config.yaml" />
-    </node>
-  </group>
 </launch>
