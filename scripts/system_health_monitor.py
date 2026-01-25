@@ -13,37 +13,34 @@ class SystemHealthMonitor:
         rospy.loginfo("=== System Health Monitor Started ===")
         rospy.loginfo("Critical nodes: %s", self.critical_nodes)
         rospy.loginfo("Optional nodes: %s", self.optional_nodes)
-        rospy.loginfo("Check interval: %s", self.check_interval)
+        rospy.loginfo("Check interval: %s seconds", self.check_interval)
         
         self.monitor_loop()
-    
-    def check_node(self, node_name):
-        try:
-            node_api = rosnode.get_api_uri(rospy.get_master(), node_name, skip_cache=True)
-            if node_api:
-                return True
-            return False
-        except:
-            return False
     
     def monitor_loop(self):
         rate = rospy.Rate(1.0/self.check_interval)
         
         while not rospy.is_shutdown():
-            all_nodes = rosnode.get_node_names()
-            
-            # Check critical nodes
-            for node in self.critical_nodes:
-                if node and node not in all_nodes:
-                    rospy.logwarn("Critical node %s is not running!", node)
-            
-            # Check optional nodes
-            for node in self.optional_nodes:
-                if node and node not in all_nodes:
-                    rospy.loginfo("Optional node %s is not running", node)
-            
-            # Log status
-            rospy.logdebug("Active nodes: %s", len(all_nodes))
+            try:
+                all_nodes = rosnode.get_node_names()
+                
+                # Check critical nodes
+                for node in self.critical_nodes:
+                    node = node.strip()
+                    if node and node not in all_nodes:
+                        rospy.logwarn("Critical node %s is not running!", node)
+                
+                # Check optional nodes
+                for node in self.optional_nodes:
+                    node = node.strip()
+                    if node and node not in all_nodes:
+                        rospy.loginfo("Optional node %s is not running", node)
+                
+                # Log status
+                rospy.logdebug("Active nodes: %d", len(all_nodes))
+                
+            except Exception as e:
+                rospy.logerr("Error checking nodes: %s", str(e))
             
             rate.sleep()
 
