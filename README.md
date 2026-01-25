@@ -76,17 +76,59 @@ The Elderly Bot is a complete ROS 1 system designed for autonomous indoor monito
 
 ```
 elderly_bot/
-├── config/                      # Configuration files
-├── docs/                        # Documentation files
-├── firmware/                    # ESP32 firmware
-├── launch/                      # Launch files for ROS nodes
-├── maps/                        # Predefined maps for navigation
-├── rviz/                        # RViz visualization configurations
-├── scripts/                     # Python scripts (ROS nodes and utilities)
-├── urdf/                        # Robot description files (URDF)
-├── README.md                    # Project overview
-├── SYSTEM_OVERVIEW.md           # Detailed system architecture
-├── HARDWARE.md                  # Hardware configuration details
+├── aws_certs/                  # AWS IoT certificates
+│   ├── AmazonRootCA1.pem
+│   ├── certificate.pem.crt
+│   ├── private.pem.key
+├── config/                     # Configuration files
+│   ├── amcl.yaml
+│   ├── aws_bridge.yaml
+│   ├── bashrc_kvs_config.sh
+│   ├── cloud_config.yaml
+│   ├── costmap_common_params.yaml
+│   ├── dwa_local_planner.yaml
+│   ├── ekf.yaml
+│   ├── elderly-bot-kvs.service
+│   ├── global_costmap.yaml
+│   ├── gmapping.yaml
+│   ├── livekit_config.yaml
+│   ├── local_costmap.yaml
+│   ├── patrol_goals.yaml
+│   ├── sensors_actuators.yaml
+├── docs/                       # Documentation files
+│   ├── LIVEKIT_UBUNTU18_SETUP.md
+├── firmware/                   # ESP32 firmware
+│   ├── elderly_bot_esp32_wifi.ino
+├── launch/                     # Launch files for ROS nodes
+│   ├── bringup.launch
+│   ├── cloud_bridge.launch
+│   ├── imu_nav.launch
+│   ├── kvs_stream.launch
+│   ├── livekit_stream.launch
+│   ├── mapping.launch
+│   ├── navigation.launch
+├── maps/                       # Predefined maps for navigation
+│   ├── README.md
+├── rviz/                       # RViz visualization configurations
+│   ├── mapping.rviz
+│   ├── navigation.rviz
+├── scripts/                    # Python scripts (ROS nodes and utilities)
+│   ├── camera_node.py
+│   ├── cloud_bridge_node.py
+│   ├── kvs_streamer_node.py
+│   ├── livekit_streamer.py
+│   ├── mpu9250_node.py
+│   ├── patrol_client.py
+│   ├── sensors_actuators_node.py
+│   ├── system_health_monitor.py
+│   ├── test_cloud_connection.py
+│   ├── test_cloud_publisher.py
+│   ├── __pycache__/
+├── urdf/                       # Robot description files (URDF)
+│   ├── elderly_bot.urdf
+├── README.md                   # Project overview
+├── SYSTEM_OVERVIEW.md          # Detailed system architecture
+├── HARDWARE.md                 # Hardware configuration details
 ```
 
 ---

@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 import rospy
 import rosnode
+import time
 
 class SystemHealthMonitor:
     def __init__(self):
@@ -14,6 +15,9 @@ class SystemHealthMonitor:
         rospy.loginfo("Critical nodes: %s", self.critical_nodes)
         rospy.loginfo("Optional nodes: %s", self.optional_nodes)
         rospy.loginfo("Check interval: %s seconds", self.check_interval)
+        
+        # Wait 15 seconds before first check (let nodes start)
+        rospy.sleep(15)
         
         self.monitor_loop()
     
@@ -34,10 +38,11 @@ class SystemHealthMonitor:
                 for node in self.optional_nodes:
                     node = node.strip()
                     if node and node not in all_nodes:
-                        rospy.loginfo("Optional node %s is not running", node)
+                        rospy.logdebug("Optional node %s is not running", node)
                 
-                # Log status
-                rospy.logdebug("Active nodes: %d", len(all_nodes))
+                # Log status (less frequent)
+                if rospy.get_time() % 30 < 1:  # Every 30 seconds
+                    rospy.loginfo("Active nodes: %d", len(all_nodes))
                 
             except Exception as e:
                 rospy.logerr("Error checking nodes: %s", str(e))

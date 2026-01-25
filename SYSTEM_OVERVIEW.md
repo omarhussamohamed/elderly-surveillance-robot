@@ -12,10 +12,10 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
 
 ---
 
-## ROS Nodes by Category
+## Updated ROS Nodes by Category
 
 ### Perception
-- **rplidar_node** (rplidar_ros): 2D laser scans → `/scan`
+- **camera_node** (scripts/): Publishes raw camera frames → `/camera/image_raw`
 - **mpu9250_node** (scripts/): Raw IMU data → `/imu/data_raw`
 - **imu_filter_madgwick** (imu_filter_madgwick): IMU sensor fusion → `/imu/data`
 
@@ -50,13 +50,17 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
   - Publishes telemetry to `elderly_bot/telemetry`, alerts to `elderly_bot/alerts`
   - Subscribes to `elderly_bot/commands`
   - Note: All AWS services now unified in us-east-1 region
+- **livekit_streamer_node** (scripts/): Streams video to LiveKit server
+  - Subscribes: `/camera/image_raw`
+  - Publishes: Encoded H.264 video to LiveKit
+  - Status: **Test Ready**
 
 ### Transforms
 - **robot_state_publisher**: Broadcasts URDF-defined static TFs (base_link, laser, imu_link)
 
 ---
 
-## Core Topics
+## Updated Core Topics
 
 | Topic | Type | Publisher | Subscriber(s) | Purpose |
 |-------|------|-----------|---------------|---------|
@@ -67,6 +71,7 @@ Indoor autonomous monitoring robot with SLAM mapping, waypoint navigation, and g
 | `/imu/data` | Imu | imu_filter_madgwick | ekf | Fused IMU with orientation |
 | `/map` | OccupancyGrid | map_server or gmapping | amcl, move_base | Occupancy grid map |
 | `/camera/image_raw` | Image | camera_node | kvs_streamer_node | Raw camera frames (1280x720 BGR) |
+| `/camera/image_raw/compressed` | CompressedImage | camera_node | livekit_streamer_node | Compressed camera frames |
 | `/gas_detected` | Bool | sensors_actuators_node | cloud_bridge (optional) | Gas detection status |
 | `/buzzer_command` | Bool | cloud_bridge or manual | sensors_actuators_node | Buzzer control |
 
@@ -227,5 +232,66 @@ rostopic echo /kvs/streaming  # Check KVS stream status
 - Robot will not stop automatically if gas is detected (requires external monitoring)
 - No emergency stop button on robot (power switch only)
 - IMU calibration requires stationary robot for 5-10 seconds at startup
+
+---
+
+## Repository Structure
+
+```
+elderly_bot/
+├── aws_certs/                  # AWS IoT certificates
+│   ├── AmazonRootCA1.pem
+│   ├── certificate.pem.crt
+│   ├── private.pem.key
+├── config/                     # Configuration files
+│   ├── amcl.yaml
+│   ├── aws_bridge.yaml
+│   ├── bashrc_kvs_config.sh
+│   ├── cloud_config.yaml
+│   ├── costmap_common_params.yaml
+│   ├── dwa_local_planner.yaml
+│   ├── ekf.yaml
+│   ├── elderly-bot-kvs.service
+│   ├── global_costmap.yaml
+│   ├── gmapping.yaml
+│   ├── livekit_config.yaml
+│   ├── local_costmap.yaml
+│   ├── patrol_goals.yaml
+│   ├── sensors_actuators.yaml
+├── docs/                       # Documentation files
+│   ├── LIVEKIT_UBUNTU18_SETUP.md
+├── firmware/                   # ESP32 firmware
+│   ├── elderly_bot_esp32_wifi.ino
+├── launch/                     # Launch files for ROS nodes
+│   ├── bringup.launch
+│   ├── cloud_bridge.launch
+│   ├── imu_nav.launch
+│   ├── kvs_stream.launch
+│   ├── livekit_stream.launch
+│   ├── mapping.launch
+│   ├── navigation.launch
+├── maps/                       # Predefined maps for navigation
+│   ├── README.md
+├── rviz/                       # RViz visualization configurations
+│   ├── mapping.rviz
+│   ├── navigation.rviz
+├── scripts/                    # Python scripts (ROS nodes and utilities)
+│   ├── camera_node.py
+│   ├── cloud_bridge_node.py
+│   ├── kvs_streamer_node.py
+│   ├── livekit_streamer.py
+│   ├── mpu9250_node.py
+│   ├── patrol_client.py
+│   ├── sensors_actuators_node.py
+│   ├── system_health_monitor.py
+│   ├── test_cloud_connection.py
+│   ├── test_cloud_publisher.py
+│   ├── __pycache__/
+├── urdf/                       # Robot description files (URDF)
+│   ├── elderly_bot.urdf
+├── README.md                   # Project overview
+├── SYSTEM_OVERVIEW.md          # Detailed system architecture
+├── HARDWARE.md                 # Hardware configuration details
+```
 
 
