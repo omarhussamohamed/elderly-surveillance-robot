@@ -17,15 +17,21 @@
   - SCL → Jetson I2C SCL (Pin 5 on J21)
   - VCC → 3.3V, GND → GND
 -->
+
+<!-- Add at the top of imu_nav.launch -->
+<arg name="enable_i2c_debug" default="true" 
+     doc="Enable I2C debug messages" />
+
+ ##<arg name="enable_i2c_debug" default="true" 
+##doc="Enable I2C debug messages" />
 <launch>
   <!-- ========================================= -->
   <!-- MPU9250 Raw Data Node Parameters -->
   <!-- ========================================= -->
-  <arg name="frame_id" default="imu_link" />
-  <arg name="publish_rate" default="100" />  <!-- Hz - Higher rate for better fusion -->
-  <arg name="i2c_bus" default="1" />  <!-- I2C bus number (/dev/i2c-1) -->
-  <arg name="i2c_address" default="104" />  <!-- MPU9250 I2C address (0x68 = 104 decimal) -->
-  
+   <param name="frame_id" value="$(arg frame_id)" />
+  <param name="publish_rate" value="$(arg publish_rate)" />
+  <param name="i2c_bus" value="$(arg i2c_bus)" />
+  <param name="i2c_address" value="$(arg i2c_address)" />
   <!-- ========================================= -->
   <!-- Madgwick Filter Parameters -->
   <!-- ========================================= -->
@@ -51,7 +57,8 @@
     <!-- Topics published:
          - /imu/data_raw (sensor_msgs/Imu) - Raw accelerometer + gyroscope
          Note: Magnetometer DISABLED (use_mag=false, indoor EMI protection)
-    -->
+    --><param name="debug_i2c" value="$(arg enable_i2c_debug)" />
+</node>
   </node>
   
   <!-- ========================================= -->
