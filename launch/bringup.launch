@@ -94,8 +94,7 @@
         pkg="elderly_bot"
         type="i2c_diagnostic.py"
         output="screen"
-        if="$(arg enable_imu)"
-        unless="$(eval imu_source == 'esp32')">
+        if="$(eval arg('enable_imu') and arg('imu_source') != 'esp32')">
     <param name="i2c_bus" value="$(arg i2c_bus)" />
   </node>
   

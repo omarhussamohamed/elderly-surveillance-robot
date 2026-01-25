@@ -57,10 +57,10 @@
     <!-- Topics published:
          - /imu/data_raw (sensor_msgs/Imu) - Raw accelerometer + gyroscope
          Note: Magnetometer DISABLED (use_mag=false, indoor EMI protection)
-    --><param name="debug_i2c" value="$(arg enable_i2c_debug)" />
+    -->
+    <param name="debug_i2c" value="$(arg enable_i2c_debug)" />
 </node>
-  </node>
-  
+
   <!-- ========================================= -->
   <!-- 2. IMU Orientation Filter (Madgwick) -->
   <!-- ========================================= -->
