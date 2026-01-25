@@ -5,7 +5,6 @@ import rospy
 import math
 import sys
 from sensor_msgs.msg import Imu
-from std_msgs.msg import Header
 
 # Import handling
 try:

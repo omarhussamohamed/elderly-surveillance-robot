@@ -77,20 +77,83 @@ The Elderly Bot is a complete ROS 1 system designed for autonomous indoor monito
 ```
 elderly_bot/
 ├── config/                      # Configuration files
-├── launch/                      # Launch files
-├── scripts/                     # ROS nodes (Python)
-├── urdf/                        # Robot description
-├── rviz/                        # Visualization configs
-├── firmware/                    # ESP32 Arduino code
-├── aws_certs/                   # AWS IoT certificates (gitignored)
-├── maps/                        # Saved maps
-├── install_dependencies.sh      # Dependency installer
-├── CMakeLists.txt              # Catkin build config
-├── package.xml                 # ROS package manifest
-├── README.md                   # This file
-├── HARDWARE.md                 # Hardware configuration (authoritative)
-└── SYSTEM_OVERVIEW.md          # System architecture (authoritative)
+├── docs/                        # Documentation files
+├── firmware/                    # ESP32 firmware
+├── launch/                      # Launch files for ROS nodes
+├── maps/                        # Predefined maps for navigation
+├── rviz/                        # RViz visualization configurations
+├── scripts/                     # Python scripts (ROS nodes and utilities)
+├── urdf/                        # Robot description files (URDF)
+├── README.md                    # Project overview
+├── SYSTEM_OVERVIEW.md           # Detailed system architecture
+├── HARDWARE.md                  # Hardware configuration details
 ```
+
+---
+
+## How to Build & Run
+
+### Prerequisites
+- Ubuntu 18.04 (ARM64 for Jetson Nano)
+- ROS Melodic installed
+- Python 2.7 (default) and Python 3.8 (side-by-side)
+
+### Build Instructions
+1. Source ROS setup:
+   ```bash
+   source /opt/ros/melodic/setup.bash
+   ```
+2. Build the workspace:
+   ```bash
+   cd ~/catkin_ws
+   catkin_make
+   ```
+3. Source the workspace:
+   ```bash
+   source devel/setup.bash
+   ```
+
+### Run Instructions
+1. Start the ROS master:
+   ```bash
+   roscore
+   ```
+2. Launch the robot bringup:
+   ```bash
+   roslaunch elderly_bot bringup.launch enable_cloud:=true
+   ```
+3. Verify topics:
+   ```bash
+   rostopic list
+   ```
+
+---
+
+## Important Launch Files
+
+| Launch File          | Purpose                                      |
+|----------------------|----------------------------------------------|
+| `bringup.launch`     | Starts all core nodes for the robot          |
+| `navigation.launch`  | Enables autonomous navigation                |
+| `mapping.launch`     | Runs SLAM for map creation                   |
+| `imu_nav.launch`     | IMU and sensor fusion pipeline               |
+| `kvs_stream.launch`  | AWS KVS video streaming                      |
+
+---
+
+## Calibration & Tuning
+
+- **IMU Calibration**: Adjust parameters in `config/ekf.yaml`
+- **Lidar Settings**: Modify `config/amcl.yaml` for localization tuning
+- **Motor PID**: Update firmware constants in `firmware/elderly_bot_esp32_wifi.ino`
+
+---
+
+## Known Issues
+
+- **WiFi Disconnections**: Ensure strong signal for AWS IoT connectivity
+- **High CPU Usage**: Reduce camera resolution or frame rate in `config/livekit_config.yaml`
+- **IMU Noise**: Verify I2C connections and reduce vibrations
 
 ---
 

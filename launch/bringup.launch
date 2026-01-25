@@ -240,8 +240,6 @@
       <arg name="bitrate" value="2000" />
       <arg name="fragment_duration" value="8" />
       <arg name="storage_size" value="512" />
-      <arg name="retry_on_failure" value="true" />
-      <arg name="max_retries" value="10" />
     </include>
   </group>
   

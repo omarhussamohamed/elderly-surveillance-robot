@@ -1,41 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-AWS IoT Core Bridge Node
-
-Bridges local ROS topics with AWS IoT Core MQTT for cloud communication.
-Publishes telemetry and alerts, receives commands from cloud dashboard.
-
-Subscribed Topics:
-    /jetson_temperature (sensor_msgs/Temperature): Jetson temperature
-    /jetson_power (std_msgs/Float32): Jetson power consumption
-    /gas_detected (std_msgs/Bool): Gas detection status
-
-Published Topics:
-    /buzzer_command (std_msgs/UInt16): Buzzer frequency command
-
-MQTT Topics:
-    elderly_bot/telemetry (publish): Periodic sensor data
-    elderly_bot/alerts (publish): Event-driven notifications
-    elderly_bot/commands (subscribe): Commands from cloud
-
-Parameters:
-    ~enable_cloud (bool): Enable AWS connection (default: False)
-    ~aws_endpoint (str): AWS IoT endpoint URL
-    ~client_id (str): MQTT client ID (default: "robot_nano")
-    ~port (int): MQTT port (default: 8883)
-    ~root_ca_path (str): Root CA certificate path
-    ~cert_path (str): Device certificate path
-    ~key_path (str): Private key path
-    ~publish_rate (float): Telemetry publish rate Hz (default: 1.0)
-    ~keepalive_interval (int): MQTT keepalive seconds (default: 30)
-
-Dependencies:
-    - AWSIoTPythonSDK (pip install AWSIoTPythonSDK)
-
-Configuration:
-    See config/cloud_config.yaml for AWS IoT Core settings.
-    See aws_certs/README.md for certificate setup instructions.
+AWS IoT Core Bridge Node - ENHANCED VERSION
 """
 
 from __future__ import print_function
@@ -44,33 +10,32 @@ import json
 import threading
 import time
 import os
-from std_msgs.msg import Float32, Bool, UInt16
-from sensor_msgs.msg import Temperature
-from diagnostic_msgs.msg import DiagnosticStatus
+import sys
+from std_msgs.msg import Float32, Bool, UInt16, String
+from sensor_msgs.msg import Temperature, LaserScan, Odometry, Imu
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import OccupancyGrid
 
-# === AWS IoT SDK IMPORT (with graceful failure) ===
+# === AWS IoT SDK IMPORT ===
 AWS_AVAILABLE = False
 try:
     from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
     AWS_AVAILABLE = True
 except ImportError:
     AWSIoTMQTTClient = None
-    # Will log warning in __init__ when enable_cloud=True
+    rospy.logwarn("AWS IoT SDK not available. Install: pip install AWSIoTPythonSDK")
 
 class CloudBridgeNode(object):
-    """
-    Main bridge node connecting ROS topics to AWS IoT Core via MQTT.
-    """
     
     def __init__(self):
         rospy.init_node('cloud_bridge_node', anonymous=False)
         rospy.loginfo("=== Cloud Bridge Node Starting ===")
         
         # === PARAMETERS ===
-        self.enable_cloud = rospy.get_param('~enable_cloud', False)
+        self.enable_cloud = rospy.get_param('~enable_cloud', True)
         
         if not self.enable_cloud:
-            rospy.loginfo("Cloud bridge DISABLED by parameter. Set enable_cloud:=true to activate.")
+            rospy.loginfo("Cloud bridge DISABLED by parameter.")
             rospy.signal_shutdown("Cloud bridge disabled")
             return
         
@@ -79,7 +44,7 @@ class CloudBridgeNode(object):
         self.client_id = rospy.get_param('~client_id', 'robot_nano')
         self.port = rospy.get_param('~port', 8883)
         
-        # Certificate paths (absolute paths required)
+        # Certificate paths
         self.root_ca_path = rospy.get_param('~root_ca_path', '')
         self.cert_path = rospy.get_param('~cert_path', '')
         self.key_path = rospy.get_param('~key_path', '')
@@ -102,7 +67,9 @@ class CloudBridgeNode(object):
         self.latest_temperature = 0.0
         self.latest_power = 0.0
         self.latest_gas_detected = False
-        self.latest_jetson_stats = None
+        self.latest_scan = None
+        self.latest_odom = None
+        self.latest_imu = None
         self.data_lock = threading.Lock()
         
         # === VALIDATION ===
@@ -113,53 +80,61 @@ class CloudBridgeNode(object):
         
         # === INITIALIZE AWS CONNECTION ===
         if not self._init_aws_client():
-            rospy.logwarn("Cloud bridge DISABLED: AWS client initialization failed")
-            rospy.signal_shutdown("AWS initialization failed")
-            return
+            rospy.logerr("Failed to initialize AWS client. Will retry in background.")
+            # Don't shutdown - try to reconnect in background
         
-        # === ROS SUBSCRIBERS (Local → Cloud) ===
+        # === ROS SUBSCRIBERS ===
         rospy.Subscriber('/jetson_temperature', Temperature, self.temperature_callback, queue_size=10)
         rospy.Subscriber('/jetson_power', Float32, self.power_callback, queue_size=10)
         rospy.Subscriber('/gas_detected', Bool, self.gas_detected_callback, queue_size=10)
+        rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size=5)
+        rospy.Subscriber('/odom', Odometry, self.odom_callback, queue_size=5)
+        rospy.Subscriber('/imu/data', Imu, self.imu_callback, queue_size=5)
         
-        # === ROS PUBLISHERS (Cloud → Local) ===
+        # === ROS PUBLISHERS ===
         self.pub_buzzer = rospy.Publisher('/buzzer_command', UInt16, queue_size=1, latch=True)
+        self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         
         rospy.loginfo("=== Cloud Bridge Node Initialized ===")
         rospy.loginfo("AWS Endpoint: {}".format(self.aws_endpoint))
         rospy.loginfo("Client ID: {}".format(self.client_id))
-        rospy.loginfo("Cloud Connection: {}".format('ACTIVE' if self.cloud_connected else 'DISABLED'))
-        rospy.loginfo("Telemetry Topic: {}".format(self.mqtt_topic_telemetry))
-        rospy.loginfo("Alerts Topic: {}".format(self.mqtt_topic_alerts))
-        rospy.loginfo("Commands Topic: {}".format(self.mqtt_topic_commands))
         
-        # === SHUTDOWN HOOK ===
+        # === CONNECTION MONITOR THREAD ===
+        self.monitor_thread = threading.Thread(target=self.connection_monitor)
+        self.monitor_thread.daemon = True
+        self.monitor_thread.start()
+        
         rospy.on_shutdown(self.shutdown_hook)
     
     def _validate_config(self):
         """Validate all required configuration parameters."""
         if not AWS_AVAILABLE:
-            rospy.logerr("AWS IoT SDK not available. Install: pip install AWSIoTPythonSDK")
+            rospy.logerr("AWS IoT SDK not available.")
             return False
         
-        if not self.aws_endpoint:
-            rospy.logerr("AWS endpoint not configured. Set aws_endpoint parameter.")
-            return False
+        required = [
+            ('aws_endpoint', self.aws_endpoint),
+            ('root_ca_path', self.root_ca_path),
+            ('cert_path', self.cert_path),
+            ('key_path', self.key_path)
+        ]
         
-        if not self.root_ca_path or not self.cert_path or not self.key_path:
-            rospy.logerr("Certificate paths not configured.")
-            return False
+        for name, value in required:
+            if not value:
+                rospy.logerr("Parameter '{}' not configured.".format(name))
+                return False
         
         # Check if certificate files exist
-        if not os.path.isfile(self.root_ca_path):
-            rospy.logerr("Root CA not found: {}".format(self.root_ca_path))
-            return False
-        if not os.path.isfile(self.cert_path):
-            rospy.logerr("Device certificate not found: {}".format(self.cert_path))
-            return False
-        if not os.path.isfile(self.key_path):
-            rospy.logerr("Private key not found: {}".format(self.key_path))
-            return False
+        certs = [
+            (self.root_ca_path, "Root CA"),
+            (self.cert_path, "Device certificate"),
+            (self.key_path, "Private key")
+        ]
+        
+        for path, name in certs:
+            if not os.path.isfile(path):
+                rospy.logerr("{} not found: {}".format(name, path))
+                return False
         
         rospy.loginfo("Configuration validated")
         return True
@@ -167,7 +142,6 @@ class CloudBridgeNode(object):
     def _init_aws_client(self):
         """Initialize AWS IoT MQTT client with certificates."""
         try:
-            # Create MQTT client
             self.mqtt_client = AWSIoTMQTTClient(self.client_id)
             
             # Configure endpoint and port
@@ -182,23 +156,14 @@ class CloudBridgeNode(object):
             
             # Configure MQTT client settings
             self.mqtt_client.configureAutoReconnectBackoffTime(1, 32, 20)
-            self.mqtt_client.configureOfflinePublishQueueing(-1)  # Infinite queue
-            self.mqtt_client.configureDrainingFrequency(2)  # 2 Hz
-            self.mqtt_client.configureConnectDisconnectTimeout(30)  # 30 seconds
-            self.mqtt_client.configureMQTTOperationTimeout(10)  # 10 seconds
+            self.mqtt_client.configureOfflinePublishQueueing(-1)
+            self.mqtt_client.configureDrainingFrequency(2)
+            self.mqtt_client.configureConnectDisconnectTimeout(30)
+            self.mqtt_client.configureMQTTOperationTimeout(10)
             
             # Connect to AWS IoT Core
             rospy.loginfo("Connecting to AWS IoT Core...")
-            rospy.loginfo("  Endpoint: {}:{}".format(self.aws_endpoint, self.port))
-            rospy.loginfo("  Client ID: {}".format(self.client_id))
-            
-            try:
-                connect_result = self.mqtt_client.connect(self.keepalive_interval)
-            except Exception as e:
-                rospy.logerr("Connection exception: {}".format(e))
-                rospy.logerr("Check: Internet connection, endpoint URL, certificate paths")
-                rospy.logerr("Check: Port {} is not blocked by firewall".format(self.port))
-                return False
+            connect_result = self.mqtt_client.connect(self.keepalive_interval)
             
             if connect_result:
                 rospy.loginfo("Connected to AWS IoT Core")
@@ -212,72 +177,129 @@ class CloudBridgeNode(object):
             else:
                 rospy.logerr("Failed to connect to AWS IoT Core")
                 return False
-            
+                
         except Exception as e:
-            rospy.logerr("Failed to initialize AWS client: {}".format(e))
-            rospy.logerr("Check: Internet connection, endpoint URL, certificate paths")
+            rospy.logerr("AWS client init error: {}".format(e))
             return False
     
-    # === ROS CALLBACKS (Local → Cloud) ===
+    def connection_monitor(self):
+        """Background thread to monitor and maintain connection."""
+        while not rospy.is_shutdown():
+            if not self.cloud_connected and self.enable_cloud:
+                rospy.logwarn("Attempting to reconnect to AWS IoT...")
+                time.sleep(5)  # Wait before retry
+                self._init_aws_client()
+            time.sleep(10)
+    
+    # === ROS CALLBACKS ===
     
     def temperature_callback(self, msg):
-        """Cache temperature data for telemetry."""
         with self.data_lock:
             self.latest_temperature = msg.temperature
     
     def power_callback(self, msg):
-        """Cache power data for telemetry."""
         with self.data_lock:
             self.latest_power = msg.data
     
     def gas_detected_callback(self, msg):
-        """Handle gas detection and publish alert to cloud."""
         with self.data_lock:
             self.latest_gas_detected = msg.data
         
-        # Publish alert immediately when gas is detected
         if msg.data:
             self.publish_alert("gas_detected", True)
     
-    # === MQTT CALLBACK (Cloud → Local) ===
+    def scan_callback(self, msg):
+        """Extract minimal scan data for telemetry."""
+        with self.data_lock:
+            if len(msg.ranges) > 0:
+                # Store just min, max, and avg for telemetry
+                valid_ranges = [r for r in msg.ranges if r > msg.range_min and r < msg.range_max]
+                if valid_ranges:
+                    self.latest_scan = {
+                        'min': min(valid_ranges),
+                        'max': max(valid_ranges),
+                        'avg': sum(valid_ranges) / len(valid_ranges),
+                        'count': len(valid_ranges)
+                    }
+    
+    def odom_callback(self, msg):
+        with self.data_lock:
+            self.latest_odom = {
+                'x': msg.pose.pose.position.x,
+                'y': msg.pose.pose.position.y,
+                'z': msg.pose.pose.position.z,
+                'orientation': {
+                    'x': msg.pose.pose.orientation.x,
+                    'y': msg.pose.pose.orientation.y,
+                    'z': msg.pose.pose.orientation.z,
+                    'w': msg.pose.pose.orientation.w
+                }
+            }
+    
+    def imu_callback(self, msg):
+        with self.data_lock:
+            self.latest_imu = {
+                'linear_acceleration': {
+                    'x': msg.linear_acceleration.x,
+                    'y': msg.linear_acceleration.y,
+                    'z': msg.linear_acceleration.z
+                },
+                'angular_velocity': {
+                    'x': msg.angular_velocity.x,
+                    'y': msg.angular_velocity.y,
+                    'z': msg.angular_velocity.z
+                }
+            }
+    
+    # === MQTT CALLBACK ===
     
     def mqtt_command_callback(self, client, userdata, message):
-        """
-        Handle incoming MQTT messages from AWS IoT Core.
-        Expected JSON format:
-        {
-            "command": "buzzer",
-            "value": 1000 (frequency in Hz) or 0 (off)
-        }
-        """
+        """Handle incoming MQTT commands from AWS IoT Core."""
         try:
             payload = json.loads(message.payload.decode('utf-8'))
             command = payload.get('command', '')
             value = payload.get('value')
             
-            rospy.loginfo("Received cloud command: {} = {}".format(command, value))
+            rospy.loginfo("Cloud command: {} = {}".format(command, value))
             
             if command == 'buzzer':
-                # Buzzer control command (UInt16 frequency)
+                # Buzzer control
                 buzzer_freq = int(value) if value is not None else 0
                 self.pub_buzzer.publish(UInt16(buzzer_freq))
-                rospy.loginfo("Buzzer command sent: {} Hz".format(buzzer_freq))
+                rospy.loginfo("Buzzer: {} Hz".format(buzzer_freq))
+                
+            elif command == 'move':
+                # Velocity command
+                if isinstance(value, dict):
+                    twist = Twist()
+                    twist.linear.x = value.get('linear_x', 0.0)
+                    twist.angular.z = value.get('angular_z', 0.0)
+                    self.pub_cmd_vel.publish(twist)
+                    rospy.loginfo("Move: linear={}, angular={}".format(
+                        twist.linear.x, twist.angular.z))
+                
+            elif command == 'stop':
+                # Emergency stop
+                twist = Twist()
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                self.pub_cmd_vel.publish(twist)
+                rospy.loginfo("Emergency stop")
+                
+            elif command == 'status':
+                # Request status - publish immediate telemetry
+                self.publish_telemetry()
                 
             else:
                 rospy.logwarn("Unknown command: {}".format(command))
                 
-        except (ValueError, TypeError) as e:
-            rospy.logerr("Failed to parse MQTT message: {}".format(e))
         except Exception as e:
-            rospy.logerr("Error handling MQTT command: {}".format(e))
+            rospy.logerr("Error parsing MQTT command: {}".format(e))
     
     # === CLOUD PUBLISHING ===
     
     def publish_telemetry(self):
-        """
-        Publish Jetson telemetry data to AWS IoT Core.
-        Topic: elderly_bot/telemetry
-        """
+        """Publish telemetry data to AWS IoT Core."""
         if not self.cloud_connected:
             return
         
@@ -289,23 +311,23 @@ class CloudBridgeNode(object):
                     'telemetry': {
                         'temperature': self.latest_temperature,
                         'power': self.latest_power,
-                        'gas_detected': self.latest_gas_detected
+                        'gas_detected': self.latest_gas_detected,
+                        'scan': self.latest_scan,
+                        'odom': self.latest_odom,
+                        'imu': self.latest_imu
                     }
                 }
             
             json_payload = json.dumps(payload)
             self.mqtt_client.publish(self.mqtt_topic_telemetry, json_payload, 1)
             
-            rospy.logdebug("Published telemetry: {}".format(json_payload))
+            rospy.logdebug("Published telemetry")
             
         except Exception as e:
-            rospy.logwarn_throttle(10, "Failed to publish telemetry: {}".format(e))
+            rospy.logwarn("Failed to publish telemetry: {}".format(e))
     
     def publish_alert(self, alert_type, value):
-        """
-        Publish alert to AWS IoT Core.
-        Topic: elderly_bot/alerts
-        """
+        """Publish alert to AWS IoT Core."""
         if not self.cloud_connected:
             return
         
@@ -320,24 +342,23 @@ class CloudBridgeNode(object):
             json_payload = json.dumps(payload)
             self.mqtt_client.publish(self.mqtt_topic_alerts, json_payload, 1)
             
-            rospy.loginfo("Published alert: {}".format(json_payload))
+            rospy.loginfo("Alert: {} = {}".format(alert_type, value))
             
         except Exception as e:
             rospy.logerr("Failed to publish alert: {}".format(e))
     
     def run(self):
         """Main loop: periodically publish telemetry to cloud."""
-        if not self.enable_cloud or not self.cloud_connected:
-            rospy.logwarn("Cloud not connected, exiting node")
+        if not self.enable_cloud:
+            rospy.logwarn("Cloud not enabled, exiting node")
             return
         
-        rospy.loginfo("Cloud Bridge Main loop starting at {} Hz".format(self.publish_rate))
+        rospy.loginfo("Cloud Bridge running at {} Hz".format(self.publish_rate))
         
-        # Create a timer instead of using rate.sleep() in a loop
-        # This is more robust for ROS nodes
-        timer = rospy.Timer(rospy.Duration(1.0/self.publish_rate), self.timer_callback)
+        # Create a timer for periodic telemetry
+        rospy.Timer(rospy.Duration(1.0/self.publish_rate), self.timer_callback)
         rospy.spin()
-
+    
     def timer_callback(self, event):
         """Timer callback for periodic telemetry publishing."""
         if self.cloud_connected:
@@ -347,8 +368,8 @@ class CloudBridgeNode(object):
                 rospy.logerr("Error publishing telemetry: {}".format(e))
     
     def shutdown_hook(self):
-        """Clean shutdown: disconnect from AWS IoT Core."""
-        rospy.loginfo("=== Shutting down Cloud Bridge Node ===")
+        """Clean shutdown."""
+        rospy.loginfo("=== Shutting down Cloud Bridge ===")
         
         if self.cloud_connected and self.mqtt_client:
             try:
@@ -356,19 +377,13 @@ class CloudBridgeNode(object):
                 rospy.loginfo("Disconnected from AWS IoT Core")
             except Exception as e:
                 rospy.logwarn("Error during disconnect: {}".format(e))
-        
-        rospy.loginfo("Shutdown complete")
 
 
 if __name__ == '__main__':
     try:
         node = CloudBridgeNode()
-        # Only run if cloud is enabled AND connected
-        if node.enable_cloud and node.cloud_connected:
-            node.run()
-        else:
-            rospy.logwarn("Cloud bridge disabled or failed to connect")
+        node.run()
     except rospy.ROSInterruptException:
         pass
     except Exception as e:
-        rospy.logerr("Fatal error in cloud_bridge_node: {}".format(e))
+        rospy.logerr("Fatal error: {}".format(e))

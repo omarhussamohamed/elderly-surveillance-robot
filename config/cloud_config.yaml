@@ -1,8 +1,6 @@
 # AWS IoT Core Bridge Configuration
 # STANDARDIZED FOR robot_nano
-# Last Updated: January 24, 2026
 
-# Enable/disable cloud connectivity
 enable_cloud: true
 
 # AWS IoT Core Configuration
@@ -10,11 +8,10 @@ aws_endpoint: "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
 client_id: "robot_nano"
 port: 8883
 
-# Certificate paths (ABSOLUTE PATHS REQUIRED)
-# IMPORTANT: These must exist on your Jetson
-root_ca_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
-cert_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
-key_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
+# Certificate paths - UPDATE THESE TO MATCH YOUR ACTUAL PATHS
+root_ca_path: "/home/omar/aws_certs/AmazonRootCA1.pem"
+cert_path: "/home/omar/aws_certs/certificate.pem.crt"
+key_path: "/home/omar/aws_certs/private.pem.key"
 
 # MQTT Topics
 mqtt_topic_telemetry: "elderly_bot/telemetry"
@@ -22,5 +19,5 @@ mqtt_topic_alerts: "elderly_bot/alerts"
 mqtt_topic_commands: "elderly_bot/commands"
 
 # Publishing Settings
-publish_rate: 1.0  # Hz
+publish_rate: 2.0  # Hz
 keepalive_interval: 30  # seconds

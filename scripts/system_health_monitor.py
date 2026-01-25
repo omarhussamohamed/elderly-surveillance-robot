@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 import rospy
 import rosnode
-import time
 
 class SystemHealthMonitor:
     def __init__(self):

@@ -40,7 +40,7 @@ import actionlib
 import yaml
 import sys
 import os
-from geometry_msgs.msg import PoseStamped, Quaternion
+from geometry_msgs.msg import Quaternion
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 from tf.transformations import quaternion_from_euler

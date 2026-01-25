@@ -1,54 +1,58 @@
 #!/usr/bin/env python2
 import rospy
-from std_msgs.msg import Float32, Bool
-from sensor_msgs.msg import Temperature
+import json
+import paho.mqtt.client as mqtt
+from std_msgs.msg import String
+from geometry_msgs.msg import Twist
 
-def test_cloud_bridge():
-    rospy.init_node('test_cloud_publisher')
-    
-    # Create publishers to simulate sensor data
-    temp_pub = rospy.Publisher('/jetson_temperature', Temperature, queue_size=10)
-    power_pub = rospy.Publisher('/jetson_power', Float32, queue_size=10)
-    gas_pub = rospy.Publisher('/gas_detected', Bool, queue_size=10)
-    
-    rate = rospy.Rate(1)  # 1 Hz
-    
-    temp = 45.0
-    power = 12.5
-    
-    rospy.loginfo("Publishing test sensor data for Cloud Bridge...")
-    
-    while not rospy.is_shutdown():
-        # Create temperature message
-        temp_msg = Temperature()
-        temp_msg.temperature = temp
-        temp_msg.header.stamp = rospy.Time.now()
-        temp_pub.publish(temp_msg)
+class CloudTestPublisher:
+    def __init__(self):
+        rospy.init_node('cloud_test_publisher')
         
-        # Create power message
-        power_msg = Float32()
-        power_msg.data = power
-        power_pub.publish(power_msg)
+        # Create test publisher
+        self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         
-        # Simulate gas detection every 10 seconds
-        if rospy.get_time() % 10 < 1:
-            gas_msg = Bool()
-            gas_msg.data = True
-            gas_pub.publish(gas_msg)
-            rospy.loginfo("Gas detected simulation")
-        else:
-            gas_msg = Bool()
-            gas_msg.data = False
-            gas_pub.publish(gas_msg)
+        # Connect to AWS IoT MQTT
+        self.mqtt_client = mqtt.Client(client_id="cloud_test")
+        self.mqtt_client.on_connect = self.on_mqtt_connect
+        self.mqtt_client.on_message = self.on_mqtt_message
         
-        # Increment values for visibility
-        temp += 0.1
-        power += 0.01
+        # Connect (remove for actual AWS IoT - this is for testing)
+        # self.mqtt_client.connect("localhost", 1883, 60)
+        # self.mqtt_client.loop_start()
         
-        rate.sleep()
+        rospy.loginfo("Cloud Test Publisher ready")
+        
+        # Publish test command
+        rospy.Timer(rospy.Duration(5), self.publish_test_command)
+        
+    def on_mqtt_connect(self, client, userdata, flags, rc):
+        rospy.loginfo("MQTT Connected with result code " + str(rc))
+        client.subscribe("elderly_bot/commands")
+        
+    def on_mqtt_message(self, client, userdata, msg):
+        rospy.loginfo("MQTT Message: {} = {}".format(msg.topic, msg.payload))
+        
+    def publish_test_command(self, event):
+        # Create a simple movement command
+        twist = Twist()
+        twist.linear.x = 0.1
+        twist.angular.z = 0.0
+        self.cmd_pub.publish(twist)
+        rospy.loginfo("Published test command: linear.x=0.1")
+        
+        # Also simulate telemetry
+        telemetry = {
+            'robot_id': 'robot_nano',
+            'temperature': 45.5,
+            'battery': 12.3,
+            'status': 'active'
+        }
+        # self.mqtt_client.publish("elderly_bot/telemetry", json.dumps(telemetry))
+        
+    def run(self):
+        rospy.spin()
 
 if __name__ == '__main__':
-    try:
-        test_cloud_bridge()
-    except rospy.ROSInterruptException:
-        pass
+    node = CloudTestPublisher()
+    node.run()

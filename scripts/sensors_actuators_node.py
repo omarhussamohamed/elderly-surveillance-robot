@@ -40,7 +40,6 @@ import time
 import threading
 import subprocess
 import os
-import warnings
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
 
