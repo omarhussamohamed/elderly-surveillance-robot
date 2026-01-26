@@ -67,6 +67,7 @@ class CloudBridgeNode:
             self.gas_detected = False
             self.connection_status = "disconnected"
             self.last_telemetry_time = 0
+            self.last_log_time = 0
             self.telemetry_count = 0
             self.telemetry_timer = None
             
@@ -298,10 +299,6 @@ class CloudBridgeNode:
             if hasattr(self, 'mqtt') and self.mqtt and self.connection_status == "connected":
                 current_time = time.time()
                 
-                # Throttle logging
-                if not immediate and (current_time - self.last_telemetry_time < 30):
-                    return
-                
                 data = {
                     'timestamp': current_time,
                     'temperature': round(self.temperature, 1),
@@ -314,10 +311,12 @@ class CloudBridgeNode:
                 self.telemetry_count += 1
                 self.last_telemetry_time = current_time
                 
-                if self.telemetry_count % 10 == 0 or immediate:  # Log every 10th telemetry
+                # Log every 30 seconds to avoid noise
+                if current_time - self.last_log_time >= 30 or immediate:
                     rospy.loginfo("📡 TELEMETRY SENT #%d: %.1f°C, Gas: %s", 
-                                self.telemetry_count, self.temperature, 
-                                self.gas_detected)
+                                  self.telemetry_count, self.temperature, 
+                                  self.gas_detected)
+                    self.last_log_time = current_time
                 
         except Exception as e:
             rospy.logwarn("Telemetry error: %s", str(e))
