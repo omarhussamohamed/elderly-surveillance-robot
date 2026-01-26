@@ -135,11 +135,11 @@ class SensorsActuatorsNode:
                 while not self.buzzer_stop_event.is_set() and not rospy.is_shutdown():
                     if self.gpio_available:
                         self.GPIO.output(self.buzzer_pin, self.GPIO.HIGH)
-                    time.sleep(0.5)  # ON for 0.5 seconds
+                    time.sleep(0.25)  # ON for 0.5 seconds
                     
                     if self.gpio_available:
                         self.GPIO.output(self.buzzer_pin, self.GPIO.LOW)
-                    time.sleep(0.5)  # OFF for 0.5 seconds
+                    time.sleep(0.25)  # OFF for 0.5 seconds
                     
             except Exception as e:
                 rospy.logwarn("Buzzer thread error: %s", str(e))
@@ -264,10 +264,9 @@ class SensorsActuatorsNode:
             power = self.update_power_if_needed()
             self.power_pub.publish(Float32(data=power))
             
-            # Log stats more frequently (every 10 seconds)
-            if int(time.time()) % 10 == 0:  # Every 10 seconds
-                rospy.loginfo("Stats: %.1f°C, %.1fW, Gas: %s", 
-                            temp_msg.temperature, power, self.gas_detected)
+            # Log stats instantly (every iteration, ~0.5s)
+            rospy.loginfo("Stats: %.1f°C, %.1fW, Gas: %s", 
+                          temp_msg.temperature, power, self.gas_detected)
     
     def run(self):
         """Main loop."""

@@ -170,6 +170,8 @@
   </group>
   
   <!-- ========== SYSTEM HEALTH MONITOR ========== -->
+  <!-- Commented out to silence logs as per user request -->
+  <!--
   <node name="system_health_monitor"
         pkg="elderly_bot"
         type="system_health_monitor.py"
@@ -182,5 +184,6 @@
     <param name="critical_nodes" value="rplidar_node,esp32_serial_node" />
     <param name="optional_nodes" value="mpu9250_node,cloud_bridge_node,sensors_actuators_node" />
   </node>
+  -->
   
 </launch>
