@@ -1,0 +1,19 @@
+# Diagnostics configuration for Elderly Bot
+pub_rate: 1.0
+base_path: ''
+
+analyzers:
+  sensors:
+    type: diagnostic_aggregator/GenericAnalyzer
+    path: Sensors
+    contains: ['imu', 'lidar', 'jetson']
+  
+  network:
+    type: diagnostic_aggregator/GenericAnalyzer
+    path: Network
+    contains: ['wifi', 'cloud']
+  
+  hardware:
+    type: diagnostic_aggregator/GenericAnalyzer
+    path: Hardware
+    contains: ['cpu', 'gpu', 'memory', 'temperature']
