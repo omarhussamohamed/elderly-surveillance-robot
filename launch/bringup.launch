@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <!--
-  Elderly Bot Bringup Launch File - FIXED VERSION
+  Elderly Bot Bringup Launch File - OPTIMIZED STARTUP ORDER
+  Fixed: Node startup timing, Reduced warnings
 -->
 <launch>
   <!-- ========== PARAMETERS ========== -->
@@ -19,7 +20,7 @@
   <arg name="i2c_bus" default="1" />
   <arg name="i2c_address" default="0x68" />
   
-  <!-- Camera and KVS streaming - DISABLED BY DEFAULT -->
+  <!-- Camera and KVS streaming -->
   <arg name="enable_camera" default="false" />
   <arg name="kvs_silent" default="true" />
   <arg name="camera_device" default="/dev/video0" />
@@ -36,13 +37,14 @@
     <param name="publish_frequency" value="50.0" />
   </node>
   
-  <!-- ========== ROSSERIAL NODE (ESP32 WiFi) ========== -->
+  <!-- ========== ESP32 ROSSERIAL (WiFi) ========== -->
   <node name="esp32_serial_node"
         pkg="rosserial_python"
         type="serial_node.py"
         output="screen"
         respawn="true"
         respawn_delay="5"
+        launch-prefix="bash -c 'sleep 3.0; $0 $@'"
         args="tcp $(arg esp32_port)">
     <param name="tcp_nodelay" value="1" />
     <param name="baud" value="115200" />
@@ -55,7 +57,7 @@
         output="screen"
         respawn="true"
         respawn_delay="10"
-        required="false">
+        launch-prefix="bash -c 'sleep 5.0; $0 $@'">
     <param name="serial_port" type="string" value="$(arg lidar_port)" />
     <param name="serial_baudrate" type="int" value="$(arg lidar_baud)" />
     <param name="frame_id" value="laser" />
@@ -73,7 +75,8 @@
             type="mpu9250_node.py"
             output="screen"
             respawn="true"
-            respawn_delay="5">
+            respawn_delay="5"
+            launch-prefix="bash -c 'sleep 2.0; $0 $@'">
         <param name="frame_id" value="imu_link" />
         <param name="publish_rate" value="100" />
         <param name="i2c_bus" value="$(arg i2c_bus)" />
@@ -87,7 +90,8 @@
             type="imu_filter_node"
             output="screen"
             respawn="true"
-            respawn_delay="5">
+            respawn_delay="5"
+            launch-prefix="bash -c 'sleep 4.0; $0 $@'">
         <remap from="/imu/data_raw" to="/imu/data_raw" />
         <remap from="/imu/data" to="/imu/data" />
         <param name="use_mag" value="false" />
@@ -115,7 +119,7 @@
         output="screen"
         respawn="true"
         respawn_delay="5"
-        clear_params="true">
+        launch-prefix="bash -c 'sleep 6.0; $0 $@'">
     <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
   </node>
   
@@ -128,7 +132,8 @@
           type="sensors_actuators_node.py"
           output="screen"
           respawn="true"
-          respawn_delay="5">
+          respawn_delay="5"
+          launch-prefix="bash -c 'sleep 1.0; $0 $@'">
       <rosparam command="load" file="$(find elderly_bot)/config/sensors_actuators.yaml" />
     </node>
   </group>
@@ -142,7 +147,8 @@
           type="cloud_bridge_node.py"
           output="screen"
           respawn="true"
-          respawn_delay="10">
+          respawn_delay="10"
+          launch-prefix="bash -c 'sleep 7.0; $0 $@'">
       <rosparam command="load" file="$(find elderly_bot)/config/cloud_config.yaml" />
     </node>
   </group>
@@ -163,14 +169,16 @@
     </include>
   </group>
   
-  <!-- ========== SYSTEM HEALTH MONITOR (FIXED) ========== -->
+  <!-- ========== SYSTEM HEALTH MONITOR ========== -->
   <node name="system_health_monitor"
         pkg="elderly_bot"
         type="system_health_monitor.py"
         output="screen"
         respawn="true"
-        respawn_delay="10">
-    <param name="check_interval" value="5" />
+        respawn_delay="15"
+        launch-prefix="bash -c 'sleep 15.0; $0 $@'">
+    <param name="check_interval" value="10" />
+    <param name="startup_delay" value="30" />
     <param name="critical_nodes" value="rplidar_node,esp32_serial_node" />
     <param name="optional_nodes" value="mpu9250_node,cloud_bridge_node,sensors_actuators_node" />
   </node>
