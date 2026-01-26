@@ -273,7 +273,7 @@ class CloudBridgeNode:
                 rospy.logwarn("⚠️ UNKNOWN COMMAND: %s", cmd)
                 rospy.loginfo("Valid commands: buzzer, sleep, restart, test, status")
             
-        except json.JSONDecodeError as e:
+        except ValueError as e:  # Use ValueError for Python 2 JSON decode errors
             rospy.logerr("❌ JSON decode error: %s", str(e))
             rospy.logerr("Raw payload: %s", msg.payload)
         except Exception as e:
