@@ -107,6 +107,7 @@ class CloudBridgeNode:
             cmd = data.get('command', '').lower()
             value = data.get('value', '')
             
+
             if cmd == 'buzzer':
                 # Convert to boolean (True/False)
                 if isinstance(value, bool):
@@ -118,6 +119,9 @@ class CloudBridgeNode:
                     buzzer_state = lower_val in ['true', 'on', '1', 'yes', 'high']
                 else:
                     buzzer_state = False
+                
+                # DEBUG: Log what we received
+                rospy.loginfo("AWS Command: buzzer=%s (raw: %s)", buzzer_state, value)
                 
                 # Publish Bool message (True=ON, False=OFF)
                 msg_bool = Bool()

@@ -1,9 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - SIMPLIFIED WORKING VERSION
-ONLY publishes: gas_detected, jetson_temperature, jetson_power
-ONLY subscribes: /buzzer_command
+Sensors and Actuators Node - WORKING VERSION
 """
 
 import rospy
@@ -11,6 +9,7 @@ import time
 import threading
 import subprocess
 import os
+import re
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
 
@@ -26,15 +25,6 @@ try:
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO = None
-    rospy.logwarn("Jetson.GPIO not available. Install: sudo pip install Jetson.GPIO")
-
-JTOP_AVAILABLE = False
-try:
-    from jtop import jtop
-    JTOP_AVAILABLE = True
-except ImportError:
-    jtop = None
-    rospy.logwarn("jtop not available. Install: sudo -H pip install jetson-stats")
 
 class SensorsActuatorsNode:
     """ROS node for gas sensor, buzzer, and Jetson monitoring."""
@@ -49,8 +39,8 @@ class SensorsActuatorsNode:
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
         # GPIO pins
-        self.gas_sensor_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)  # BOARD pin 18
-        self.buzzer_pin = rospy.get_param('~buzzer_pin', 16)  # BOARD pin 16
+        self.gas_sensor_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
+        self.buzzer_pin = rospy.get_param('~buzzer_pin', 16)
         
         # Polarity configuration
         self.gas_polarity = rospy.get_param('~gas_polarity', 'active_low')
@@ -67,13 +57,9 @@ class SensorsActuatorsNode:
         
         # Initialize hardware
         self.gpio_initialized = False
-        self.jtop_handle = None
         
         if self.enable_gas_sensor or self.enable_buzzer:
             self._init_gpio()
-        
-        if self.enable_jetson_stats:
-            self._init_jetson_stats()
         
         # ROS Publishers
         self.gas_pub = rospy.Publisher('/gas_detected', Bool, queue_size=1)
@@ -101,12 +87,12 @@ class SensorsActuatorsNode:
             # Gas sensor pin (input)
             if self.enable_gas_sensor:
                 GPIO.setup(self.gas_sensor_pin, GPIO.IN)
-                rospy.loginfo("Gas sensor on pin %d (active_low)", self.gas_sensor_pin)
+                rospy.loginfo("Gas sensor on pin %d", self.gas_sensor_pin)
             
             # Buzzer pin (output)
             if self.enable_buzzer:
                 GPIO.setup(self.buzzer_pin, GPIO.OUT)
-                GPIO.output(self.buzzer_pin, GPIO.LOW)  # Start with buzzer OFF
+                GPIO.output(self.buzzer_pin, GPIO.LOW)
                 rospy.loginfo("Buzzer on pin %d", self.buzzer_pin)
             
             self.gpio_initialized = True
@@ -115,77 +101,73 @@ class SensorsActuatorsNode:
             rospy.logerr("GPIO init failed: %s", str(e))
             self.gpio_initialized = False
     
-    def _init_jetson_stats(self):
-        """Initialize Jetson stats monitoring."""
-        if not JTOP_AVAILABLE:
-            rospy.logwarn("jtop not available - stats disabled")
-            return
+    def read_jetson_stats(self):
+        """Read Jetson temperature and power using multiple methods."""
+        temp = 0.0
+        power = 0.0
         
+        # Method 1: Use tegrastats (most reliable on Jetson)
         try:
-            self.jtop_handle = jtop()
-            self.jtop_handle.start()
-            time.sleep(0.5)  # Let jtop initialize
+            # Run tegrastats once
+            result = subprocess.check_output(['tegrastats', '--interval', '1000', '--count', '1'], 
+                                           stderr=subprocess.STDOUT)
+            output = result.decode('utf-8')
             
-            if self.jtop_handle.ok():
-                rospy.loginfo("✅ Jetson stats ready")
-            else:
-                rospy.logwarn("jtop initialized but not ready")
-                self.jtop_handle = None
+            # Parse temperature (look for patterns like CPU@37.5C or thermal@36.7C)
+            temp_patterns = [
+                r'CPU@(\d+\.?\d*)C',
+                r'thermal@(\d+\.?\d*)C',
+                r'GPU@(\d+\.?\d*)C',
+                r'AO@(\d+\.?\d*)C'
+            ]
+            
+            for pattern in temp_patterns:
+                match = re.search(pattern, output)
+                if match:
+                    temp = float(match.group(1))
+                    break
+            
+            # Parse power (look for VDD_IN pattern: VDD_IN 1183/1183)
+            power_match = re.search(r'VDD_IN\s+(\d+)/\d+', output)
+            if power_match:
+                # Current in mA, voltage is typically 5V on Jetson
+                current_ma = int(power_match.group(1))
+                power = (current_ma / 1000.0) * 5.0  # Convert to watts
+            
+            if temp > 0 or power > 0:
+                rospy.logdebug("Tegrastats: %.1f°C, %.2fW", temp, power)
                 
         except Exception as e:
-            rospy.logerr("jtop init failed: %s", str(e))
-            self.jtop_handle = None
-    
-    def read_jetson_stats(self):
-        """Read temperature and power from jtop."""
-        if not self.jtop_handle or not self.jtop_handle.ok():
-            return (0.0, 0.0)
+            rospy.logwarn_throttle(60, "Tegrastats error: %s", str(e))
         
-        try:
-            # Get stats
-            stats = self.jtop_handle.stats
-            
-            # Extract temperature (try multiple keys)
-            temp = 0.0
-            if 'temperature' in stats:
-                temp_data = stats['temperature']
-                if isinstance(temp_data, dict):
-                    # Try to get CPU temperature
-                    if 'CPU' in temp_data:
-                        cpu_temp = temp_data['CPU']
-                        if isinstance(cpu_temp, dict):
-                            temp = cpu_temp.get('temp', 0.0)
-                        else:
-                            temp = float(cpu_temp)
-                    # Fallback: get first numeric value
-                    else:
-                        for key, value in temp_data.items():
-                            try:
-                                temp = float(value)
-                                break
-                            except:
-                                pass
-            
-            # Extract power (try multiple keys)
-            power = 0.0
-            if 'power' in stats:
-                power_data = stats['power']
-                if isinstance(power_data, dict):
-                    # Try common power keys
-                    for key in ['tot', 'total', 'cur', 'power']:
-                        if key in power_data:
-                            val = power_data[key]
-                            if isinstance(val, dict):
-                                power = val.get('power', val.get('val', 0.0))
-                            else:
-                                power = float(val)
+        # Method 2: Fallback to sysfs if tegrastats fails
+        if temp == 0.0:
+            try:
+                # Read from thermal zone 0
+                with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+                    temp_raw = f.read().strip()
+                    temp = float(temp_raw) / 1000.0
+            except:
+                pass
+        
+        if power == 0.0:
+            try:
+                # Try common power sensor paths
+                power_paths = [
+                    '/sys/bus/i2c/drivers/ina3221x/6-0040/iio:device0/in_power0_input',
+                    '/sys/bus/i2c/drivers/ina3221/6-0040/iio:device0/in_power0_input',
+                ]
+                
+                for path in power_paths:
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            power_raw = f.read().strip()
+                            power = float(power_raw) / 1000000.0
                             break
-            
-            return (temp, power)
-            
-        except Exception as e:
-            rospy.logwarn_throttle(30, "Stats read error: %s", str(e))
-            return (0.0, 0.0)
+            except:
+                pass
+        
+        return (temp, power)
     
     def read_gas_sensor(self):
         """Read gas sensor state."""
@@ -193,7 +175,6 @@ class SensorsActuatorsNode:
             return False
         
         try:
-            # Read GPIO pin
             state = GPIO.input(self.gas_sensor_pin)
             
             # Convert based on polarity
@@ -301,6 +282,10 @@ class SensorsActuatorsNode:
             
             # Publish power
             self.power_pub.publish(Float32(data=power))
+            
+            # Log only if we have valid readings
+            if temp > 0:
+                rospy.loginfo_throttle(30, "📊 Jetson: %.1f°C, %.1fW", temp, power)
     
     def run(self):
         """Main loop."""
@@ -316,13 +301,6 @@ class SensorsActuatorsNode:
         
         # Stop buzzer
         self.stop_buzzer()
-        
-        # Close jtop
-        if self.jtop_handle:
-            try:
-                self.jtop_handle.close()
-            except:
-                pass
         
         # Cleanup GPIO
         if self.gpio_initialized:
