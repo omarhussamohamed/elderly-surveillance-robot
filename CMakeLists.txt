@@ -75,25 +75,25 @@ include_directories(
 
 # Mark Python scripts as executable and install
 install(PROGRAMS
-  scripts/patrol_client.py
-  scripts/mpu9250_node.py
-  scripts/sensors_actuators_node.py
-  scripts/cloud_bridge_node.py
+  scripts/nodes/patrol_client.py
+  scripts/nodes/mpu9250_node.py
+  scripts/nodes/sensors_actuators_node.py
+  scripts/nodes/cloud_bridge_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 # Also setup for devel space (catkin_make copies here by default)
 catkin_install_python(PROGRAMS
-  scripts/patrol_client.py
-  scripts/mpu9250_node.py
-  scripts/sensors_actuators_node.py
-  scripts/cloud_bridge_node.py
+  scripts/nodes/patrol_client.py
+  scripts/nodes/mpu9250_node.py
+  scripts/nodes/sensors_actuators_node.py
+  scripts/nodes/cloud_bridge_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 # Install launch files
 install(DIRECTORY launch/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
   FILES_MATCHING PATTERN "*.launch"
 )
 

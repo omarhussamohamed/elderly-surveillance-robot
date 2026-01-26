@@ -41,7 +41,7 @@
  // ==================== WiFi AND ROS IP CONFIGURATION ====================
  // Wi-Fi credentials and ROS IP are configured via WiFiManager captive portal
  // and persisted using Preferences.h
- const uint16_t serverPort = 11411;
+ const uint16_t SERVER_PORT = 11411;
  IPAddress jetson_ip;  // Will be loaded from Preferences
  bool ros_ip_valid = false;  // Track if we have a valid Jetson IP
  // Global WiFiManager parameter (must persist beyond setup)
@@ -69,7 +69,7 @@
  // ==================== GLOBALS ====================
  WiFiClient client;
  // Note: ros_wifi_hw initialized with placeholder IP, will be configured in setup()
- RosWiFiHardware ros_wifi_hw(&client, IPAddress(0, 0, 0, 0), serverPort);
+ RosWiFiHardware ros_wifi_hw(&client, IPAddress(0, 0, 0, 0), SERVER_PORT);
  ros::NodeHandle_<RosWiFiHardware, 25, 25, ROS_SERIAL_BUFFER_SIZE, ROS_SERIAL_BUFFER_SIZE> nh;
  // Ground truth encoder counters - EXACT from motor_and_encoder_HW_test.ino
  volatile long counts[4] = {0, 0, 0, 0}; // FL, FR, RL, RR
@@ -341,7 +341,6 @@ void IRAM_ATTR isrRR() {
    prefs.begin("ros_cfg", false);
    prefs.putString("jetson_ip", ip_string);
    prefs.end();
-   Serial.println("Jetson IP saved: " + ip_string);
  }
  String loadJetsonIP() {
    Preferences prefs;
@@ -371,17 +370,12 @@ void IRAM_ATTR isrRR() {
    wm.setConfigPortalTimeout(180);  // 3 minute timeout
    
    // Launch captive portal
-   Serial.println("Starting WiFiManager...");
    if (!wm.autoConnect("ElderlyBot_Config_AP")) {
-     Serial.println("Failed to connect to WiFi");
      delay(3000);
      ESP.restart();
    }
    
    // Wi-Fi connected
-   Serial.println("WiFi connected!");
-   Serial.print("IP address: ");
-   Serial.println(WiFi.localIP());
    
    // Get custom parameter value
    String jetson_ip_string = custom_jetson_ip.getValue();
@@ -393,25 +387,16 @@ void IRAM_ATTR isrRR() {
      jetson_ip = temp_ip;
      saveJetsonIP(jetson_ip_string);
      ros_ip_valid = true;
-     Serial.print("Jetson IP configured: ");
-     Serial.println(jetson_ip);
    } else if (stored_ip.length() > 0 && jetson_ip.fromString(stored_ip)) {
      // No new IP, use stored IP if valid
      ros_ip_valid = true;
-     Serial.print("Jetson IP loaded from storage: ");
-     Serial.println(jetson_ip);
    } else {
      // No valid IP available
      ros_ip_valid = false;
-     Serial.println("ERROR: Invalid or missing Jetson IP address");
-     Serial.println("Please reconnect to captive portal and configure IP");
    }
  }
  // ==================== SETUP (Ground Truth Hardware Initialization) ====================
  void setup() {
-   Serial.begin(115200);
-   delay(1000);
-   Serial.println("\n\n=== ElderlyBot ESP32 Unified Firmware ===");
    
    // Safe Boot Delay (EXACT from ground truth)
    pinMode(FL_IN1, INPUT); pinMode(RL_IN2, INPUT); delay(500);
@@ -425,11 +410,8 @@ void IRAM_ATTR isrRR() {
    // Only proceed with ROS setup if we have a valid IP
    if (ros_ip_valid) {
      // Set ROS connection with validated IP
-     ros_wifi_hw.setConnection(jetson_ip, serverPort);
+     ros_wifi_hw.setConnection(jetson_ip, SERVER_PORT);
      client.setNoDelay(true);  // Disable Nagle algorithm for low latency
-     Serial.println("ROS IP configuration applied");
-   } else {
-     Serial.println("WARNING: ROS disabled - no valid Jetson IP");
    }
    
    // Initialize all Outputs (EXACT from ground truth)
@@ -475,11 +457,6 @@ void IRAM_ATTR isrRR() {
      nh.advertise(odom_pub);
      odom_msg.header.frame_id = "odom";
      odom_msg.child_frame_id = "base_footprint";
-     Serial.println("ROS node initialized");
-     Serial.print("Connecting to ROS Master at ");
-     Serial.print(jetson_ip);
-     Serial.print(":");
-     Serial.println(serverPort);
    }
    
    // Create motor control task on Core 1
@@ -492,8 +469,6 @@ void IRAM_ATTR isrRR() {
      &motorTaskHandle, // Handle
      1 // Core 1
    );
-   
-   Serial.println("=== Setup Complete ===\n");
  }
  // ==================== LOOP (Core 0 - ROS/WiFi/Odometry Only) ====================
  void loop() {

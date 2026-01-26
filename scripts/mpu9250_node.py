@@ -13,18 +13,17 @@ except ImportError:
     try:
         import smbus
     except ImportError:
-        print("Dependency Error: smbus/smbus2 not found.")
         sys.exit(1)
 
 class MPU9250Node:
     def __init__(self):
         rospy.init_node('mpu9250_node')
-        
+
         # Params
         self.bus_id = rospy.get_param('~i2c_bus', 1)
         self.addr = 0x68  # Fixed per your confirmation
         self.frame_id = rospy.get_param('~frame_id', 'imu_link')
-        
+
         # Hardware Setup
         try:
             self.bus = smbus.SMBus(self.bus_id)
@@ -37,11 +36,11 @@ class MPU9250Node:
 
         self.gyro_offset = [0.0, 0.0, 0.0]
         self.pub = rospy.Publisher('imu/data_raw', Imu, queue_size=10)
-        
+
         # Initialization Sequence
         self._setup_sensor()
         self._calibrate_gyro()
-        
+
         rate = rospy.Rate(rospy.get_param('~publish_rate', 50.0))
         while not rospy.is_shutdown():
             self._publish_imu()
@@ -80,24 +79,24 @@ class MPU9250Node:
             # Read Accel (0x3B) and Gyro (0x43)
             a = self._read_block(0x3B)
             g = self._read_block(0x43)
-            
+
             msg = Imu()
             msg.header.stamp = rospy.Time.now()
             msg.header.frame_id = self.frame_id
-            
+
             # Scale Accel (16384 LSB/g) -> m/s^2
             msg.linear_acceleration.x = (self._to_signed_16(a[0], a[1]) / 16384.0) * 9.806
             msg.linear_acceleration.y = (self._to_signed_16(a[2], a[3]) / 16384.0) * 9.806
             msg.linear_acceleration.z = (self._to_signed_16(a[4], a[5]) / 16384.0) * 9.806
-            
+
             # Scale Gyro (131 LSB/deg/s) -> rad/s (and apply calibration)
             msg.angular_velocity.x = math.radians((self._to_signed_16(g[0], g[1]) - self.gyro_offset[0]) / 131.0)
             msg.angular_velocity.y = math.radians((self._to_signed_16(g[2], g[3]) - self.gyro_offset[1]) / 131.0)
             msg.angular_velocity.z = math.radians((self._to_signed_16(g[4], g[5]) - self.gyro_offset[2]) / 131.0)
-            
+
             # No orientation data provided by this raw node
             msg.orientation_covariance[0] = -1
-            
+
             self.pub.publish(msg)
         except Exception as e:
             rospy.logwarn("Data read error: %s", str(e))
