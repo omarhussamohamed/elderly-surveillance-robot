@@ -1,22 +1,15 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - DEBUG VERSION
+Sensors and Actuators Node - USING JETSON-STATS
 """
 
 import rospy
 import time
 import threading
-import subprocess
-import os
-import re
 import traceback
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
-
-# Python 2.7 compatibility
-if not hasattr(subprocess, 'DEVNULL'):
-    subprocess.DEVNULL = open(os.devnull, 'wb')
 
 # === HARDWARE IMPORTS ===
 GPIO_AVAILABLE = False
@@ -26,7 +19,13 @@ try:
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO = None
-    rospy.logwarn("Jetson.GPIO not installed. Install with: sudo pip install Jetson.GPIO")
+
+JTOP_AVAILABLE = False
+try:
+    from jtop import jtop
+    JTOP_AVAILABLE = True
+except ImportError:
+    jtop = None
 
 class SensorsActuatorsNode:
     """ROS node for gas sensor, buzzer, and Jetson monitoring."""
@@ -39,10 +38,10 @@ class SensorsActuatorsNode:
             # Running flag for clean shutdown
             self.running = True
             
-            # Parameters - with defaults to avoid parameter server issues
+            # Parameters - with defaults
             self.enable_gas_sensor = rospy.get_param('~enable_gas_sensor', False)
             self.enable_buzzer = rospy.get_param('~enable_buzzer', False)
-            self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
+            self.enable_jetson_stats = rospy.get_param('~enable_stats', True)  # Note: changed from enable_jetson_stats to enable_stats
             
             # GPIO pins with defaults
             self.gas_sensor_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
@@ -63,9 +62,15 @@ class SensorsActuatorsNode:
             
             # Initialize hardware
             self.gpio_initialized = False
+            self.jtop_handle = None
+            self.jtop_error_reported = False
             
             if self.enable_gas_sensor or self.enable_buzzer:
                 self._init_gpio()
+            
+            # Initialize Jetson stats
+            if self.enable_jetson_stats:
+                self._init_jetson_stats()
             
             # ROS Publishers
             self.gas_pub = rospy.Publisher('/gas_detected', Bool, queue_size=1)
@@ -116,39 +121,112 @@ class SensorsActuatorsNode:
             rospy.logerr("GPIO init failed: %s", str(e))
             self.gpio_initialized = False
     
+    def _init_jetson_stats(self):
+        """Initialize Jetson stats using jtop."""
+        if not JTOP_AVAILABLE:
+            rospy.logwarn("jtop not available. Install with: sudo -H pip install jetson-stats")
+            return
+        
+        try:
+            # Try to open jtop connection
+            self.jtop_handle = jtop()
+            self.jtop_handle.start()
+            
+            # Give it a moment to initialize
+            time.sleep(0.5)
+            
+            if self.jtop_handle.ok():
+                rospy.loginfo("Jetson stats (jtop) initialized successfully")
+            else:
+                rospy.logwarn("jtop initialized but not ready")
+                self.jtop_handle.close()
+                self.jtop_handle = None
+                
+        except Exception as e:
+            if not self.jtop_error_reported:
+                rospy.logwarn("Failed to initialize jtop: %s", str(e))
+                rospy.loginfo("You may need to add user to jtop group: sudo usermod -aG jtop $USER")
+                self.jtop_error_reported = True
+            self.jtop_handle = None
+    
     def read_jetson_stats(self):
-        """Read Jetson temperature and power."""
-        if not self.running:
+        """Read Jetson temperature and power using jtop."""
+        if not self.running or not self.jtop_handle:
             return (0.0, 0.0)
         
         temp = 0.0
         power = 0.0
         
         try:
-            # Method 1: Read from thermal zone (most reliable)
-            temp_path = "/sys/class/thermal/thermal_zone0/temp"
-            if os.path.exists(temp_path):
-                with open(temp_path, 'r') as f:
-                    temp_raw = f.read().strip()
-                    temp = float(temp_raw) / 1000.0  # Convert millidegree to degree
+            if not self.jtop_handle.ok():
+                # Try to restart jtop if it's not ok
+                self.jtop_handle.close()
+                time.sleep(0.1)
+                self.jtop_handle = jtop()
+                self.jtop_handle.start()
+                time.sleep(0.5)
+                
+                if not self.jtop_handle.ok():
+                    return (0.0, 0.0)
             
-            # Method 2: Try to get power from various sources
-            power_paths = [
-                "/sys/bus/i2c/drivers/ina3221x/6-0040/iio:device0/in_power0_input",
-                "/sys/class/power_supply/battery/power_now",
-            ]
+            # Get stats from jtop
+            stats = self.jtop_handle.stats
             
-            for path in power_paths:
-                if os.path.exists(path):
-                    with open(path, 'r') as f:
-                        power_raw = f.read().strip()
-                        power = float(power_raw) / 1000000.0  # Convert microwatts to watts
-                        break
+            # Extract temperature (try multiple keys)
+            if 'temperature' in stats:
+                temp_data = stats['temperature']
+                if isinstance(temp_data, dict):
+                    # Try CPU temperature first
+                    if 'CPU' in temp_data:
+                        cpu_temp = temp_data['CPU']
+                        if isinstance(cpu_temp, dict):
+                            temp = cpu_temp.get('temp', 0.0)
+                        else:
+                            temp = float(cpu_temp)
+                    # Try thermal as fallback
+                    elif 'thermal' in temp_data:
+                        thermal_temp = temp_data['thermal']
+                        if isinstance(thermal_temp, dict):
+                            temp = thermal_temp.get('temp', 0.0)
+                        else:
+                            temp = float(thermal_temp)
+                    # Try any temperature value
+                    else:
+                        for key, value in temp_data.items():
+                            try:
+                                if isinstance(value, dict):
+                                    temp = value.get('temp', 0.0)
+                                else:
+                                    temp = float(value)
+                                if temp > 0:
+                                    break
+                            except:
+                                pass
+            
+            # Extract power (try multiple keys)
+            if 'power' in stats:
+                power_data = stats['power']
+                if isinstance(power_data, dict):
+                    # Try different power keys
+                    power_keys = ['tot', 'total', 'cur', 'power', 'val']
+                    for key in power_keys:
+                        if key in power_data:
+                            try:
+                                pwr_val = power_data[key]
+                                if isinstance(pwr_val, dict):
+                                    power = pwr_val.get('power', pwr_val.get('val', 0.0))
+                                else:
+                                    power = float(pwr_val)
+                                break
+                            except:
+                                pass
             
             return (temp, power)
             
         except Exception as e:
-            rospy.logwarn("Stats read error: %s", str(e))
+            if not self.jtop_error_reported:
+                rospy.logwarn("Jetson stats read error: %s", str(e))
+                self.jtop_error_reported = True
             return (0.0, 0.0)
     
     def read_gas_sensor(self):
@@ -310,6 +388,13 @@ class SensorsActuatorsNode:
         if self.gpio_initialized and GPIO_AVAILABLE:
             try:
                 GPIO.cleanup()
+            except:
+                pass
+        
+        # Close jtop connection
+        if self.jtop_handle:
+            try:
+                self.jtop_handle.close()
             except:
                 pass
 
