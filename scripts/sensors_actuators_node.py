@@ -38,7 +38,7 @@ class SensorsActuatorsNode:
         self.buzzer_stop_event = threading.Event()
         self.running = True
         
-        # Power reading cache (update every 30 seconds)
+        # Power reading cache (update every 10 seconds for faster updates)
         self.last_power_update = 0
         self.cached_power = 5.0  # Default fallback
         
@@ -135,11 +135,11 @@ class SensorsActuatorsNode:
                 while not self.buzzer_stop_event.is_set() and not rospy.is_shutdown():
                     if self.gpio_available:
                         self.GPIO.output(self.buzzer_pin, self.GPIO.HIGH)
-                    time.sleep(0.25)  # ON for 0.5 seconds
+                    time.sleep(0.2)  # ON for 0.5 seconds
                     
                     if self.gpio_available:
                         self.GPIO.output(self.buzzer_pin, self.GPIO.LOW)
-                    time.sleep(0.25)  # OFF for 0.5 seconds
+                    time.sleep(0.2)  # OFF for 0.5 seconds
                     
             except Exception as e:
                 rospy.logwarn("Buzzer thread error: %s", str(e))
@@ -229,9 +229,9 @@ class SensorsActuatorsNode:
         return 5.0  # Default fallback (typical Jetson Nano idle power)
     
     def update_power_if_needed(self):
-        """Update power reading only every 30 seconds."""
+        """Update power reading only every 10 seconds."""
         current_time = time.time()
-        if current_time - self.last_power_update > 30:
+        if current_time - self.last_power_update > 10:
             try:
                 self.cached_power = self.read_jetson_power()
                 self.last_power_update = current_time
@@ -250,6 +250,9 @@ class SensorsActuatorsNode:
                 self.gas_pub.publish(Bool(data=self.gas_detected))
                 if self.gas_detected:
                     rospy.logwarn("GAS DETECTED")
+            else:
+                # Republish gas even if unchanged for consistent rate
+                self.gas_pub.publish(Bool(data=self.gas_detected))
         
         # Read and publish Jetson stats
         if self.enable_stats:
@@ -264,13 +267,13 @@ class SensorsActuatorsNode:
             power = self.update_power_if_needed()
             self.power_pub.publish(Float32(data=power))
             
-            # Log stats instantly (every iteration, ~0.5s)
+            # Log stats instantly (every iteration, ~0.1s)
             rospy.loginfo("Stats: %.1f°C, %.1fW, Gas: %s", 
                           temp_msg.temperature, power, self.gas_detected)
     
     def run(self):
         """Main loop."""
-        rate = rospy.Rate(2.0)  # 2 Hz
+        rate = rospy.Rate(10.0)  # Increased to 10 Hz for faster publishing (~0.1s)
         
         while self.running and not rospy.is_shutdown():
             try:
