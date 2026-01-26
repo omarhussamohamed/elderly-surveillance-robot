@@ -68,6 +68,7 @@ class CloudBridgeNode:
             self.connection_status = "disconnected"
             self.last_telemetry_time = 0
             self.telemetry_count = 0
+            self.telemetry_timer = None
             
             # Setup ROS subscribers
             rospy.Subscriber('/jetson_temperature', Temperature, self.temp_cb)
@@ -84,10 +85,7 @@ class CloudBridgeNode:
             else:
                 rospy.logwarn("Running in simulation mode - MQTT not available")
             
-            # Send telemetry every 1 second (as requested)
-            rospy.Timer(rospy.Duration(1), self.send_telemetry)
-            
-            # Monitor connection every 30 seconds (increased from 10 for less noise)
+            # Monitor connection every 30 seconds
             rospy.Timer(rospy.Duration(30), self.check_connection)
             
             rospy.on_shutdown(self.cleanup)
@@ -171,6 +169,10 @@ class CloudBridgeNode:
                 "client_id": self.client_id,
                 "timestamp": time.time()
             }), qos=1, retain=True)
+            
+            # Start telemetry timer now that connection is complete
+            if self.telemetry_timer is None:
+                self.telemetry_timer = rospy.Timer(rospy.Duration(1), self.send_telemetry)
             
         else:
             self.connection_status = "failed"
@@ -303,10 +305,7 @@ class CloudBridgeNode:
                 data = {
                     'timestamp': current_time,
                     'temperature': round(self.temperature, 1),
-                    'power': round(self.power_voltage, 2),
-                    'gas_detected': self.gas_detected,
-                    'client_id': self.client_id,
-                    'connection': self.connection_status
+                    'gas_detected': self.gas_detected
                 }
                 
                 payload = json.dumps(data)
@@ -316,9 +315,9 @@ class CloudBridgeNode:
                 self.last_telemetry_time = current_time
                 
                 if self.telemetry_count % 10 == 0 or immediate:  # Log every 10th telemetry
-                    rospy.loginfo("📡 TELEMETRY SENT #%d: %.1f°C, %.1fW, Gas: %s", 
+                    rospy.loginfo("📡 TELEMETRY SENT #%d: %.1f°C, Gas: %s", 
                                 self.telemetry_count, self.temperature, 
-                                self.power_voltage, self.gas_detected)
+                                self.gas_detected)
                 
         except Exception as e:
             rospy.logwarn("Telemetry error: %s", str(e))
