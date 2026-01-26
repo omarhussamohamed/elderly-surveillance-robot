@@ -60,6 +60,9 @@ class SensorsActuatorsNode:
                      "ON" if self.enable_gas_sensor else "OFF",
                      "ON" if self.enable_buzzer else "OFF",
                      "ON" if self.enable_stats else "OFF")
+        
+        # Delay startup of stats logging/publishing to let other nodes log first (10 seconds)
+        rospy.sleep(10)
     
     def init_hardware(self):
         """Initialize hardware interfaces."""
@@ -135,11 +138,11 @@ class SensorsActuatorsNode:
                 while not self.buzzer_stop_event.is_set() and not rospy.is_shutdown():
                     if self.gpio_available:
                         self.GPIO.output(self.buzzer_pin, self.GPIO.HIGH)
-                    time.sleep(0.2)  # ON for 0.5 seconds
+                    time.sleep(0.25)  # ON for 0.5 seconds
                     
                     if self.gpio_available:
                         self.GPIO.output(self.buzzer_pin, self.GPIO.LOW)
-                    time.sleep(0.2)  # OFF for 0.5 seconds
+                    time.sleep(0.25)  # OFF for 0.5 seconds
                     
             except Exception as e:
                 rospy.logwarn("Buzzer thread error: %s", str(e))

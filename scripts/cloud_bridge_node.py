@@ -84,8 +84,8 @@ class CloudBridgeNode:
             else:
                 rospy.logwarn("Running in simulation mode - MQTT not available")
             
-            # Send telemetry every 5 seconds
-            rospy.Timer(rospy.Duration(5), self.send_telemetry)
+            # Send telemetry every 1 second (as requested)
+            rospy.Timer(rospy.Duration(1), self.send_telemetry)
             
             # Monitor connection every 30 seconds (increased from 10 for less noise)
             rospy.Timer(rospy.Duration(30), self.check_connection)
