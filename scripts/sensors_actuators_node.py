@@ -1,38 +1,9 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node
-
-Manages MQ-6 gas sensor, active buzzer, and Jetson Nano system monitoring.
-Provides gas detection with alert system and hardware health telemetry.
-
-Subscribed Topics:
-    /buzzer_command (std_msgs/Bool): Manual buzzer control
-
-Published Topics:
-    /gas_detected (std_msgs/Bool): Gas detection status
-    /jetson_temperature (sensor_msgs/Temperature): Jetson temperature
-    /jetson_power (std_msgs/Float32): Jetson power consumption (watts)
-
-Parameters:
-    ~enable_gas_sensor (bool): Enable MQ-6 sensor (default: False)
-    ~enable_buzzer (bool): Enable buzzer actuator (default: False)
-    ~enable_jetson_stats (bool): Enable jtop monitoring (default: True)
-    ~gas_sensor_mode (str): "gpio" or "i2c" (default: "gpio")
-    ~gas_sensor_gpio_pin (int): BOARD pin number for D0 (default: 18)
-    ~gas_polarity (str): "active_low" or "active_high" (default: "active_low")
-    ~buzzer_pin (int): BOARD pin number for buzzer (default: 0)
-    ~publish_rate (float): Publishing frequency in Hz (default: 1.0)
-
-Hardware:
-    - MQ-6 D0 → Jetson Pin 18 (with 2.2-4.7kΩ pull-up to 3.3V)
-    - MQ-6 VCC → 3.3V, GND → GND
-    - Buzzer → Pin 16 via 2N2222 transistor (5V rail)
-
-Dependencies:
-    - Jetson.GPIO (pip install Jetson.GPIO)
-    - jtop (pip install jetson-stats)
-    - smbus2 (for I2C mode, pip install smbus2)
+Sensors and Actuators Node - SIMPLIFIED WORKING VERSION
+ONLY publishes: gas_detected, jetson_temperature, jetson_power
+ONLY subscribes: /buzzer_command
 """
 
 import rospy
@@ -55,13 +26,7 @@ try:
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO = None
-
-ADS_AVAILABLE = False
-try:
-    import smbus2
-    ADS_AVAILABLE = True
-except ImportError:
-    smbus2 = None
+    rospy.logwarn("Jetson.GPIO not available. Install: sudo pip install Jetson.GPIO")
 
 JTOP_AVAILABLE = False
 try:
@@ -69,24 +34,7 @@ try:
     JTOP_AVAILABLE = True
 except ImportError:
     jtop = None
-
-
-def setup_gpio_permissions(pin_number):
-    """Setup GPIO pin permissions."""
-    try:
-        subprocess.call(['sudo', 'chmod', '666', '/sys/class/gpio/export'], 
-                       stderr=subprocess.DEVNULL)
-        subprocess.call(['sudo', 'bash', '-c', 
-                        'echo {} > /sys/class/gpio/export 2>/dev/null || true'.format(pin_number)],
-                       stderr=subprocess.DEVNULL)
-        subprocess.call(['sudo', 'chmod', '-R', '666', 
-                        '/sys/class/gpio/gpio{}'.format(pin_number)],
-                       stderr=subprocess.DEVNULL)
-        time.sleep(0.1)
-        return True
-    except:
-        return False
-
+    rospy.logwarn("jtop not available. Install: sudo -H pip install jetson-stats")
 
 class SensorsActuatorsNode:
     """ROS node for gas sensor, buzzer, and Jetson monitoring."""
@@ -96,455 +44,292 @@ class SensorsActuatorsNode:
         rospy.on_shutdown(self.shutdown)
         
         # Parameters
-        self.enable_gas_sensor = rospy.get_param('~enable_gas_sensor', False)
-        self.enable_buzzer = rospy.get_param('~enable_buzzer', False)
+        self.enable_gas_sensor = rospy.get_param('~enable_gas_sensor', True)
+        self.enable_buzzer = rospy.get_param('~enable_buzzer', True)
         self.enable_jetson_stats = rospy.get_param('~enable_jetson_stats', True)
         
-        self.gas_sensor_mode = rospy.get_param('~gas_sensor_mode', 'gpio')
-        # MQ-6 D0 → BOARD pin 18, 3.3V pull-up (2.2–4.7kΩ), GND to Jetson GND
-        self.gas_sensor_gpio_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
-        self.gas_threshold_voltage = rospy.get_param('~gas_threshold_voltage', 1.0)
-        self.buzzer_pin = rospy.get_param('~buzzer_pin', 0)
-        self.adc_i2c_address = rospy.get_param('~adc_i2c_address', 0x48)
-        self.adc_i2c_bus = rospy.get_param('~adc_i2c_bus', 1)
-        self.publish_rate = rospy.get_param('~publish_rate', 1.0)
+        # GPIO pins
+        self.gas_sensor_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)  # BOARD pin 18
+        self.buzzer_pin = rospy.get_param('~buzzer_pin', 16)  # BOARD pin 16
         
-        # Hardware state
-        self.i2c_bus = None
-        self.gas_gpio_initialized = False
-        self.buzzer_initialized = False
-        self.jtop_handle = None
-        
-        # Gas sensor state (polling-based)
-        self.last_gas_detected = False
-        self.gas_detection_lock = threading.Lock()
-        
-        # Polarity configuration: active_low (LM393 open-collector)
-        # Hardware wiring: D0 → BOARD pin 18 with 2.2–4.7kΩ pull-up to 3.3V
-        # MQ-6 LM393 pulls LOW when gas detected (open-collector output)
+        # Polarity configuration
         self.gas_polarity = rospy.get_param('~gas_polarity', 'active_low')
         
-        # Buzzer warning pattern state (MANUAL CONTROL ONLY)
-        self.buzzer_lock = threading.Lock()
-        self.buzzer_warning_active = False
-        self.buzzer_warning_thread = None
+        # State variables
+        self.current_temp = 0.0
+        self.current_power = 0.0
+        self.gas_detected = False
         
-        # ADS1115 registers
-        self.ADS1115_REG_CONVERSION = 0x00
-        self.ADS1115_REG_CONFIG = 0x01
+        # Buzzer control
+        self.buzzer_active = False
+        self.buzzer_thread = None
+        self.buzzer_lock = threading.Lock()
         
         # Initialize hardware
-        if self.enable_gas_sensor:
-            self._init_gas_sensor()
+        self.gpio_initialized = False
+        self.jtop_handle = None
         
-        if self.enable_buzzer:
-            self._init_buzzer()
+        if self.enable_gas_sensor or self.enable_buzzer:
+            self._init_gpio()
         
         if self.enable_jetson_stats:
             self._init_jetson_stats()
         
-        # ROS interface
-        self.gas_detected_pub = rospy.Publisher('/gas_detected', Bool, queue_size=1)
-        self.jetson_temp_pub = rospy.Publisher('/jetson_temperature', Temperature, queue_size=1)
-        self.jetson_power_pub = rospy.Publisher('/jetson_power', Float32, queue_size=1)
-        rospy.Subscriber('/buzzer_command', Bool, self.buzzer_command_callback)
+        # ROS Publishers
+        self.gas_pub = rospy.Publisher('/gas_detected', Bool, queue_size=1)
+        self.temp_pub = rospy.Publisher('/jetson_temperature', Temperature, queue_size=1)
+        self.power_pub = rospy.Publisher('/jetson_power', Float32, queue_size=1)
         
-        rospy.loginfo("=== Sensors & Actuators Node Ready ===")
-        rospy.loginfo("  Gas: {} | Buzzer: {} | Stats: {}".format(
-            'OK' if (self.gas_gpio_initialized or self.i2c_bus) else 'OFF',
-            'OK' if self.buzzer_initialized else 'OFF',
-            'OK' if self.jtop_handle else 'OFF'
-        ))
+        # ROS Subscriber
+        rospy.Subscriber('/buzzer_command', Bool, self.buzzer_callback)
+        
+        rospy.loginfo("✅ Sensors Node Ready")
+        rospy.loginfo("  Gas: %s | Buzzer: %s | Stats: %s",
+                     "ON" if self.enable_gas_sensor else "OFF",
+                     "ON" if self.enable_buzzer else "OFF",
+                     "ON" if self.enable_jetson_stats else "OFF")
     
-    def _init_gas_sensor(self):
-        """Initialize gas sensor (GPIO or I2C mode)."""
-        rospy.loginfo("Initializing gas sensor in {} mode...".format(self.gas_sensor_mode))
-        if self.gas_sensor_mode == 'gpio':
-            self._init_gas_sensor_gpio()
-        elif self.gas_sensor_mode == 'i2c':
-            self._init_gas_sensor_i2c()
-        else:
-            rospy.logerr("Invalid gas_sensor_mode: {}".format(self.gas_sensor_mode))
-    
-    def _init_gas_sensor_gpio(self):
-        """Initialize gas sensor in GPIO mode with interrupt detection."""
+    def _init_gpio(self):
+        """Initialize GPIO pins."""
         if not GPIO_AVAILABLE:
-            rospy.logerr("Gas sensor: Jetson.GPIO not available")
-            return
-        
-        if self.gas_sensor_gpio_pin == 0:
-            rospy.logerr("Gas sensor: pin not configured")
+            rospy.logerr("Jetson.GPIO not available - hardware disabled")
             return
         
         try:
-            setup_gpio_permissions(self.gas_sensor_gpio_pin)
             GPIO.setmode(GPIO.BOARD)
-            # MQ-6 D0 is open-collector, external pull-up resistor (2.2–4.7kΩ) to 3.3V required
-            GPIO.setup(self.gas_sensor_gpio_pin, GPIO.IN)
             
-            # Initialize state
-            initial_state = GPIO.input(self.gas_sensor_gpio_pin)
-            initial_detected = (initial_state == GPIO.LOW)  # active_low: LOW = gas detected
+            # Gas sensor pin (input)
+            if self.enable_gas_sensor:
+                GPIO.setup(self.gas_sensor_pin, GPIO.IN)
+                rospy.loginfo("Gas sensor on pin %d (active_low)", self.gas_sensor_pin)
             
-            with self.gas_detection_lock:
-                self.last_gas_detected = initial_detected
+            # Buzzer pin (output)
+            if self.enable_buzzer:
+                GPIO.setup(self.buzzer_pin, GPIO.OUT)
+                GPIO.output(self.buzzer_pin, GPIO.LOW)  # Start with buzzer OFF
+                rospy.loginfo("Buzzer on pin %d", self.buzzer_pin)
             
-            rospy.loginfo("MQ-6 gas sensor ready on BOARD pin 18 (active-low, 10Hz polling)")
-            
-            self.gas_gpio_initialized = True
-            
+            self.gpio_initialized = True
             
         except Exception as e:
-            rospy.logerr("✗ Gas sensor failed: {}".format(e))
-            self.gas_gpio_initialized = False
-    
-    def _init_gas_sensor_i2c(self):
-        """Initialize gas sensor in I2C mode."""
-        if not ADS_AVAILABLE:
-            rospy.logerr("Gas sensor: smbus2 not available")
-            return
-        
-        try:
-            self.i2c_bus = smbus2.SMBus(self.adc_i2c_bus)
-            config = 0xC183
-            config_bytes = [(config >> 8) & 0xFF, config & 0xFF]
-            self.i2c_bus.write_i2c_block_data(self.adc_i2c_address, self.ADS1115_REG_CONFIG, config_bytes)
-            rospy.loginfo("✓ Gas sensor ready: I2C 0x{:02X}".format(self.adc_i2c_address))
-        except Exception as e:
-            rospy.logerr("✗ Gas sensor failed: {}".format(e))
-            if self.i2c_bus:
-                try:
-                    self.i2c_bus.close()
-                except:
-                    pass
-            self.i2c_bus = None
-    
-    def _init_buzzer(self):
-        """Initialize buzzer."""
-        rospy.loginfo("Initializing buzzer on pin {}...".format(self.buzzer_pin))
-        
-        if not GPIO_AVAILABLE:
-            rospy.logerr("Buzzer: Jetson.GPIO not available")
-            return
-        
-        if self.buzzer_pin == 0:
-            rospy.logerr("Buzzer: pin not configured")
-            return
-        
-        try:
-            setup_gpio_permissions(self.buzzer_pin)
-            GPIO.setmode(GPIO.BOARD)
-            GPIO.setup(self.buzzer_pin, GPIO.OUT, initial=GPIO.LOW)
-            self.buzzer_initialized = True
-            rospy.loginfo("✓ Buzzer ready: GPIO pin {}".format(self.buzzer_pin))
-        except Exception as e:
-            rospy.logerr("✗ Buzzer failed: {}".format(e))
-            self.buzzer_initialized = False
+            rospy.logerr("GPIO init failed: %s", str(e))
+            self.gpio_initialized = False
     
     def _init_jetson_stats(self):
-        """Initialize Jetson monitoring."""
+        """Initialize Jetson stats monitoring."""
         if not JTOP_AVAILABLE:
-            rospy.logwarn("Jetson stats not available - install jetson-stats: sudo -H pip install jetson-stats")
+            rospy.logwarn("jtop not available - stats disabled")
             return
         
         try:
             self.jtop_handle = jtop()
             self.jtop_handle.start()
-            # Wait for jtop to initialize
-            time.sleep(0.5)
+            time.sleep(0.5)  # Let jtop initialize
+            
             if self.jtop_handle.ok():
-                rospy.loginfo("✓ Jetson stats ready")
+                rospy.loginfo("✅ Jetson stats ready")
             else:
-                rospy.logwarn("Jetson stats initialized but not ready")
-        except (OSError, IOError) as e:
-            # Python 2.7 doesn't have PermissionError
-            if hasattr(e, 'errno') and e.errno == 13:  # Permission denied
-                rospy.logerr("✗ Jetson stats failed: Permission denied. Run: sudo usermod -aG jtop $USER")
-            else:
-                rospy.logerr("✗ Jetson stats failed: {}".format(e))
+                rospy.logwarn("jtop initialized but not ready")
+                self.jtop_handle = None
+                
+        except Exception as e:
+            rospy.logerr("jtop init failed: %s", str(e))
             self.jtop_handle = None
-        except Exception as e:
-            rospy.logerr("✗ Jetson stats failed: {}".format(e))
-            self.jtop_handle = None
-    
-    def read_gas_sensor(self):
-        """Read gas sensor. Returns (voltage, detected) tuple."""
-        if self.gas_sensor_mode == 'gpio':
-            return self.read_gas_sensor_gpio()
-        elif self.gas_sensor_mode == 'i2c':
-            return self.read_gas_sensor_i2c()
-        return (0.0, False)
-    
-    def read_gas_sensor_gpio(self):
-        """Read gas sensor in GPIO mode (returns cached interrupt-driven value).
-        Polarity configured via gas_polarity parameter (active_low or active_high).
-        """
-        if not self.gas_gpio_initialized:
-            return (0.0, False)
-        try:
-            with self.gas_detection_lock:
-                detected = self.last_gas_detected
-            return (0.0, detected)
-        except Exception as e:
-            rospy.logwarn_throttle(10.0, "Gas sensor read error: {}".format(e))
-            return (0.0, False)
-    
-    def read_gas_sensor_i2c(self):
-        """Read gas sensor in I2C mode."""
-        if self.i2c_bus is None:
-            return (0.0, False)
-        try:
-            config = 0xC183
-            config_bytes = [(config >> 8) & 0xFF, config & 0xFF]
-            self.i2c_bus.write_i2c_block_data(self.adc_i2c_address, self.ADS1115_REG_CONFIG, config_bytes)
-            time.sleep(0.01)
-            data = self.i2c_bus.read_i2c_block_data(self.adc_i2c_address, self.ADS1115_REG_CONVERSION, 2)
-            raw_adc = (data[0] << 8) | data[1]
-            if raw_adc > 32767:
-                raw_adc -= 65536
-            voltage = abs(raw_adc * 4.096 / 32768.0)
-            detected = voltage > self.gas_threshold_voltage
-            return (voltage, detected)
-        except Exception as e:
-            rospy.logwarn_throttle(10.0, "Gas sensor read error: {}".format(e))
-            return (0.0, False)
-    
-    def set_buzzer(self, state):
-        """Set buzzer state (True=ON, False=OFF)."""
-        if not self.buzzer_initialized:
-            return
-        with self.buzzer_lock:
-            try:
-                GPIO.output(self.buzzer_pin, GPIO.HIGH if state else GPIO.LOW)
-            except Exception as e:
-                rospy.logerr_throttle(5.0, "Buzzer error: {}".format(e))
-    
-    def start_buzzer_warning(self):
-        """Start buzzer (continuous beeping until manually stopped).
-        MANUAL CONTROL ONLY - runs indefinitely until /buzzer_command false.
-        """
-        if not self.buzzer_initialized:
-            rospy.logwarn("Cannot start buzzer - not initialized")
-            return
-        
-        with self.buzzer_lock:
-            # If already running, don't restart
-            if self.buzzer_warning_active:
-                rospy.loginfo("Buzzer already active - ignoring duplicate start")
-                return
-            
-            # Set active flag FIRST
-            self.buzzer_warning_active = True
-            rospy.loginfo("========== BUZZER START (MANUAL) ==========")
-        
-        def warning_pattern():
-            """Continuous beep: 0.1s ON, 0.1s OFF, runs forever until stopped."""
-            rospy.loginfo("[BUZZER] Started - manual control (indefinite)")
-            beep_count = 0
-            
-            try:
-                while not rospy.is_shutdown():
-                    # Check if we should stop
-                    with self.buzzer_lock:
-                        if not self.buzzer_warning_active:
-                            rospy.loginfo("[BUZZER] Stop command received")
-                            break
-                    
-                    # Beep ON
-                    self.set_buzzer(True)
-                    time.sleep(0.1)
-                    
-                    # Beep OFF
-                    self.set_buzzer(False)
-                    time.sleep(0.1)
-                    
-                    beep_count += 1
-                    if beep_count % 50 == 0:  # Log every 10 seconds
-                        rospy.loginfo("[BUZZER] Still beeping (count: {})".format(beep_count))
-                        
-            except Exception as e:
-                rospy.logerr("[BUZZER] ERROR: {}".format(e))
-            finally:
-                self.set_buzzer(False)
-                rospy.loginfo("[BUZZER] Stopped (total beeps: {})".format(beep_count))
-        
-        # Start thread
-        self.buzzer_warning_thread = threading.Thread(target=warning_pattern, name="BuzzerThread")
-        self.buzzer_warning_thread.daemon = True
-        self.buzzer_warning_thread.start()
-        rospy.loginfo("========== BUZZER THREAD LAUNCHED ==========")
-    
-    def stop_buzzer_warning(self):
-        """Stop buzzer."""
-        rospy.loginfo("========== BUZZER STOP (MANUAL) ==========")
-        
-        with self.buzzer_lock:
-            if not self.buzzer_warning_active:
-                rospy.loginfo("Buzzer already stopped")
-                return
-            
-            # Clear the active flag
-            self.buzzer_warning_active = False
-        
-        # Wait for thread to finish (max 1 second)
-        if self.buzzer_warning_thread and self.buzzer_warning_thread.is_alive():
-            rospy.loginfo("Waiting for buzzer thread to exit...")
-            self.buzzer_warning_thread.join(timeout=1.0)
-            
-            if self.buzzer_warning_thread.is_alive():
-                rospy.logwarn("Buzzer thread did not exit cleanly")
-        
-        # Ensure buzzer is OFF
-        self.set_buzzer(False)
-        rospy.loginfo("========== BUZZER STOPPED ==========")
-    
-    def buzzer_command_callback(self, msg):
-        """Handle buzzer commands."""
-        if not self.buzzer_initialized:
-            rospy.logwarn_throttle(5.0, "Buzzer not initialized")
-            return
-        
-        if msg.data:
-            self.start_buzzer_warning()
-        else:
-            self.stop_buzzer_warning()
     
     def read_jetson_stats(self):
-        """Read Jetson temperature and power with robust dictionary parsing."""
-        if self.jtop_handle is None:
+        """Read temperature and power from jtop."""
+        if not self.jtop_handle or not self.jtop_handle.ok():
             return (0.0, 0.0)
         
         try:
-            if not self.jtop_handle.ok():
-                return (0.0, 0.0)
+            # Get stats
+            stats = self.jtop_handle.stats
             
-            # Read temperature - handle nested dictionaries
+            # Extract temperature (try multiple keys)
             temp = 0.0
-            if hasattr(self.jtop_handle, 'temperature'):
-                temps = self.jtop_handle.temperature
-                if temps and isinstance(temps, dict):
-                    # Try CPU first
-                    if 'CPU' in temps:
-                        try:
-                            cpu_val = temps['CPU']
-                            # Handle nested dict: {'temp': 33.5, 'online': True}
-                            if isinstance(cpu_val, dict):
-                                temp = float(cpu_val.get('temp', 0.0))
-                            else:
-                                temp = float(cpu_val)
-                        except (ValueError, TypeError) as e:
-                            rospy.logwarn_throttle(30.0, "Invalid CPU temp: {} (error: {})".format(temps['CPU'], e))
-                    # Try thermal second
-                    elif 'thermal' in temps:
-                        try:
-                            thermal_val = temps['thermal']
-                            if isinstance(thermal_val, dict):
-                                temp = float(thermal_val.get('temp', 0.0))
-                            else:
-                                temp = float(thermal_val)
-                        except (ValueError, TypeError) as e:
-                            rospy.logwarn_throttle(30.0, "Invalid thermal temp: {} (error: {})".format(temps['thermal'], e))
-                    # Average all as fallback
-                    elif temps:
-                        try:
-                            valid_temps = []
-                            for k, v in temps.items():
-                                try:
-                                    if isinstance(v, dict):
-                                        valid_temps.append(float(v.get('temp', 0.0)))
-                                    else:
-                                        valid_temps.append(float(v))
-                                except (ValueError, TypeError):
-                                    pass
-                            if valid_temps:
-                                temp = sum(valid_temps) / len(valid_temps)
-                        except Exception:
-                            pass
-            
-            # Read power - handle nested dictionaries
-            power = 0.0
-            if hasattr(self.jtop_handle, 'power'):
-                power_data = self.jtop_handle.power
-                if isinstance(power_data, dict):
-                    # Try different power keys
-                    for key in ['tot', 'total', 'ALL', 'cur']:
-                        if key in power_data:
+            if 'temperature' in stats:
+                temp_data = stats['temperature']
+                if isinstance(temp_data, dict):
+                    # Try to get CPU temperature
+                    if 'CPU' in temp_data:
+                        cpu_temp = temp_data['CPU']
+                        if isinstance(cpu_temp, dict):
+                            temp = cpu_temp.get('temp', 0.0)
+                        else:
+                            temp = float(cpu_temp)
+                    # Fallback: get first numeric value
+                    else:
+                        for key, value in temp_data.items():
                             try:
-                                pwr_val = power_data[key]
-                                # Handle nested dict: {'power': 5.2, 'unit': 'mW'}
-                                if isinstance(pwr_val, dict):
-                                    power = float(pwr_val.get('power', pwr_val.get('val', 0.0)))
-                                else:
-                                    power = float(pwr_val)
+                                temp = float(value)
                                 break
-                            except (ValueError, TypeError) as e:
-                                rospy.logwarn_throttle(30.0, "Invalid power value for key '{}': {} (error: {})".format(
-                                    key, power_data[key], e))
-                elif isinstance(power_data, (int, float)):
-                    try:
-                        power = float(power_data)
-                    except (ValueError, TypeError):
-                        pass
+                            except:
+                                pass
+            
+            # Extract power (try multiple keys)
+            power = 0.0
+            if 'power' in stats:
+                power_data = stats['power']
+                if isinstance(power_data, dict):
+                    # Try common power keys
+                    for key in ['tot', 'total', 'cur', 'power']:
+                        if key in power_data:
+                            val = power_data[key]
+                            if isinstance(val, dict):
+                                power = val.get('power', val.get('val', 0.0))
+                            else:
+                                power = float(val)
+                            break
             
             return (temp, power)
             
-        except AttributeError as e:
-            rospy.logwarn_throttle(30.0, "Jetson stats attribute error: {}".format(e))
-            return (0.0, 0.0)
-        except ValueError as e:
-            rospy.logwarn_throttle(30.0, "Jetson stats float conversion error: {}".format(e))
-            return (0.0, 0.0)
         except Exception as e:
-            rospy.logwarn_throttle(30.0, "Jetson stats unexpected error: {}".format(e))
+            rospy.logwarn_throttle(30, "Stats read error: %s", str(e))
             return (0.0, 0.0)
     
-    def publish_sensor_data(self):
-        """Publish sensor data - direct GPIO polling only."""
-        # === MQ-6 GAS SENSOR (POLLING ONLY) ===
-        if self.gas_gpio_initialized:
-            # Read GPIO pin directly
-            raw = GPIO.input(self.gas_sensor_gpio_pin)
+    def read_gas_sensor(self):
+        """Read gas sensor state."""
+        if not self.gpio_initialized or not self.enable_gas_sensor:
+            return False
+        
+        try:
+            # Read GPIO pin
+            state = GPIO.input(self.gas_sensor_pin)
             
-            # Active-low: GPIO.LOW = gas detected (LM393 open-collector pulls low)
-            detected = (raw == GPIO.LOW)
+            # Convert based on polarity
+            if self.gas_polarity == 'active_low':
+                # LOW = gas detected (LM393 open-collector pulls low)
+                detected = (state == GPIO.LOW)
+            else:  # active_high
+                # HIGH = gas detected
+                detected = (state == GPIO.HIGH)
             
-            # Update state
-            with self.gas_detection_lock:
-                self.last_gas_detected = detected
+            return detected
             
-            # Publish every cycle
-            self.gas_detected_pub.publish(Bool(data=detected))
+        except Exception as e:
+            rospy.logwarn_throttle(10, "Gas sensor read error: %s", str(e))
+            return False
+    
+    def buzzer_callback(self, msg):
+        """Handle buzzer commands."""
+        if not self.gpio_initialized or not self.enable_buzzer:
+            rospy.logwarn("Buzzer not initialized")
+            return
+        
+        with self.buzzer_lock:
+            # If command is same as current state, do nothing
+            if msg.data == self.buzzer_active:
+                return
+            
+            self.buzzer_active = msg.data
+            
+            if msg.data:  # Turn ON
+                self.start_buzzer()
+                rospy.loginfo("🔔 Buzzer ON")
+            else:  # Turn OFF
+                self.stop_buzzer()
+                rospy.loginfo("🔔 Buzzer OFF")
+    
+    def start_buzzer(self):
+        """Start buzzer in a thread."""
+        def buzzer_pattern():
+            """Continuous beeping pattern."""
+            try:
+                while not rospy.is_shutdown():
+                    with self.buzzer_lock:
+                        if not self.buzzer_active:
+                            break
+                    
+                    # Beep pattern: 0.1s ON, 0.1s OFF
+                    GPIO.output(self.buzzer_pin, GPIO.HIGH)
+                    time.sleep(0.1)
+                    GPIO.output(self.buzzer_pin, GPIO.LOW)
+                    time.sleep(0.1)
+                    
+            except Exception as e:
+                rospy.logerr("Buzzer thread error: %s", str(e))
+            finally:
+                # Ensure buzzer is OFF
+                try:
+                    GPIO.output(self.buzzer_pin, GPIO.LOW)
+                except:
+                    pass
+        
+        # Stop existing thread if running
+        if self.buzzer_thread and self.buzzer_thread.is_alive():
+            self.buzzer_thread.join(timeout=0.5)
+        
+        # Start new thread
+        self.buzzer_thread = threading.Thread(target=buzzer_pattern)
+        self.buzzer_thread.daemon = True
+        self.buzzer_thread.start()
+    
+    def stop_buzzer(self):
+        """Stop buzzer."""
+        with self.buzzer_lock:
+            self.buzzer_active = False
+        
+        # Wait for thread to finish
+        if self.buzzer_thread and self.buzzer_thread.is_alive():
+            self.buzzer_thread.join(timeout=0.5)
+        
+        # Ensure buzzer is OFF
+        try:
+            if self.gpio_initialized:
+                GPIO.output(self.buzzer_pin, GPIO.LOW)
+        except:
+            pass
+    
+    def publish_all_data(self):
+        """Read and publish all sensor data."""
+        # Read gas sensor
+        if self.enable_gas_sensor:
+            self.gas_detected = self.read_gas_sensor()
+            self.gas_pub.publish(Bool(data=self.gas_detected))
+        
+        # Read and publish Jetson stats
+        if self.enable_jetson_stats:
+            temp, power = self.read_jetson_stats()
+            self.current_temp = temp
+            self.current_power = power
+            
+            # Publish temperature
+            temp_msg = Temperature()
+            temp_msg.temperature = temp
+            temp_msg.header.stamp = rospy.Time.now()
+            self.temp_pub.publish(temp_msg)
+            
+            # Publish power
+            self.power_pub.publish(Float32(data=power))
     
     def run(self):
-        """Main loop - 10Hz polling rate for stable gas detection."""
-        rate = rospy.Rate(10.0)  # 10 Hz = 100ms cycle
+        """Main loop."""
+        rate = rospy.Rate(2.0)  # 2 Hz = twice per second
+        
         while not rospy.is_shutdown():
-            self.publish_sensor_data()
+            self.publish_all_data()
             rate.sleep()
     
     def shutdown(self):
         """Clean shutdown."""
         rospy.loginfo("Shutting down sensors node...")
-        self.stop_buzzer_warning()
         
-        # Cleanup GPIO
-        if self.gas_gpio_initialized or self.buzzer_initialized:
-            try:
-                GPIO.cleanup()
-            except Exception as e:
-                rospy.logwarn("GPIO cleanup warning: {}".format(e))
+        # Stop buzzer
+        self.stop_buzzer()
         
-        if self.i2c_bus:
-            try:
-                self.i2c_bus.close()
-            except:
-                pass
+        # Close jtop
         if self.jtop_handle:
             try:
                 self.jtop_handle.close()
             except:
                 pass
-
+        
+        # Cleanup GPIO
+        if self.gpio_initialized:
+            try:
+                GPIO.cleanup()
+            except:
+                pass
 
 if __name__ == '__main__':
     try:
@@ -552,3 +337,5 @@ if __name__ == '__main__':
         node.run()
     except rospy.ROSInterruptException:
         pass
+    except Exception as e:
+        rospy.logerr("Node error: %s", str(e))
