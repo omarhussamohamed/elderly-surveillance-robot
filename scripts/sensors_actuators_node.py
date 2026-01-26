@@ -264,8 +264,8 @@ class SensorsActuatorsNode:
             power = self.update_power_if_needed()
             self.power_pub.publish(Float32(data=power))
             
-            # Log stats occasionally
-            if int(time.time()) % 60 == 0:  # Every 60 seconds
+            # Log stats more frequently (every 10 seconds)
+            if int(time.time()) % 10 == 0:  # Every 10 seconds
                 rospy.loginfo("Stats: %.1f°C, %.1fW, Gas: %s", 
                             temp_msg.temperature, power, self.gas_detected)
     

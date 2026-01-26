@@ -229,7 +229,7 @@ class CloudBridgeNode:
                     buzzer_state = value
                 elif isinstance(value, (int, float)):
                     buzzer_state = bool(value)
-                elif isinstance(value, str):
+                elif isinstance(value, (str, unicode)):  # Handle unicode in Python 2
                     lower_val = value.lower().strip()
                     buzzer_state = lower_val in ['true', 'on', '1', 'yes', 'high', 'enable']
                 else:
