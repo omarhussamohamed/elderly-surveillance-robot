@@ -1,8 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - FIXED VERSION
-Fixed jtop data reading and simplified buzzer control
+Sensors and Actuators Node - FIXED CONTINUOUS BUZZER
 """
 
 import rospy
@@ -60,10 +59,6 @@ class SensorsActuatorsNode:
         # GPIO
         if self.enable_gas_sensor or self.enable_buzzer:
             self.init_gpio()
-        
-        # Jetson stats - use simpler method
-        if self.enable_stats:
-            self.init_jetson_stats()
     
     def init_gpio(self):
         """Initialize GPIO pins."""
@@ -88,12 +83,6 @@ class SensorsActuatorsNode:
             rospy.logwarn("Jetson.GPIO not available - running in simulation mode")
             self.gpio_available = False
             self.gpio = None
-    
-    def init_jetson_stats(self):
-        """Initialize Jetson stats monitoring with simpler method."""
-        self.jtop_available = False
-        # We'll use file-based reading instead of jtop
-        rospy.loginfo("Using file-based Jetson stats monitoring")
     
     def read_gas_sensor(self):
         """Read gas sensor state."""
@@ -126,13 +115,61 @@ class SensorsActuatorsNode:
             
             self.buzzer_active = msg.data
             
-            if self.gpio_available:
-                if msg.data:  # Turn ON
-                    self.gpio.output(self.buzzer_pin, self.gpio.HIGH)
-                else:  # Turn OFF
-                    self.gpio.output(self.buzzer_pin, self.gpio.LOW)
-            
-            rospy.loginfo("Buzzer %s", "ON" if msg.data else "OFF")
+            if msg.data:  # Turn ON
+                self.start_buzzer()
+                rospy.loginfo("Buzzer ON (continuous)")
+            else:  # Turn OFF
+                self.stop_buzzer()
+                rospy.loginfo("Buzzer OFF")
+    
+    def start_buzzer(self):
+        """Start buzzer in a thread - CONTINUOUS TOGGLING."""
+        def buzzer_pattern():
+            """Continuous toggling pattern (on-off-on-off)."""
+            try:
+                while self.running and not rospy.is_shutdown():
+                    with self.buzzer_lock:
+                        if not self.buzzer_active:
+                            break
+                    
+                    # Toggle every 0.5 seconds
+                    if self.gpio_available:
+                        self.gpio.output(self.buzzer_pin, self.gpio.HIGH)
+                    time.sleep(0.5)
+                    
+                    if self.gpio_available:
+                        self.gpio.output(self.buzzer_pin, self.gpio.LOW)
+                    time.sleep(0.5)
+                    
+            except Exception as e:
+                rospy.logwarn("Buzzer thread error: %s", str(e))
+            finally:
+                # Ensure buzzer is OFF
+                if self.gpio_available:
+                    try:
+                        self.gpio.output(self.buzzer_pin, self.gpio.LOW)
+                    except:
+                        pass
+        
+        # Start new thread
+        if self.buzzer_thread and self.buzzer_thread.is_alive():
+            self.buzzer_thread.join(timeout=0.1)
+        
+        self.buzzer_thread = threading.Thread(target=buzzer_pattern)
+        self.buzzer_thread.daemon = True
+        self.buzzer_thread.start()
+    
+    def stop_buzzer(self):
+        """Stop buzzer."""
+        with self.buzzer_lock:
+            self.buzzer_active = False
+        
+        # Ensure buzzer is OFF
+        if self.gpio_available:
+            try:
+                self.gpio.output(self.buzzer_pin, self.gpio.LOW)
+            except:
+                pass
     
     def read_jetson_temperature(self):
         """Read Jetson temperature from thermal zones."""
@@ -145,27 +182,38 @@ class SensorsActuatorsNode:
             return 0.0
     
     def read_jetson_power(self):
-        """Read Jetson power consumption."""
+        """Read Jetson power consumption - FIXED."""
         try:
-            # Try to read from INA3221 power monitor (Jetson Nano)
-            with open('/sys/bus/i2c/drivers/ina3221x/0-0041/iio:device1/in_power0_input', 'r') as f:
-                power_microwatts = int(f.read().strip())
-            return power_microwatts / 1000000.0  # Convert to Watts
-        except:
-            # Fallback: read from jtop if available
-            try:
-                import subprocess
-                result = subprocess.run(['tegrastats', '--interval', '100', '--count', '1'], 
-                                      capture_output=True, text=True, timeout=2)
-                if 'VDD_SYS_GPU' in result.stdout:
-                    # Parse power from tegrastats output
-                    import re
-                    match = re.search(r'VDD_SYS_GPU (\d+)mW', result.stdout)
-                    if match:
-                        return int(match.group(1)) / 1000.0  # mW to W
-            except:
-                pass
-            return 0.0
+            # Use tegrastats for Jetson Nano
+            import subprocess
+            result = subprocess.run(['tegrastats', '--interval', '100', '--count', '1'], 
+                                  capture_output=True, text=True, timeout=2)
+            
+            if result.returncode == 0:
+                output = result.stdout
+                # Parse power from tegrastats output
+                # Example: "VDD_IN 1651/1651" means 1651 mW
+                import re
+                
+                # Look for VDD_IN (total input power in mW)
+                match = re.search(r'VDD_IN\s+(\d+)/(\d+)', output)
+                if match:
+                    current_power_mw = int(match.group(1))  # Current power in mW
+                    return current_power_mw / 1000.0  # Convert to W
+                
+                # Alternative: sum all VDD_* powers
+                total_power_mw = 0
+                power_matches = re.findall(r'VDD_\w+\s+(\d+)/(\d+)', output)
+                for match in power_matches:
+                    total_power_mw += int(match[0])
+                
+                if total_power_mw > 0:
+                    return total_power_mw / 1000.0  # Convert to W
+                
+        except Exception as e:
+            rospy.logdebug("Power read error: %s", str(e))
+        
+        return 0.0
     
     def publish_data(self):
         """Read and publish all sensor data."""
@@ -208,9 +256,11 @@ class SensorsActuatorsNode:
         self.running = False
         
         # Stop buzzer
-        if self.gpio_available and self.enable_buzzer:
+        self.stop_buzzer()
+        
+        # Cleanup GPIO
+        if hasattr(self, 'gpio_available') and self.gpio_available:
             try:
-                self.gpio.output(self.buzzer_pin, self.gpio.LOW)
                 self.gpio.cleanup()
             except:
                 pass
