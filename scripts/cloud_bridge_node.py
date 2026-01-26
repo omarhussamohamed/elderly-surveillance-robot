@@ -87,8 +87,8 @@ class CloudBridgeNode:
             # Send telemetry every 5 seconds
             rospy.Timer(rospy.Duration(5), self.send_telemetry)
             
-            # Monitor connection every 10 seconds
-            rospy.Timer(rospy.Duration(10), self.check_connection)
+            # Monitor connection every 30 seconds (increased from 10 for less noise)
+            rospy.Timer(rospy.Duration(30), self.check_connection)
             
             rospy.on_shutdown(self.cleanup)
             
@@ -333,7 +333,10 @@ class CloudBridgeNode:
         }
         
         if self.connection_status in status_msg:
-            rospy.loginfo(status_msg[self.connection_status])
+            if self.connection_status == "connected":
+                rospy.logdebug(status_msg[self.connection_status])  # Changed to debug for less noise
+            else:
+                rospy.logwarn(status_msg[self.connection_status])
         
         # Try to reconnect if disconnected
         if self.connection_status in ["disconnected", "failed", "error"]:
