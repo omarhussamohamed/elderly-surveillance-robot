@@ -1,13 +1,13 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Direct buzzer test without ROS dependency
+Direct buzzer test without ROS dependency - PYTHON 2 VERSION
 """
 
 import time
 
 def test_buzzer_direct():
-    print("Testing buzzer directly via GPIO...")
+    print("Testing buzzer directly via GPIO (Python 2)...")
     
     try:
         import Jetson.GPIO as GPIO
@@ -18,7 +18,7 @@ def test_buzzer_direct():
         buzzer_pin = 16
         
         GPIO.setup(buzzer_pin, GPIO.OUT, initial=GPIO.LOW)
-        print(f"Buzzer on pin {buzzer_pin}")
+        print("Buzzer on pin %d" % buzzer_pin)
         
         # Test sequence
         print("1. Buzzer ON (steady)...")
@@ -35,18 +35,18 @@ def test_buzzer_direct():
             time.sleep(0.5)
             GPIO.output(buzzer_pin, GPIO.LOW)
             time.sleep(0.5)
-            print(f"  Blink {i+1}/5")
+            print("  Blink %d/5" % (i+1))
         
         print("4. Cleanup...")
         GPIO.output(buzzer_pin, GPIO.LOW)
         GPIO.cleanup()
         
-        print("✅ Buzzer test complete!")
+        print("Buzzer test complete!")
         
     except ImportError:
-        print("❌ Jetson.GPIO not installed")
+        print("Jetson.GPIO not installed")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print("Error: %s" % str(e))
         try:
             GPIO.cleanup()
         except:

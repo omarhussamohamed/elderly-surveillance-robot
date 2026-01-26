@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - COMPLETELY FIXED
-Fixed: Buzzer threading, Power reading, Clean shutdown
+Sensors and Actuators Node - PYTHON 2 COMPATIBLE
+Fixed: Python 2 compatibility, Buzzer threading, Power reading
 """
 
 import rospy
@@ -37,6 +37,10 @@ class SensorsActuatorsNode:
         self.buzzer_thread = None
         self.buzzer_stop_event = threading.Event()
         self.running = True
+        
+        # Power reading cache (update every 30 seconds)
+        self.last_power_update = 0
+        self.cached_power = 5.0  # Default fallback
         
         # Initialize hardware
         self.init_hardware()
@@ -172,42 +176,69 @@ class SensorsActuatorsNode:
             return 35.0  # Default fallback
     
     def read_jetson_power(self):
-        """Read Jetson power consumption - FIXED with correct tegrastats usage."""
+        """Read Jetson power consumption - PYTHON 2 COMPATIBLE."""
         try:
-            # Use tegrastats with correct syntax
-            result = subprocess.run(
-                ['tegrastats', '--interval', '1000', '--count', '1'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            # Python 2 compatible subprocess - use Popen with timeout
+            import signal
             
-            if result.returncode == 0:
-                output = result.stdout.strip()
-                rospy.logdebug("tegrastats output: %s", output)
+            def timeout_handler(signum, frame):
+                raise Exception("Timeout")
+            
+            # Set timeout
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(5)  # 5 second timeout
+            
+            try:
+                # Run tegrastats
+                process = subprocess.Popen(
+                    ['tegrastats', '--interval', '1000', '--count', '1'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
                 
-                # Parse power - look for VDD_IN which is total input power
-                # Example: "VDD_IN 1651/1651" means 1651 mW
-                match = re.search(r'VDD_IN\s+(\d+)/(\d+)', output)
-                if match:
-                    current_power_mw = int(match.group(1))
-                    return current_power_mw / 1000.0  # Convert mW to W
+                stdout, stderr = process.communicate()
                 
-                # Alternative: sum all power domains
-                total_power_mw = 0
-                power_matches = re.findall(r'VDD_\w+\s+(\d+)/(\d+)', output)
-                for current, _ in power_matches:
-                    total_power_mw += int(current)
+                if process.returncode == 0:
+                    output = stdout.strip()
+                    rospy.logdebug("tegrastats output: %s", output)
+                    
+                    # Parse power - look for VDD_IN which is total input power
+                    match = re.search(r'VDD_IN\s+(\d+)/(\d+)', output)
+                    if match:
+                        current_power_mw = int(match.group(1))
+                        return current_power_mw / 1000.0  # Convert mW to W
+                    
+                    # Alternative: sum all power domains
+                    total_power_mw = 0
+                    power_matches = re.findall(r'VDD_\w+\s+(\d+)/(\d+)', output)
+                    for current, _ in power_matches:
+                        total_power_mw += int(current)
+                    
+                    if total_power_mw > 0:
+                        return total_power_mw / 1000.0
+                    
+            except Exception as e:
+                rospy.logdebug("Power read error: %s", str(e))
+            finally:
+                # Disable alarm
+                signal.alarm(0)
                 
-                if total_power_mw > 0:
-                    return total_power_mw / 1000.0
-                
-        except subprocess.TimeoutExpired:
-            rospy.logdebug("tegrastats timeout")
         except Exception as e:
-            rospy.logdebug("Power read error: %s", str(e))
+            rospy.logdebug("Power read general error: %s", str(e))
         
         return 5.0  # Default fallback (typical Jetson Nano idle power)
+    
+    def update_power_if_needed(self):
+        """Update power reading only every 30 seconds."""
+        current_time = time.time()
+        if current_time - self.last_power_update > 30:
+            try:
+                self.cached_power = self.read_jetson_power()
+                self.last_power_update = current_time
+                rospy.logdebug("Updated power reading: %.1fW", self.cached_power)
+            except Exception as e:
+                rospy.logdebug("Failed to update power: %s", str(e))
+        return self.cached_power
     
     def publish_data(self):
         """Read and publish all sensor data."""
@@ -229,12 +260,12 @@ class SensorsActuatorsNode:
             temp_msg.header.frame_id = 'jetson'
             self.temp_pub.publish(temp_msg)
             
-            # Power
-            power = self.read_jetson_power()
+            # Power (with caching)
+            power = self.update_power_if_needed()
             self.power_pub.publish(Float32(data=power))
             
             # Log stats occasionally
-            if int(time.time()) % 30 == 0:  # Every 30 seconds
+            if int(time.time()) % 60 == 0:  # Every 60 seconds
                 rospy.loginfo("Stats: %.1f°C, %.1fW, Gas: %s", 
                             temp_msg.temperature, power, self.gas_detected)
     
