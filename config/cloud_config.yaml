@@ -5,12 +5,12 @@ aws_endpoint: "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
 client_id: "robot"
 port: 8883
 
-# Certificate Paths - FIXED with absolute paths
-root_ca_path: "/home/omar/aws_certs/AmazonRootCA1.pem"
-cert_path: "/home/omar/aws_certs/certificate.pem.crt"
-key_path: "/home/omar/aws_certs/private.pem.key"
+# Certificate Paths - CORRECTED
+root_ca_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
+cert_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
+key_path: "/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
 
-# MQTT Topics - SIMPLIFIED
+# MQTT Topics
 mqtt_topic_telemetry: "robot/telemetry"
 mqtt_topic_alerts: "robot/alerts"
 mqtt_topic_commands: "robot/commands"
