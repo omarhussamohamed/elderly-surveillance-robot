@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Simplified Cloud Bridge - Only Required Features
+Simplified Cloud Bridge - Using UInt16 for Buzzer (as required by sensors_actuators_node)
 """
 
 import rospy
@@ -12,7 +12,7 @@ import subprocess
 import threading
 import paho.mqtt.client as mqtt
 import ssl
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, UInt16
 from sensor_msgs.msg import Temperature
 from geometry_msgs.msg import Twist
 
@@ -47,7 +47,8 @@ class CloudBridgeNode:
         rospy.Subscriber('/jetson_power', Float32, self.power_cb)
         rospy.Subscriber('/gas_detected', Bool, self.gas_cb)
         
-        self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
+        # CHANGED: Using UInt16 for buzzer (as your sensors node expects)
+        self.buzzer_pub = rospy.Publisher('/buzzer_command', UInt16, queue_size=1)
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         
         # Send telemetry every 3 seconds
@@ -104,19 +105,25 @@ class CloudBridgeNode:
             cmd = data.get('command', '').lower()
             
             if cmd == 'buzzer':
-                # Buzzer on/off
-                value = data.get('value', False)
-                if isinstance(value, bool):
-                    state = value
-                elif isinstance(value, (int, float)):
-                    state = bool(value)
-                elif isinstance(value, str):
-                    state = value.lower() in ['true', 'on', '1', 'yes']
-                else:
-                    state = False
+                # Buzzer on/off - USING UINT16 (frequency)
+                value = data.get('value', 0)
                 
-                self.buzzer_pub.publish(Bool(state))
-                rospy.loginfo("Buzzer: %s", "ON" if state else "OFF")
+                # Convert to frequency: 0 = off, >0 = on (with frequency)
+                if isinstance(value, bool):
+                    freq = 1000 if value else 0
+                elif isinstance(value, (int, float)):
+                    freq = int(value)  # 0 = off, >0 = frequency in Hz
+                elif isinstance(value, str):
+                    if value.lower() in ['true', 'on', '1', 'yes']:
+                        freq = 1000  # Default frequency when turned on
+                    else:
+                        freq = 0
+                else:
+                    freq = 0
+                
+                # Publish as UInt16 (frequency in Hz)
+                self.buzzer_pub.publish(UInt16(freq))
+                rospy.loginfo("Buzzer: %s (%d Hz)", "ON" if freq > 0 else "OFF", freq)
             
             elif cmd == 'sleep':
                 # Sleep for specified minutes (default 30)
@@ -124,8 +131,8 @@ class CloudBridgeNode:
                 rospy.loginfo("Sleeping for %.1f minutes", minutes)
                 
                 # Stop everything
-                self.buzzer_pub.publish(Bool(False))  # Buzzer off
-                self.cmd_vel_pub.publish(Twist())     # Stop movement
+                self.buzzer_pub.publish(UInt16(0))  # Buzzer off (frequency 0)
+                self.cmd_vel_pub.publish(Twist())   # Stop movement
                 
                 # Schedule wakeup
                 self.schedule_wakeup(minutes * 60)  # Convert to seconds
