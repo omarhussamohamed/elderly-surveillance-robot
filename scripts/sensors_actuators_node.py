@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - WORKING VERSION
+Sensors and Actuators Node - FIXED SHUTDOWN VERSION
 """
 
 import rospy
@@ -31,7 +31,9 @@ class SensorsActuatorsNode:
     
     def __init__(self):
         rospy.init_node('sensors_actuators_node', anonymous=False)
-        rospy.on_shutdown(self.shutdown)
+        
+        # Running flag for clean shutdown
+        self.running = True
         
         # Parameters
         self.enable_gas_sensor = rospy.get_param('~enable_gas_sensor', True)
@@ -74,6 +76,9 @@ class SensorsActuatorsNode:
                      "ON" if self.enable_gas_sensor else "OFF",
                      "ON" if self.enable_buzzer else "OFF",
                      "ON" if self.enable_jetson_stats else "OFF")
+        
+        # Set shutdown hook
+        rospy.on_shutdown(self.shutdown)
     
     def _init_gpio(self):
         """Initialize GPIO pins."""
@@ -103,6 +108,9 @@ class SensorsActuatorsNode:
     
     def read_jetson_stats(self):
         """Read Jetson temperature and power using multiple methods."""
+        if not self.running:
+            return (0.0, 0.0)
+        
         temp = 0.0
         power = 0.0
         
@@ -110,7 +118,7 @@ class SensorsActuatorsNode:
         try:
             # Run tegrastats once
             result = subprocess.check_output(['tegrastats', '--interval', '1000', '--count', '1'], 
-                                           stderr=subprocess.STDOUT)
+                                           stderr=subprocess.STDOUT, timeout=2)
             output = result.decode('utf-8')
             
             # Parse temperature (look for patterns like CPU@37.5C or thermal@36.7C)
@@ -137,11 +145,13 @@ class SensorsActuatorsNode:
             if temp > 0 or power > 0:
                 rospy.logdebug("Tegrastats: %.1fC, %.2fW", temp, power)
                 
+        except subprocess.TimeoutExpired:
+            rospy.logwarn_throttle(60, "Tegrastats timeout")
         except Exception as e:
             rospy.logwarn_throttle(60, "Tegrastats error: %s", str(e))
         
         # Method 2: Fallback to sysfs if tegrastats fails
-        if temp == 0.0:
+        if temp == 0.0 and self.running:
             try:
                 # Read from thermal zone 0
                 with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
@@ -150,7 +160,7 @@ class SensorsActuatorsNode:
             except:
                 pass
         
-        if power == 0.0:
+        if power == 0.0 and self.running:
             try:
                 # Try common power sensor paths
                 power_paths = [
@@ -171,7 +181,7 @@ class SensorsActuatorsNode:
     
     def read_gas_sensor(self):
         """Read gas sensor state."""
-        if not self.gpio_initialized or not self.enable_gas_sensor:
+        if not self.running or not self.gpio_initialized or not self.enable_gas_sensor:
             return False
         
         try:
@@ -188,12 +198,13 @@ class SensorsActuatorsNode:
             return detected
             
         except Exception as e:
-            rospy.logwarn_throttle(10, "Gas sensor read error: %s", str(e))
+            if self.running:  # Only log if we're still running
+                rospy.logwarn_throttle(10, "Gas sensor read error: %s", str(e))
             return False
     
     def buzzer_callback(self, msg):
         """Handle buzzer commands."""
-        if not self.gpio_initialized or not self.enable_buzzer:
+        if not self.running or not self.gpio_initialized or not self.enable_buzzer:
             rospy.logwarn("Buzzer not initialized")
             return
         
@@ -216,7 +227,7 @@ class SensorsActuatorsNode:
         def buzzer_pattern():
             """Continuous beeping pattern."""
             try:
-                while not rospy.is_shutdown():
+                while self.running and not rospy.is_shutdown():
                     with self.buzzer_lock:
                         if not self.buzzer_active:
                             break
@@ -228,7 +239,8 @@ class SensorsActuatorsNode:
                     time.sleep(0.1)
                     
             except Exception as e:
-                rospy.logerr("Buzzer thread error: %s", str(e))
+                if self.running:  # Only log if we're still running
+                    rospy.logerr("Buzzer thread error: %s", str(e))
             finally:
                 # Ensure buzzer is OFF
                 try:
@@ -238,9 +250,13 @@ class SensorsActuatorsNode:
         
         # Stop existing thread if running
         if self.buzzer_thread and self.buzzer_thread.is_alive():
+            with self.buzzer_lock:
+                self.buzzer_active = False
             self.buzzer_thread.join(timeout=0.5)
         
         # Start new thread
+        with self.buzzer_lock:
+            self.buzzer_active = True
         self.buzzer_thread = threading.Thread(target=buzzer_pattern)
         self.buzzer_thread.daemon = True
         self.buzzer_thread.start()
@@ -263,6 +279,9 @@ class SensorsActuatorsNode:
     
     def publish_all_data(self):
         """Read and publish all sensor data."""
+        if not self.running:
+            return
+        
         # Read gas sensor
         if self.enable_gas_sensor:
             self.gas_detected = self.read_gas_sensor()
@@ -284,23 +303,27 @@ class SensorsActuatorsNode:
             self.power_pub.publish(Float32(data=power))
             
             # Log only if we have valid readings
-            if temp > 0:
+            if temp > 0 and self.running:
                 rospy.loginfo_throttle(30, "Jetson: %.1fC, %.1fW", temp, power)
     
     def run(self):
         """Main loop."""
         rate = rospy.Rate(2.0)  # 2 Hz = twice per second
         
-        while not rospy.is_shutdown():
+        while self.running and not rospy.is_shutdown():
             self.publish_all_data()
             rate.sleep()
     
     def shutdown(self):
         """Clean shutdown."""
         rospy.loginfo("Shutting down sensors node...")
+        self.running = False
         
         # Stop buzzer
         self.stop_buzzer()
+        
+        # Give time for any in-progress operations to complete
+        time.sleep(0.1)
         
         # Cleanup GPIO
         if self.gpio_initialized:
