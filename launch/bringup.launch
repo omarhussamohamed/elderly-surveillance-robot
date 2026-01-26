@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  Elderly Bot Bringup Launch File - CLEANED VERSION
+  Elderly Bot Bringup Launch File - FIXED VERSION
 -->
 <launch>
   <!-- ========== PARAMETERS ========== -->
@@ -19,8 +19,8 @@
   <arg name="i2c_bus" default="1" />
   <arg name="i2c_address" default="0x68" />
   
-  <!-- Camera and KVS streaming -->
-  <arg name="enable_camera" default="true" />
+  <!-- Camera and KVS streaming - DISABLED BY DEFAULT -->
+  <arg name="enable_camera" default="false" />
   <arg name="kvs_silent" default="true" />
   <arg name="camera_device" default="/dev/video0" />
   

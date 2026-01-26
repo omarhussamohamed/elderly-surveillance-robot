@@ -1,14 +1,15 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Cloud Bridge Node - OPTIMIZED VERSION
-Simplified and uses ROS parameter server correctly
+Cloud Bridge Node - FIXED VERSION
+Fixed MQTT connection and command parsing
 """
 
 import rospy
 import json
 import time
 import traceback
+import os
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
 from geometry_msgs.msg import Twist
@@ -23,13 +24,18 @@ class CloudBridgeNode:
             self.aws_endpoint = rospy.get_param('~aws_endpoint', 'a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com')
             self.client_id = rospy.get_param('~client_id', 'robot')
             
-            # Certificate paths
+            # Certificate paths - check if they exist
             self.root_ca = rospy.get_param('~root_ca_path', 
                                          '/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem')
             self.cert = rospy.get_param('~cert_path', 
                                        '/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt')
             self.key = rospy.get_param('~key_path', 
                                       '/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key')
+            
+            # Check if certs exist
+            for path in [self.root_ca, self.cert, self.key]:
+                if not os.path.exists(path):
+                    rospy.logerr("Certificate file not found: %s", path)
             
             # MQTT Topics
             self.mqtt_topic_telemetry = rospy.get_param('~mqtt_topic_telemetry', 'robot/telemetry')
@@ -52,6 +58,7 @@ class CloudBridgeNode:
             self.temperature = 0.0
             self.power_voltage = 0.0
             self.gas_detected = False
+            self.last_telemetry_log = 0
             
             # Setup ROS subscribers
             rospy.Subscriber('/jetson_temperature', Temperature, self.temp_cb)
@@ -83,19 +90,21 @@ class CloudBridgeNode:
     def connect_aws(self):
         """Connect to AWS IoT."""
         try:
-            self.mqtt = self.mqtt_module.Client(client_id=self.client_id)
+            self.mqtt = self.mqtt_module.Client(client_id=self.client_id, protocol=self.mqtt_module.MQTTv311)
             
             # TLS setup
             self.mqtt.tls_set(
                 ca_certs=self.root_ca,
                 certfile=self.cert,
                 keyfile=self.key,
-                tls_version=self.ssl_module.PROTOCOL_TLSv1_2
+                tls_version=self.ssl_module.PROTOCOL_TLSv1_2,
+                ciphers=None
             )
             
             # Callbacks
             self.mqtt.on_connect = self.on_connect
             self.mqtt.on_message = self.on_message
+            self.mqtt.on_disconnect = self.on_disconnect
             
             # Connect
             rospy.loginfo("Connecting to AWS IoT endpoint: %s", self.aws_endpoint)
@@ -104,22 +113,36 @@ class CloudBridgeNode:
             
         except Exception as e:
             rospy.logerr("AWS connection error: %s", str(e))
+            rospy.logerr(traceback.format_exc())
     
     def on_connect(self, client, userdata, flags, rc):
         """AWS connection established."""
         if rc == 0:
-            rospy.loginfo("AWS IoT Connected")
+            rospy.loginfo("AWS IoT Connected successfully")
             client.subscribe(self.mqtt_topic_commands, qos=1)
+            rospy.loginfo("Subscribed to: %s", self.mqtt_topic_commands)
         else:
             rospy.logerr("Connection failed with code: %s", rc)
+    
+    def on_disconnect(self, client, userdata, rc):
+        """Handle disconnection."""
+        if rc != 0:
+            rospy.logwarn("Unexpected disconnection from AWS IoT")
+            # Try to reconnect
+            try:
+                client.reconnect()
+            except:
+                pass
     
     def on_message(self, client, userdata, msg):
         """Handle commands from cloud."""
         try:
-            rospy.logdebug("Received MQTT: %s", msg.payload)
+            rospy.loginfo("Received MQTT command: %s", msg.payload)
             data = json.loads(msg.payload)
             cmd = data.get('command', '').lower()
             value = data.get('value', '')
+            
+            rospy.loginfo("Parsed command: %s, value: %s", cmd, value)
             
             if cmd == 'buzzer':
                 # Convert to boolean
@@ -151,9 +174,12 @@ class CloudBridgeNode:
             
             elif cmd == 'test':
                 rospy.loginfo("Test command: %s", value)
+            else:
+                rospy.logwarn("Unknown command: %s", cmd)
             
         except Exception as e:
-            rospy.logerr("Command error: %s", str(e))
+            rospy.logerr("Command parsing error: %s", str(e))
+            rospy.logerr("Raw payload: %s", msg.payload)
     
     def temp_cb(self, msg):
         self.temperature = msg.temperature
@@ -163,23 +189,7 @@ class CloudBridgeNode:
     
     def gas_cb(self, msg):
         self.gas_detected = msg.data
-        if msg.data:
-            rospy.logwarn("Gas detected!")
-            self.send_alert()
-    
-    def send_alert(self):
-        """Send gas alert to AWS."""
-        try:
-            if hasattr(self, 'mqtt') and self.mqtt:
-                alert = {
-                    'timestamp': time.time(),
-                    'alert': 'GAS_DETECTED',
-                    'temperature': round(self.temperature, 1),
-                    'power': round(self.power_voltage, 2)
-                }
-                self.mqtt.publish(self.mqtt_topic_alerts, json.dumps(alert), qos=1)
-        except Exception as e:
-            rospy.logwarn("Alert send failed: %s", str(e))
+        # Only log gas detection, don't trigger buzzer automatically
     
     def send_telemetry(self, event=None):
         """Send sensor data to AWS IoT."""
@@ -192,12 +202,15 @@ class CloudBridgeNode:
                     'gas_detected': self.gas_detected
                 }
                 
-                self.mqtt.publish(self.mqtt_topic_telemetry, json.dumps(data), qos=0)
+                payload = json.dumps(data)
+                self.mqtt.publish(self.mqtt_topic_telemetry, payload, qos=0)
                 
                 # Log every 30 seconds to avoid spam
-                if int(time.time()) % 30 == 0:
-                    rospy.logdebug("Telemetry: %.1f°C, %.1fV, gas=%s", 
-                                  self.temperature, self.power_voltage, self.gas_detected)
+                current_time = time.time()
+                if current_time - self.last_telemetry_log >= 30:
+                    rospy.loginfo("Telemetry sent: %.1f°C, %.1fW, gas=%s", 
+                                self.temperature, self.power_voltage, self.gas_detected)
+                    self.last_telemetry_log = current_time
                 
         except Exception as e:
             rospy.logwarn("Telemetry error: %s", str(e))

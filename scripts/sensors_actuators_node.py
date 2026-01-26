@@ -1,13 +1,14 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - OPTIMIZED
-Cleaner structure, better error handling
+Sensors and Actuators Node - FIXED VERSION
+Fixed jtop data reading and simplified buzzer control
 """
 
 import rospy
 import time
 import threading
+import subprocess
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
 
@@ -22,8 +23,8 @@ class SensorsActuatorsNode:
         self.running = True
         
         # Load parameters
-        self.enable_gas_sensor = rospy.get_param('~enable_gas_sensor', False)
-        self.enable_buzzer = rospy.get_param('~enable_buzzer', False)
+        self.enable_gas_sensor = rospy.get_param('~enable_gas_sensor', True)
+        self.enable_buzzer = rospy.get_param('~enable_buzzer', True)
         self.enable_stats = rospy.get_param('~enable_stats', True)
         
         # GPIO pins
@@ -60,7 +61,7 @@ class SensorsActuatorsNode:
         if self.enable_gas_sensor or self.enable_buzzer:
             self.init_gpio()
         
-        # Jetson stats
+        # Jetson stats - use simpler method
         if self.enable_stats:
             self.init_jetson_stats()
     
@@ -89,15 +90,10 @@ class SensorsActuatorsNode:
             self.gpio = None
     
     def init_jetson_stats(self):
-        """Initialize Jetson stats monitoring."""
-        try:
-            from jtop import jtop
-            self.jtop = jtop()
-            self.jtop.start()
-            rospy.loginfo("Jetson stats monitoring enabled")
-        except ImportError:
-            rospy.logwarn("jtop not available - stats disabled")
-            self.jtop = None
+        """Initialize Jetson stats monitoring with simpler method."""
+        self.jtop_available = False
+        # We'll use file-based reading instead of jtop
+        rospy.loginfo("Using file-based Jetson stats monitoring")
     
     def read_gas_sensor(self):
         """Read gas sensor state."""
@@ -130,57 +126,46 @@ class SensorsActuatorsNode:
             
             self.buzzer_active = msg.data
             
-            if msg.data:  # Turn ON
-                self.start_buzzer()
-                rospy.loginfo("Buzzer ON")
-            else:  # Turn OFF
-                self.stop_buzzer()
-                rospy.loginfo("Buzzer OFF")
+            if self.gpio_available:
+                if msg.data:  # Turn ON
+                    self.gpio.output(self.buzzer_pin, self.gpio.HIGH)
+                else:  # Turn OFF
+                    self.gpio.output(self.buzzer_pin, self.gpio.LOW)
+            
+            rospy.loginfo("Buzzer %s", "ON" if msg.data else "OFF")
     
-    def start_buzzer(self):
-        """Start buzzer in a thread."""
-        def buzzer_pattern():
-            """Continuous beeping pattern."""
-            try:
-                while self.running and not rospy.is_shutdown():
-                    with self.buzzer_lock:
-                        if not self.buzzer_active:
-                            break
-                    
-                    if self.gpio_available:
-                        self.gpio.output(self.buzzer_pin, self.gpio.HIGH)
-                    time.sleep(0.1)
-                    
-                    if self.gpio_available:
-                        self.gpio.output(self.buzzer_pin, self.gpio.LOW)
-                    time.sleep(0.1)
-                    
-            except Exception:
-                pass
-            finally:
-                # Ensure buzzer is OFF
-                if self.gpio_available:
-                    try:
-                        self.gpio.output(self.buzzer_pin, self.gpio.LOW)
-                    except:
-                        pass
-        
-        # Start new thread
-        self.buzzer_thread = threading.Thread(target=buzzer_pattern)
-        self.buzzer_thread.daemon = True
-        self.buzzer_thread.start()
+    def read_jetson_temperature(self):
+        """Read Jetson temperature from thermal zones."""
+        try:
+            # Read from thermal zone 0
+            with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+                temp_millic = int(f.read().strip())
+            return temp_millic / 1000.0  # Convert to Celsius
+        except:
+            return 0.0
     
-    def stop_buzzer(self):
-        """Stop buzzer."""
-        with self.buzzer_lock:
-            self.buzzer_active = False
-        
-        # Ensure buzzer is OFF
-        if self.gpio_available:
+    def read_jetson_power(self):
+        """Read Jetson power consumption."""
+        try:
+            # Try to read from INA3221 power monitor (Jetson Nano)
+            with open('/sys/bus/i2c/drivers/ina3221x/0-0041/iio:device1/in_power0_input', 'r') as f:
+                power_microwatts = int(f.read().strip())
+            return power_microwatts / 1000000.0  # Convert to Watts
+        except:
+            # Fallback: read from jtop if available
             try:
-                self.gpio.output(self.buzzer_pin, self.gpio.LOW)
+                import subprocess
+                result = subprocess.run(['tegrastats', '--interval', '100', '--count', '1'], 
+                                      capture_output=True, text=True, timeout=2)
+                if 'VDD_SYS_GPU' in result.stdout:
+                    # Parse power from tegrastats output
+                    import re
+                    match = re.search(r'VDD_SYS_GPU (\d+)mW', result.stdout)
+                    if match:
+                        return int(match.group(1)) / 1000.0  # mW to W
             except:
                 pass
+            return 0.0
     
     def publish_data(self):
         """Read and publish all sensor data."""
@@ -191,30 +176,20 @@ class SensorsActuatorsNode:
                 self.gas_detected = new_gas_state
                 self.gas_pub.publish(Bool(data=self.gas_detected))
                 if self.gas_detected:
-                    rospy.logwarn("GAS DETECTED!")
+                    rospy.logwarn("GAS DETECTED")
         
         # Read and publish Jetson stats
-        if self.enable_stats and self.jtop:
-            try:
-                if self.jtop.ok():
-                    stats = self.jtop.stats
-                    
-                    # Temperature
-                    temp_msg = Temperature()
-                    if 'temperature' in stats:
-                        temp_data = stats['temperature']
-                        if 'CPU' in temp_data:
-                            temp_msg.temperature = float(temp_data['CPU'].get('temp', 0.0))
-                    temp_msg.header.stamp = rospy.Time.now()
-                    self.temp_pub.publish(temp_msg)
-                    
-                    # Power
-                    if 'power' in stats:
-                        power_data = stats['power']
-                        if 'tot' in power_data:
-                            self.power_pub.publish(Float32(data=float(power_data['tot'])))
-            except Exception as e:
-                rospy.logwarn("Stats read error: %s", str(e))
+        if self.enable_stats:
+            # Temperature
+            temp_msg = Temperature()
+            temp_msg.temperature = self.read_jetson_temperature()
+            temp_msg.header.stamp = rospy.Time.now()
+            temp_msg.header.frame_id = 'jetson'
+            self.temp_pub.publish(temp_msg)
+            
+            # Power
+            power = self.read_jetson_power()
+            self.power_pub.publish(Float32(data=power))
     
     def run(self):
         """Main loop."""
@@ -233,19 +208,10 @@ class SensorsActuatorsNode:
         self.running = False
         
         # Stop buzzer
-        self.stop_buzzer()
-        
-        # Cleanup GPIO
-        if hasattr(self, 'gpio_available') and self.gpio_available:
+        if self.gpio_available and self.enable_buzzer:
             try:
+                self.gpio.output(self.buzzer_pin, self.gpio.LOW)
                 self.gpio.cleanup()
-            except:
-                pass
-        
-        # Close jtop
-        if hasattr(self, 'jtop') and self.jtop:
-            try:
-                self.jtop.close()
             except:
                 pass
 
