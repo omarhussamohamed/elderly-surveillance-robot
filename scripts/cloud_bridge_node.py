@@ -1,7 +1,8 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Simplified Cloud Bridge - Using UInt16 for Buzzer (as required by sensors_actuators_node)
+Cloud Bridge Node - FINAL FIXED VERSION
+Uses Bool for buzzer (matching sensors_actuators_node)
 """
 
 import rospy
@@ -12,7 +13,7 @@ import subprocess
 import threading
 import paho.mqtt.client as mqtt
 import ssl
-from std_msgs.msg import Float32, Bool, UInt16
+from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import Temperature
 from geometry_msgs.msg import Twist
 
@@ -47,8 +48,8 @@ class CloudBridgeNode:
         rospy.Subscriber('/jetson_power', Float32, self.power_cb)
         rospy.Subscriber('/gas_detected', Bool, self.gas_cb)
         
-        # CHANGED: Using UInt16 for buzzer (as your sensors node expects)
-        self.buzzer_pub = rospy.Publisher('/buzzer_command', UInt16, queue_size=1)
+        # ROS publishers - USING BOOL for buzzer (matching your sensors_actuators_node)
+        self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         
         # Send telemetry every 3 seconds
@@ -101,50 +102,51 @@ class CloudBridgeNode:
     def on_message(self, client, userdata, msg):
         """Handle commands from cloud"""
         try:
+            rospy.loginfo("Received command: %s", msg.payload)
             data = json.loads(msg.payload)
             cmd = data.get('command', '').lower()
+            value = data.get('value', '')
             
             if cmd == 'buzzer':
-                # Buzzer on/off - USING UINT16 (frequency)
-                value = data.get('value', 0)
-                
-                # Convert to frequency: 0 = off, >0 = on (with frequency)
+                # Convert to boolean (True/False)
                 if isinstance(value, bool):
-                    freq = 1000 if value else 0
+                    buzzer_state = value
                 elif isinstance(value, (int, float)):
-                    freq = int(value)  # 0 = off, >0 = frequency in Hz
+                    buzzer_state = bool(value)
                 elif isinstance(value, str):
-                    if value.lower() in ['true', 'on', '1', 'yes']:
-                        freq = 1000  # Default frequency when turned on
-                    else:
-                        freq = 0
+                    lower_val = value.lower().strip()
+                    buzzer_state = lower_val in ['true', 'on', '1', 'yes', 'high']
                 else:
-                    freq = 0
+                    buzzer_state = False
                 
-                # Publish as UInt16 (frequency in Hz)
-                self.buzzer_pub.publish(UInt16(freq))
-                rospy.loginfo("Buzzer: %s (%d Hz)", "ON" if freq > 0 else "OFF", freq)
+                # Publish Bool message (True=ON, False=OFF)
+                msg_bool = Bool()
+                msg_bool.data = buzzer_state
+                self.buzzer_pub.publish(msg_bool)
+                rospy.loginfo("🔔 Buzzer: %s", "ON" if buzzer_state else "OFF")
             
             elif cmd == 'sleep':
                 # Sleep for specified minutes (default 30)
                 minutes = float(data.get('minutes', 30))
-                rospy.loginfo("Sleeping for %.1f minutes", minutes)
+                rospy.loginfo("😴 Sleeping for %.1f minutes", minutes)
                 
                 # Stop everything
-                self.buzzer_pub.publish(UInt16(0))  # Buzzer off (frequency 0)
-                self.cmd_vel_pub.publish(Twist())   # Stop movement
+                msg_bool = Bool()
+                msg_bool.data = False
+                self.buzzer_pub.publish(msg_bool)  # Buzzer off
+                self.cmd_vel_pub.publish(Twist())  # Stop movement
                 
                 # Schedule wakeup
-                self.schedule_wakeup(minutes * 60)  # Convert to seconds
+                self.schedule_wakeup(minutes * 60)
             
             elif cmd == 'restart':
                 # Restart ROS system
-                rospy.logwarn("Restarting ROS system...")
+                rospy.logwarn("🔄 Restart command received")
                 self.restart_ros()
             
             elif cmd == 'test':
                 # Test command
-                rospy.loginfo("Test command: %s", data.get('value', ''))
+                rospy.loginfo("🧪 Test: %s", value)
             
         except Exception as e:
             rospy.logerr("Command error: %s", str(e))
@@ -153,7 +155,7 @@ class CloudBridgeNode:
         """Schedule automatic wakeup after sleep period"""
         def wakeup():
             rospy.sleep(sleep_seconds)
-            rospy.loginfo("Wakeup from sleep")
+            rospy.loginfo("☀️ Wakeup from sleep")
         
         thread = threading.Thread(target=wakeup)
         thread.daemon = True
@@ -162,14 +164,14 @@ class CloudBridgeNode:
     def restart_ros(self):
         """Kill ROS processes and restart bringup.launch"""
         def do_restart():
-            # Send goodbye message
+            # Give time for last message to send
             time.sleep(1)
             
-            # Kill all ROS nodes
-            subprocess.call(['rosnode', 'kill', '-a'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            time.sleep(2)
+            rospy.loginfo("Killing ROS nodes...")
+            subprocess.call(['rosnode', 'kill', '-a'], 
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            time.sleep(3)
             
-            # Restart bringup.launch
             rospy.loginfo("Restarting bringup.launch...")
             subprocess.Popen(['roslaunch', 'elderly_bot', 'bringup.launch'], 
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -186,6 +188,22 @@ class CloudBridgeNode:
     
     def gas_cb(self, msg):
         self.gas_detected = msg.data
+        if msg.data:
+            rospy.logwarn("⚠️ Gas detected!")
+            self.send_alert()
+    
+    def send_alert(self):
+        """Send gas alert to AWS"""
+        try:
+            alert = {
+                'time': time.strftime('%H:%M:%S'),
+                'alert': 'GAS_DETECTED',
+                'temperature': round(self.temperature, 1),
+                'power': round(self.power_voltage, 2)
+            }
+            self.mqtt.publish('robot/alerts', json.dumps(alert), qos=1)
+        except:
+            pass
     
     def send_telemetry(self, event=None):
         """Send sensor data to AWS IoT"""
