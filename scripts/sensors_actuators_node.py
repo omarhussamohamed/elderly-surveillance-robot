@@ -69,7 +69,7 @@ class SensorsActuatorsNode:
         # ROS Subscriber
         rospy.Subscriber('/buzzer_command', Bool, self.buzzer_callback)
         
-        rospy.loginfo("✅ Sensors Node Ready")
+        rospy.loginfo("Sensors Node Ready")
         rospy.loginfo("  Gas: %s | Buzzer: %s | Stats: %s",
                      "ON" if self.enable_gas_sensor else "OFF",
                      "ON" if self.enable_buzzer else "OFF",
@@ -135,7 +135,7 @@ class SensorsActuatorsNode:
                 power = (current_ma / 1000.0) * 5.0  # Convert to watts
             
             if temp > 0 or power > 0:
-                rospy.logdebug("Tegrastats: %.1f°C, %.2fW", temp, power)
+                rospy.logdebug("Tegrastats: %.1fC, %.2fW", temp, power)
                 
         except Exception as e:
             rospy.logwarn_throttle(60, "Tegrastats error: %s", str(e))
@@ -206,10 +206,10 @@ class SensorsActuatorsNode:
             
             if msg.data:  # Turn ON
                 self.start_buzzer()
-                rospy.loginfo("🔔 Buzzer ON")
+                rospy.loginfo("Buzzer ON")
             else:  # Turn OFF
                 self.stop_buzzer()
-                rospy.loginfo("🔔 Buzzer OFF")
+                rospy.loginfo("Buzzer OFF")
     
     def start_buzzer(self):
         """Start buzzer in a thread."""
@@ -285,7 +285,7 @@ class SensorsActuatorsNode:
             
             # Log only if we have valid readings
             if temp > 0:
-                rospy.loginfo_throttle(30, "📊 Jetson: %.1f°C, %.1fW", temp, power)
+                rospy.loginfo_throttle(30, "Jetson: %.1fC, %.1fW", temp, power)
     
     def run(self):
         """Main loop."""

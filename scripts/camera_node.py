@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-
 """
 ROS Camera Publisher Node for ElderlyBot - GRACEFUL VERSION
 """
@@ -30,7 +31,7 @@ class CameraPublisher:
         
         # Try to open camera
         if not self._try_open_camera():
-            rospy.logwarn("⚠️ Camera not found at %s. Will retry periodically.", self.device)
+            rospy.logwarn("Camera not found at %s. Will retry periodically.", self.device)
             rospy.loginfo("To enable camera, connect USB camera and check: ls /dev/video*")
             # Don't exit - just continue and retry
         
@@ -55,7 +56,7 @@ class CameraPublisher:
             fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
             self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self.cap.set(cvray.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)  # FIXED: was cvray.set
             self.cap.set(cv2.CAP_PROP_FPS, self.fps)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
             
@@ -63,7 +64,7 @@ class CameraPublisher:
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            rospy.loginfo("✅ Camera opened: %s", self.device)
+            rospy.loginfo("Camera opened: %s", self.device)
             rospy.loginfo("Resolution: %dx%d @ %dfps", actual_width, actual_height, self.fps)
             return True
             
@@ -82,11 +83,11 @@ class CameraPublisher:
             # If camera is not open, try to open it periodically
             if self.cap is None or not self.cap.isOpened():
                 if current_time - last_retry_time > retry_interval:
-                    rospy.loginfo("🔄 Attempting to open camera...")
+                    rospy.loginfo("Attempting to open camera...")
                     if self._try_open_camera():
-                        rospy.loginfo("✅ Camera reconnected!")
+                        rospy.loginfo("Camera reconnected!")
                     else:
-                        rospy.loginfo("📷 Camera not available. Next retry in %.0f seconds.", retry_interval)
+                        rospy.loginfo("Camera not available. Next retry in %.0f seconds.", retry_interval)
                     last_retry_time = current_time
                 
                 # Sleep briefly and continue
@@ -109,7 +110,7 @@ class CameraPublisher:
                 if self.frame_count % (self.fps * 30) == 0:
                     elapsed = time.time() - self.start_time
                     actual_fps = self.frame_count / elapsed
-                    rospy.loginfo("📷 Camera FPS: %.1f", actual_fps)
+                    rospy.loginfo("Camera FPS: %.1f", actual_fps)
                 
                 # Create ROS Image message
                 img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
