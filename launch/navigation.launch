@@ -16,7 +16,7 @@
 <launch>
   <!-- ========== PARAMETERS ========== -->
   
-  <arg name="map_file" default="$(find elderly_bot)/maps/my_house.yaml" />
+  <arg name="map_file" default="/home/omar/catkin_ws/src/elderly_bot/maps/my_house.yaml" />
   <arg name="rviz" default="false" doc="Set to true to enable RViz visualization" />
   
   <!-- ========== BRINGUP HARDWARE ========== -->
