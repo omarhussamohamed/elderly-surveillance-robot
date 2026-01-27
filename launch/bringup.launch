@@ -99,8 +99,10 @@
         output="screen"
         respawn="true"
         respawn_delay="5"
-        launch-prefix="bash -c 'sleep 5.0; $0 $@'">
+        launch-prefix="bash -c 'sleep 3.0; $0 $@'"> 
     <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
+    <param name="publish_tf" value="true" />
+    <param name="two_d_mode" value="true" />
   </node>
   
   <!-- ========== SENSORS AND ACTUATORS ========== -->

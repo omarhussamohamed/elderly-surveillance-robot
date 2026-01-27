@@ -135,3 +135,15 @@ debug: false
 
 # Debug output file
 debug_out_file: /tmp/ekf_debug.txt
+
+# ========== ENABLE TF PUBLISHING ==========
+publish_tf: true  # MUST BE TRUE!
+
+# Frequency of the filter (Hz)
+frequency: 50
+
+# Sensor timeout (seconds)
+sensor_timeout: 0.1
+
+# If true, will publish the transform from the world_frame to the base_link_frame
+two_d_mode: true

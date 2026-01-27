@@ -2,16 +2,16 @@
 # Optimized for indoor 4WD robot with RPLidar A1
 
 # ========== FRAME IDs ==========
-base_frame: base_footprint
-map_frame: map
+base_frame: base_footprint  # CRITICAL: Must match EKF's base frame
 odom_frame: odom
+map_frame: map
 
 # Add transform tolerance to avoid timeout
 transform_tolerance: 0.2
 
-# ========== TRANSFORM ==========
-# Time tolerance for TF lookups
+# ========== TRANSFORM SETTINGS ==========
 transform_publish_period: 0.05
+transform_tolerance: 0.2
 
 # ========== MAP PARAMETERS ==========
 # Map resolution (meters per cell)
