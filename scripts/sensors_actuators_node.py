@@ -139,10 +139,6 @@ class SensorsActuatorsNode:
                 self.gas_detected = new_gas_state
                 self.gas_pub.publish(Bool(data=self.gas_detected))
                 
-                # Log ONLY on Rising Edge
-                if self.gas_detected:
-                    rospy.logwarn("GAS DETECTED")
-                
                 self.update_buzzer_state()
         
         # 2. Handle Temp & Stats Logging

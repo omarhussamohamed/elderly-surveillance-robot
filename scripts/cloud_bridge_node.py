@@ -106,11 +106,7 @@ class CloudBridgeNode:
             rospy.logerr("Command parsing error: %s", str(e))
 
     def gas_callback(self, msg):
-        """
-        STRICT REQUIREMENT: 
-        1. Only publish on change from FALSE to TRUE.
-        2. Do not publish on clear.
-        """
+
         try:
             # Detect Rising Edge (False -> True)
             if msg.data and not self.last_gas_detected:
@@ -119,7 +115,6 @@ class CloudBridgeNode:
                     'timestamp': time.time()
                 }
                 self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
-                rospy.logwarn("GAS DETECTED - Alert sent to cloud")
             
             # Update state so we can detect the *next* rising edge
             self.last_gas_detected = msg.data
