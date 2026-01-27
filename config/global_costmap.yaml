@@ -11,7 +11,7 @@ global_costmap:
   publish_frequency: 1.0     # Hz - how often to publish visualization
   
   # ========== STATIC MAP ==========
-  static_map: true           # Use the map from map_server
+  static_map: false           # Use the map from map_server
   rolling_window: false      # Fixed map, not rolling
   
   # ========== RESOLUTION ==========
@@ -22,8 +22,8 @@ global_costmap:
   
   # ========== LAYER CONFIGURATION ==========
   plugins:
-    - {name: static_layer,        type: "costmap_2d::StaticLayer"}
-    - {name: obstacle_layer,      type: "costmap_2d::ObstacleLayer"}
-    - {name: inflation_layer,     type: "costmap_2d::InflationLayer"}
+    - {name: static_layer, type: "costmap_2d::StaticLayer"}
+    - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
 
