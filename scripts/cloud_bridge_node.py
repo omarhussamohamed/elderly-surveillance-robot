@@ -62,7 +62,7 @@ class CloudBridgeNode:
             self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
 
             # ROS Subscribers
-            rospy.Subscriber('/gas_detected', Bool, self.gas_callback, queue_size=1)
+            rospy.Subscriber('/gas_detected', Bool, self.update_gas_state, queue_size=1)
             rospy.Subscriber('/jetson_temperature', Temperature, self.temp_callback, queue_size=1)
 
             self.connect_to_aws()
@@ -105,7 +105,7 @@ class CloudBridgeNode:
         except Exception as e:
             rospy.logerr("Command parsing error: %s", str(e))
 
-def gas_callback(self, msg):
+def update_gas_state(self, msg):
     try:
         # Update state for telemetry (used in temp_callback)
         self.last_gas_detected = msg.data
