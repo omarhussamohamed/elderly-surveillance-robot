@@ -43,7 +43,7 @@ Autonomous indoor monitoring robot for elderly care with:
 - sensors_actuators_node.py
   - MQ-6 gas sensor (GPIO BOARD pin 18) → /gas_detected (Bool)
   - Buzzer (pin 16) auto-trigger on gas, 5 s timeout
-  - Jetson stats → /jetson_temperature, /jetson_power
+  - Jetson stats → /jetson_temperature
 - system_health_monitor.py → /diagnostics (checks every 10 s, auto-respawn critical nodes)
 
 ### Cloud & Video

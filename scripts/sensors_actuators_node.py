@@ -1,21 +1,18 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Sensors and Actuators Node - PYTHON 2 COMPATIBLE
-Fixed: Python 2 compatibility, Buzzer threading, Power reading
+Sensors and Actuators Node - FIXED (No Power Monitoring)
 """
 
 import rospy
 import time
 import threading
-import subprocess
-import re
 import atexit
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Bool
 from sensor_msgs.msg import Temperature
 
 class SensorsActuatorsNode:
-    """ROS node for gas sensor, buzzer, and Jetson monitoring."""
+    """ROS node for gas sensor, buzzer, and Jetson temperature only."""
     
     def __init__(self):
         rospy.init_node('sensors_actuators_node', anonymous=False)
@@ -26,8 +23,8 @@ class SensorsActuatorsNode:
         self.enable_buzzer = rospy.get_param('~enable_buzzer', True)
         self.enable_stats = rospy.get_param('~enable_stats', True)
         
-        # GPIO pins
-        self.gas_sensor_pin = rospy.get_param('~gas_sensor_gpio_pin', 18)
+        # GPIO pins (BOARD numbering)
+        self.gas_sensor_pin = rospy.get_param('~gas_pin', 18)  # Updated to match config
         self.buzzer_pin = rospy.get_param('~buzzer_pin', 16)
         self.gas_polarity = rospy.get_param('~gas_polarity', 'active_low')
         
@@ -37,11 +34,7 @@ class SensorsActuatorsNode:
         self.buzzer_thread = None
         self.buzzer_stop_event = threading.Event()
         self.running = True
-        
-        # Power reading cache (update every 10 seconds for faster updates)
-        self.last_power_update = 0
         self.last_log_time = 0
-        self.cached_power = 5.0  # Default fallback
         
         # Initialize hardware
         self.init_hardware()
@@ -49,25 +42,24 @@ class SensorsActuatorsNode:
         # ROS Publishers
         self.gas_pub = rospy.Publisher('/gas_detected', Bool, queue_size=1, latch=True)
         self.temp_pub = rospy.Publisher('/jetson_temperature', Temperature, queue_size=1)
-        self.power_pub = rospy.Publisher('/jetson_power', Float32, queue_size=1)
+        # NO POWER PUBLISHER
         
-        # ROS Subscriber
+        # ROS Subscriber (for commands FROM cloud via cloud_bridge_node)
         rospy.Subscriber('/buzzer_command', Bool, self.buzzer_callback, queue_size=1)
         
         rospy.on_shutdown(self.shutdown)
         atexit.register(self.cleanup_gpio)
         
-        rospy.loginfo("Sensors Node Ready [Gas:%s, Buzzer:%s, Stats:%s]", 
+        rospy.loginfo("Sensors Node Ready [Gas:%s, Buzzer:%s, Temp:%s]", 
                      "ON" if self.enable_gas_sensor else "OFF",
                      "ON" if self.enable_buzzer else "OFF",
                      "ON" if self.enable_stats else "OFF")
         
-        # Delay startup of stats logging/publishing to let other nodes log first (10 seconds)
-        rospy.sleep(10)
+        # Delay startup logging
+        rospy.sleep(5)
     
     def init_hardware(self):
         """Initialize hardware interfaces."""
-        # Initialize GPIO
         self.gpio_available = False
         
         if (self.enable_gas_sensor or self.enable_buzzer):
@@ -113,7 +105,7 @@ class SensorsActuatorsNode:
             return False
     
     def buzzer_callback(self, msg):
-        """Handle buzzer commands."""
+        """Handle buzzer commands FROM cloud_bridge_node."""
         if not self.enable_buzzer:
             return
         
@@ -179,71 +171,6 @@ class SensorsActuatorsNode:
             rospy.logdebug("Temp read error: %s", str(e))
             return 35.0  # Default fallback
     
-    def read_jetson_power(self):
-        """Read Jetson power consumption - PYTHON 2 COMPATIBLE."""
-        try:
-            # Python 2 compatible subprocess - use Popen with timeout
-            import signal
-            
-            def timeout_handler(signum, frame):
-                raise Exception("Timeout")
-            
-            # Set timeout
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(5)  # 5 second timeout
-            
-            try:
-                # Run tegrastats
-                process = subprocess.Popen(
-                    ['tegrastats', '--interval', '1000', '--count', '1'],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
-                
-                stdout, stderr = process.communicate()
-                
-                if process.returncode == 0:
-                    output = stdout.strip()
-                    rospy.logdebug("tegrastats output: %s", output)
-                    
-                    # Parse power - look for VDD_IN which is total input power
-                    match = re.search(r'VDD_IN\s+(\d+)/(\d+)', output)
-                    if match:
-                        current_power_mw = int(match.group(1))
-                        return current_power_mw / 1000.0  # Convert mW to W
-                    
-                    # Alternative: sum all power domains
-                    total_power_mw = 0
-                    power_matches = re.findall(r'VDD_\w+\s+(\d+)/(\d+)', output)
-                    for current, _ in power_matches:
-                        total_power_mw += int(current)
-                    
-                    if total_power_mw > 0:
-                        return total_power_mw / 1000.0
-                    
-            except Exception as e:
-                rospy.logdebug("Power read error: %s", str(e))
-            finally:
-                # Disable alarm
-                signal.alarm(0)
-                
-        except Exception as e:
-            rospy.logdebug("Power read general error: %s", str(e))
-        
-        return 5.0  # Default fallback (typical Jetson Nano idle power)
-    
-    def update_power_if_needed(self):
-        """Update power reading only every 10 seconds."""
-        current_time = time.time()
-        if current_time - self.last_power_update > 10:
-            try:
-                self.cached_power = self.read_jetson_power()
-                self.last_power_update = current_time
-                rospy.logdebug("Updated power reading: %.1fW", self.cached_power)
-            except Exception as e:
-                rospy.logdebug("Failed to update power: %s", str(e))
-        return self.cached_power
-    
     def publish_data(self):
         """Read and publish all sensor data."""
         # Read gas sensor
@@ -258,7 +185,7 @@ class SensorsActuatorsNode:
                 # Republish gas even if unchanged for consistent rate
                 self.gas_pub.publish(Bool(data=self.gas_detected))
         
-        # Read and publish Jetson stats
+        # Read and publish Jetson temperature only
         if self.enable_stats:
             # Temperature
             temp_msg = Temperature()
@@ -267,20 +194,16 @@ class SensorsActuatorsNode:
             temp_msg.header.frame_id = 'jetson'
             self.temp_pub.publish(temp_msg)
             
-            # Power (with caching)
-            power = self.update_power_if_needed()
-            self.power_pub.publish(Float32(data=power))
-            
             # Log stats every 1 second
             current_time = time.time()
             if current_time - self.last_log_time >= 1:
-                rospy.loginfo("Stats: %.1f°C, %.1fW, Gas: %s", 
-                              temp_msg.temperature, power, self.gas_detected)
+                rospy.loginfo("Stats: %.1f°C, Gas: %s", 
+                              temp_msg.temperature, self.gas_detected)
                 self.last_log_time = current_time
     
     def run(self):
         """Main loop."""
-        rate = rospy.Rate(10.0)  # Increased to 10 Hz for faster publishing (~0.1s)
+        rate = rospy.Rate(10.0)
         
         while self.running and not rospy.is_shutdown():
             try:

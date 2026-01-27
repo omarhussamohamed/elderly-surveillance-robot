@@ -86,7 +86,7 @@ This is the **only authoritative source** for hardware configuration. Do not tru
 - Type: 7.4V LiPo (2S)
 - Regulators: Step-down to 5V/3.3V for Jetson, sensors, ESP32
 - Monitoring: Planned via ADC (future); current workaround — manual multimeter check
-- Safety: Avoid deep discharge; monitor via jetson-stats
+- Safety: Avoid deep discharge
 
 ---
 
