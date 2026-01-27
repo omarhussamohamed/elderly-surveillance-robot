@@ -40,17 +40,19 @@ odom0: /odom
 # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
 # CRITICAL FIX: Do NOT fuse vyaw from wheel odometry - it accumulates drift from wheel slip
 # Only fuse position and linear velocity. IMU provides accurate yaw orientation.
-odom0_config: [false,  false,  false,  # position (x, y, z)
-               false, false, false,   # roll, pitch, yaw
+# Update the wheel odometry configuration section:
+odom0_config: [true,  true,  false,  # position (x, y, z)
+               false, false, false,   # roll, pitch, yaw - DON'T fuse yaw from wheels!
                true,  false, false,   # vx, vy, vz
                false, false, false,   # vroll, vpitch, vyaw
                false, false, false]   # ax, ay, az
+
 
 # Differential mode for odometry
 odom0_differential: false
 
 # Reject outliers
-odom0_rejection_threshold: 2.0
+odom0_rejection_threshold: 3.0
 
 # Queue size
 odom0_queue_size: 10
@@ -85,18 +87,20 @@ imu0_remove_gravitational_acceleration: true
 
 # Process noise covariance matrix
 # Increased noise for yaw and angular velocity due to skid-steer slip
-process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.04, 0.0,  0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.02]
+# Process noise covariance matrix
+# INCREASED noise for position and orientation due to skid-steer slip
+process_noise_covariance: [0.1, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.1, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.15, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.08, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.05, 0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.06, 0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.02, 0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.02, 0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.03]
 
 # ========== INITIAL STATE COVARIANCE ==========
 
