@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!--
+  Elderly Bot GMapping Launch File
+
+  Starts:
+  - Hardware bringup
+  - robot_localization EKF (wheel odom + IMU fusion)
+  - gmapping (SLAM)
+  - map_server (to serve the map)
+
+  Usage:
+    roslaunch elderly_bot gmapping.launch
+-->
+<launch>
+  <!-- ========== ARGUMENTS ========== -->
+  <arg name="rviz" default="false" doc="Set to true to enable RViz visualization" />
+
+  <!-- ========== BRINGUP HARDWARE ========== -->
+  <include file="$(find elderly_bot)/launch/bringup.launch" />
+
+  <!-- ========== GMAPPING (SLAM) ========== -->
+  <node pkg="gmapping" 
+        type="slam_gmapping" 
+        name="slam_gmapping"
+        output="screen">
+    <rosparam command="load" file="$(find elderly_bot)/config/gmapping.yaml" />
+  </node>
+
+  <!-- ========== MAP SERVER ========== -->
+  <node name="map_server" 
+        pkg="map_server" 
+        type="map_server" 
+        args="$(find elderly_bot)/maps/my_house.yaml"
+        output="screen" />
+
+  <!-- ========== RVIZ VISUALIZATION ========== -->
+  <node name="rviz" 
+        pkg="rviz" 
+        type="rviz" 
+        required="false"
+        if="$(arg rviz)" />
+</launch>
