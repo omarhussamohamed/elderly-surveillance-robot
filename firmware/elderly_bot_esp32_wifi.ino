@@ -121,7 +121,7 @@ SemaphoreHandle_t cmd_vel_mutex;
 TaskHandle_t motorTaskHandle;
 // ROS messages
 nav_msgs::Odometry odom_msg;
-ros::Publisher odom_pub("/wheel_odom", &odom_msg);
+ros::Publisher odom_pub("/odom", &odom_msg);
 
 // ==================== GROUND TRUTH ENCODER ISRs (EXACT from motor_and_encoder_HW_test.ino) ====================
 // These ensure Forward = Positive across all 4 wheels
@@ -484,7 +484,7 @@ void setup() {
     nh.initNode();
     nh.subscribe(cmd_vel_sub);
     nh.advertise(odom_pub);
-    odom_msg.header.frame_id = "wheel_odom_frame";
+    odom_msg.header.frame_id = "odom";
     odom_msg.child_frame_id = "base_footprint";
     Serial.println("ROS node initialized");
     Serial.print("Connecting to ROS Master at ");

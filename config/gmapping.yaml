@@ -137,3 +137,17 @@ enable_dynamic_reconfigure: false
 
 # Set service timeouts
 service_timeout: 10.0
+
+# ========== MAP VISIBILITY FIX ==========
+# Force map publication
+always_publish_map: true
+
+# Reduce minimum score to accept scans
+minimumScore: 50
+
+# Update map more frequently
+linearUpdate: 0.1
+angularUpdate: 0.1
+
+# Ensure map is being published
+map_update_interval: 0.5  # Update every 0.5 seconds
