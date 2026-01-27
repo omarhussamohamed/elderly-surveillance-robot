@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)  # Updated version to suppress deprecation warnings
+
+# Suppress CMP0148 warnings
+cmake_policy(SET CMP0148 NEW)
+
 project(elderly_bot)
 
 ## Compile as C++11
@@ -76,7 +80,6 @@ include_directories(
 # Mark Python scripts as executable and install
 install(PROGRAMS
   scripts/nodes/patrol_client.py
-  scripts/nodes/mpu9250_node.py
   scripts/nodes/sensors_actuators_node.py
   scripts/nodes/cloud_bridge_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -85,9 +88,9 @@ install(PROGRAMS
 # Also setup for devel space (catkin_make copies here by default)
 catkin_install_python(PROGRAMS
   scripts/patrol_client.py
-  scripts/nodes/mpu9250_node.py
-  scripts/nodes/sensors_actuators_node.py
-  scripts/nodes/cloud_bridge_node.py
+  scripts/sensors_actuators_node.py
+  scripts/cloud_bridge_node.py
+  # Removed mpu9250_node.py since it does not exist
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
