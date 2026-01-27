@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(elderly_bot)
 
-# C++11
 add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
@@ -16,7 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   move_base
   move_base_msgs
   actionlib
-  actionlib_msgs          # <-- Added this (fixes your error)
+  actionlib_msgs
   amcl
   map_server
   dwa_local_planner
@@ -55,18 +54,11 @@ catkin_install_python(PROGRAMS
 )
 
 # Install directories
-install(DIRECTORY
-  launch/
-  config/
-  maps/
-  firmware/
-  urdf/
+install(DIRECTORY launch/ config/ maps/ firmware/ urdf/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
   FILES_MATCHING PATTERN "*.launch" PATTERN "*.yaml" PATTERN "*.pgm" PATTERN "*.ino" PATTERN "*.urdf"
 )
 
-# Install setup script
-install(PROGRAMS
-  install_dependencies.sh
+install(PROGRAMS install_dependencies.sh
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
