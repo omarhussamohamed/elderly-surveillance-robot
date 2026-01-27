@@ -1,14 +1,9 @@
-cmake_minimum_required(VERSION 3.0.2)  # Updated version to suppress deprecation warnings
-
-# Suppress CMP0148 warnings
-cmake_policy(SET CMP0148 NEW)
-
+cmake_minimum_required(VERSION 3.10)
 project(elderly_bot)
 
-## Compile as C++11
+# C++11
 add_compile_options(-std=c++11)
 
-## Find catkin and all required components
 find_package(catkin REQUIRED COMPONENTS
   rospy
   roscpp
@@ -21,10 +16,9 @@ find_package(catkin REQUIRED COMPONENTS
   move_base
   move_base_msgs
   actionlib
-  actionlib_msgs
+  actionlib_msgs          # <-- Added this (fixes your error)
   amcl
   map_server
-  navfn
   dwa_local_planner
   costmap_2d
   gmapping
@@ -33,96 +27,46 @@ find_package(catkin REQUIRED COMPONENTS
   rplidar_ros
   rosserial_python
   rosserial_arduino
+  cv_bridge
+  image_transport
+  compressed_image_transport
+  diagnostic_aggregator
 )
 
-###################################
-## catkin specific configuration ##
-###################################
 catkin_package(
   CATKIN_DEPENDS
-    rospy
-    roscpp
-    std_msgs
-    geometry_msgs
-    sensor_msgs
-    nav_msgs
-    tf
-    tf2_ros
-    move_base
-    move_base_msgs
-    actionlib
-    actionlib_msgs
-    amcl
-    map_server
-    navfn
-    dwa_local_planner
-    costmap_2d
-    gmapping
-    explore_lite
-    robot_localization
-    rplidar_ros
-    rosserial_python
-    rosserial_arduino
+    rospy roscpp std_msgs geometry_msgs sensor_msgs nav_msgs tf tf2_ros
+    move_base move_base_msgs actionlib actionlib_msgs amcl map_server
+    dwa_local_planner costmap_2d gmapping explore_lite robot_localization
+    rplidar_ros rosserial_python rosserial_arduino cv_bridge image_transport
+    compressed_image_transport diagnostic_aggregator
 )
 
-###########
-## Build ##
-###########
-
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-)
-
-#############
-## Install ##
-#############
-
-# Mark Python scripts as executable and install
-install(PROGRAMS
-  scripts/nodes/patrol_client.py
-  scripts/nodes/sensors_actuators_node.py
-  scripts/nodes/cloud_bridge_node.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-# Also setup for devel space (catkin_make copies here by default)
+# Install Python scripts
 catkin_install_python(PROGRAMS
+  scripts/camera_node.py
+  scripts/cloud_bridge_node.py
+  scripts/kvs_streamer_node.py
+  scripts/mpu9250_node.py
   scripts/patrol_client.py
   scripts/sensors_actuators_node.py
-  scripts/cloud_bridge_node.py
-  # Removed mpu9250_node.py since it does not exist
+  scripts/system_health_monitor.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-# Install launch files
-install(DIRECTORY launch/
+# Install directories
+install(DIRECTORY
+  launch/
+  config/
+  maps/
+  firmware/
+  urdf/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-  FILES_MATCHING PATTERN "*.launch"
+  FILES_MATCHING PATTERN "*.launch" PATTERN "*.yaml" PATTERN "*.pgm" PATTERN "*.ino" PATTERN "*.urdf"
 )
 
-# Install config files
-install(DIRECTORY config/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
-  FILES_MATCHING PATTERN "*.yaml"
-)
-
-# Install maps directory
-install(DIRECTORY maps/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/maps
-)
-
-# Install firmware
-install(DIRECTORY firmware/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/firmware
-)
-
-# Python scripts already installed via catkin_install_python above (lines 73-77)
-# Duplicate block removed to avoid redundant build operations
-
-# Install shell scripts
+# Install setup script
 install(PROGRAMS
   install_dependencies.sh
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
-
-
