@@ -84,7 +84,7 @@ install(PROGRAMS
 
 # Also setup for devel space (catkin_make copies here by default)
 catkin_install_python(PROGRAMS
-  scripts/nodes/patrol_client.py
+  scripts/patrol_client.py
   scripts/nodes/mpu9250_node.py
   scripts/nodes/sensors_actuators_node.py
   scripts/nodes/cloud_bridge_node.py
