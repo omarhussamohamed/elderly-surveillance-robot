@@ -1,7 +1,7 @@
 /*
  * Elderly Bot ESP32 Firmware - Original Working Version
  * Uses standard rosserial WiFiClient + WiFiManager
- * No custom RosWiFiHardware class — avoids the operator= error
+ * No custom RosWiFiHardware class
  * Compatible with rosserial_python serial_node.py tcp
  */
 
@@ -15,7 +15,7 @@
 #include <tf/transform_broadcaster.h>
 #include <math.h>
 
-// ==================== PIN DEFINITIONS (exact from your hardware) ====================
+// ==================== PIN DEFINITIONS ====================
 const int FL_PWM = 13; const int FL_IN1 = 12; const int FL_IN2 = 14;
 const int FL_ENC_A = 34; const int FL_ENC_B = 35;
 
@@ -29,8 +29,8 @@ const int RR_PWM = 22; const int RR_IN1 = 16; const int RR_IN2 = 17;
 const int RR_ENC_A = 23; const int RR_ENC_B = 5;
 
 // ==================== ROBOT KINEMATICS ====================
-const float TRACK_WIDTH = 0.26;      // meters
-const float WHEEL_RADIUS = 0.0325;   // meters
+const float TRACK_WIDTH = 0.26;
+const float WHEEL_RADIUS = 0.0325;
 const float TICKS_PER_REV = 3960.0;
 const float DISTANCE_PER_TICK = (2 * M_PI * WHEEL_RADIUS) / TICKS_PER_REV;
 
@@ -38,10 +38,10 @@ const float DISTANCE_PER_TICK = (2 * M_PI * WHEEL_RADIUS) / TICKS_PER_REV;
 const int PWM_FREQ = 5000;
 const int PWM_RES = 8;
 const int PWM_MAX = 255;
-const float MAX_SPEED = 0.25;  // m/s
+const float MAX_SPEED = 0.25;
 
-// ==================== ENCODER VARIABLES ====================
-volatile long counts[4] = {0, 0, 0, 0}; // FL, FR, RL, RR
+// ==================== ENCODERS ====================
+volatile long counts[4] = {0, 0, 0, 0};
 unsigned long last_interrupt_time[4] = {0, 0, 0, 0};
 
 // ==================== ODOMETRY ====================
@@ -57,22 +57,21 @@ ros::NodeHandle nh;
 nav_msgs::Odometry odom_msg;
 ros::Publisher odom_pub("odom", &odom_msg);
 
-void cmd_vel_cb(const geometry_msgs::Twist& twist_msg) {
-  target_linear_x = twist_msg.linear.x;
-  target_angular_z = twist_msg.angular.z;
+void cmd_vel_cb(const geometry_msgs::Twist& msg) {
+  target_linear_x = msg.linear.x;
+  target_angular_z = msg.angular.z;
 }
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel_cb);
 
 unsigned long last_odom_time = 0;
-const int ODOM_PUBLISH_INTERVAL = 50; // 20 Hz
+const int ODOM_PUBLISH_INTERVAL = 50;
 
-// ==================== INTERRUPT SERVICE ROUTINES ====================
+// ==================== ISR ====================
 void IRAM_ATTR isrFL() {
   unsigned long now = micros();
   if (now - last_interrupt_time[0] > 100) {
-    int A = digitalRead(FL_ENC_A);
-    int B = digitalRead(FL_ENC_B);
-    if (A == B) counts[0]--; else counts[0]++;
+    if (digitalRead(FL_ENC_A) == digitalRead(FL_ENC_B)) counts[0]--;
+    else counts[0]++;
     last_interrupt_time[0] = now;
   }
 }
@@ -80,9 +79,8 @@ void IRAM_ATTR isrFL() {
 void IRAM_ATTR isrFR() {
   unsigned long now = micros();
   if (now - last_interrupt_time[1] > 100) {
-    int A = digitalRead(FR_ENC_A);
-    int B = digitalRead(FR_ENC_B);
-    if (A == B) counts[1]--; else counts[1]++;
+    if (digitalRead(FR_ENC_A) == digitalRead(FR_ENC_B)) counts[1]--;
+    else counts[1]++;
     last_interrupt_time[1] = now;
   }
 }
@@ -90,9 +88,8 @@ void IRAM_ATTR isrFR() {
 void IRAM_ATTR isrRL() {
   unsigned long now = micros();
   if (now - last_interrupt_time[2] > 100) {
-    int A = digitalRead(RL_ENC_A);
-    int B = digitalRead(RL_ENC_B);
-    if (A == B) counts[2]--; else counts[2]++;
+    if (digitalRead(RL_ENC_A) == digitalRead(RL_ENC_B)) counts[2]--;
+    else counts[2]++;
     last_interrupt_time[2] = now;
   }
 }
@@ -100,44 +97,37 @@ void IRAM_ATTR isrRL() {
 void IRAM_ATTR isrRR() {
   unsigned long now = micros();
   if (now - last_interrupt_time[3] > 100) {
-    int A = digitalRead(RR_ENC_A);
-    int B = digitalRead(RR_ENC_B);
-    if (A == B) counts[3]--; else counts[3]++;
+    if (digitalRead(RR_ENC_A) == digitalRead(RR_ENC_B)) counts[3]--;
+    else counts[3]++;
     last_interrupt_time[3] = now;
   }
 }
 
-// ==================== UPDATE ODOMETRY ====================
+// ==================== ODOM UPDATE ====================
 void updateOdometry(float dt) {
-  long delta_left = (counts[0] + counts[2]) / 2;
-  long delta_right = (counts[1] + counts[3]) / 2;
+  long dl = (counts[0] + counts[2]) / 2;
+  long dr = (counts[1] + counts[3]) / 2;
 
-  // Reset counts
   for (int i = 0; i < 4; i++) counts[i] = 0;
 
-  float delta_left_dist = delta_left * DISTANCE_PER_TICK;
-  float delta_right_dist = delta_right * DISTANCE_PER_TICK;
+  float dl_d = dl * DISTANCE_PER_TICK;
+  float dr_d = dr * DISTANCE_PER_TICK;
 
-  float delta_distance = (delta_left_dist + delta_right_dist) / 2.0;
-  float delta_theta = (delta_right_dist - delta_left_dist) / TRACK_WIDTH;
+  float d = (dl_d + dr_d) / 2.0;
+  float dth = (dr_d - dl_d) / TRACK_WIDTH;
 
-  float dx = delta_distance * cos(odom_theta + delta_theta / 2.0);
-  float dy = delta_distance * sin(odom_theta + delta_theta / 2.0);
+  odom_x += d * cos(odom_theta + dth * 0.5);
+  odom_y += d * sin(odom_theta + dth * 0.5);
+  odom_theta += dth;
 
-  odom_x += dx;
-  odom_y += dy;
-  odom_theta += delta_theta;
-
-  // Normalize angle
   while (odom_theta > M_PI) odom_theta -= 2 * M_PI;
   while (odom_theta < -M_PI) odom_theta += 2 * M_PI;
 
-  // Publish velocities
-  odom_msg.twist.twist.linear.x = delta_distance / dt;
-  odom_msg.twist.twist.angular.z = delta_theta / dt;
+  odom_msg.twist.twist.linear.x = d / dt;
+  odom_msg.twist.twist.angular.z = dth / dt;
 }
 
-// ==================== PUBLISH ODOMETRY ====================
+// ==================== ODOM PUBLISH ====================
 void publishOdometry() {
   odom_msg.header.stamp = nh.now();
   odom_msg.header.frame_id = "odom";
@@ -145,65 +135,36 @@ void publishOdometry() {
 
   odom_msg.pose.pose.position.x = odom_x;
   odom_msg.pose.pose.position.y = odom_y;
-  odom_msg.pose.pose.position.z = 0.0;
 
-  // Manual yaw → quaternion conversion (rosserial tf doesn't have createQuaternionFromYaw)
-  float half_yaw = odom_theta * 0.5;
-  odom_msg.pose.pose.orientation.w = cos(half_yaw);
-  odom_msg.pose.pose.orientation.x = 0.0;
-  odom_msg.pose.pose.orientation.y = 0.0;
-  odom_msg.pose.pose.orientation.z = sin(half_yaw);
-
-  // Simple covariance (tune later if needed)
-  for (int i = 0; i < 36; i++) {
-    odom_msg.pose.covariance[i] = 0.0;
-    odom_msg.twist.covariance[i] = 0.0;
-  }
-  odom_msg.pose.covariance[0]  = 0.01;   // x variance
-  odom_msg.pose.covariance[7]  = 0.01;   // y variance
-  odom_msg.pose.covariance[35] = 0.1;    // yaw variance (higher due to slip)
+  float h = odom_theta * 0.5;
+  odom_msg.pose.pose.orientation.w = cos(h);
+  odom_msg.pose.pose.orientation.z = sin(h);
 
   odom_pub.publish(&odom_msg);
 }
 
-// ==================== MOTOR CONTROL TASK ====================
+// ==================== MOTOR TASK ====================
 TaskHandle_t motorTaskHandle;
 
-void motorControlTask(void * parameter) {
+void motorControlTask(void *p) {
   for (;;) {
-    float v_left = target_linear_x - target_angular_z * (TRACK_WIDTH / 2.0);
-    float v_right = target_linear_x + target_angular_z * (TRACK_WIDTH / 2.0);
+    float vl = target_linear_x - target_angular_z * TRACK_WIDTH * 0.5;
+    float vr = target_linear_x + target_angular_z * TRACK_WIDTH * 0.5;
 
-    int pwm_left = constrain((int)(v_left * PWM_MAX / MAX_SPEED), -PWM_MAX, PWM_MAX);
-    int pwm_right = constrain((int)(v_right * PWM_MAX / MAX_SPEED), -PWM_MAX, PWM_MAX);
+    int pl = constrain(vl * PWM_MAX / MAX_SPEED, -PWM_MAX, PWM_MAX);
+    int pr = constrain(vr * PWM_MAX / MAX_SPEED, -PWM_MAX, PWM_MAX);
 
-    // Left motors
-    if (pwm_left > 0) {
-      digitalWrite(FL_IN1, HIGH); digitalWrite(FL_IN2, LOW);
-      digitalWrite(RL_IN1, HIGH); digitalWrite(RL_IN2, LOW);
-      ledcWrite(0, pwm_left); ledcWrite(2, pwm_left);
-    } else if (pwm_left < 0) {
-      digitalWrite(FL_IN1, LOW); digitalWrite(FL_IN2, HIGH);
-      digitalWrite(RL_IN1, LOW); digitalWrite(RL_IN2, HIGH);
-      ledcWrite(0, -pwm_left); ledcWrite(2, -pwm_left);
-    } else {
-      ledcWrite(0, 0); ledcWrite(2, 0);
-    }
+    digitalWrite(FL_IN1, pl > 0); digitalWrite(FL_IN2, pl < 0);
+    digitalWrite(RL_IN1, pl > 0); digitalWrite(RL_IN2, pl < 0);
+    digitalWrite(FR_IN1, pr > 0); digitalWrite(FR_IN2, pr < 0);
+    digitalWrite(RR_IN1, pr > 0); digitalWrite(RR_IN2, pr < 0);
 
-    // Right motors
-    if (pwm_right > 0) {
-      digitalWrite(FR_IN1, HIGH); digitalWrite(FR_IN2, LOW);
-      digitalWrite(RR_IN1, HIGH); digitalWrite(RR_IN2, LOW);
-      ledcWrite(1, pwm_right); ledcWrite(3, pwm_right);
-    } else if (pwm_right < 0) {
-      digitalWrite(FR_IN1, LOW); digitalWrite(FR_IN2, HIGH);
-      digitalWrite(RR_IN1, LOW); digitalWrite(RR_IN2, HIGH);
-      ledcWrite(1, -pwm_right); ledcWrite(3, -pwm_right);
-    } else {
-      ledcWrite(1, 0); ledcWrite(3, 0);
-    }
+    ledcWrite(0, abs(pl));
+    ledcWrite(2, abs(pl));
+    ledcWrite(1, abs(pr));
+    ledcWrite(3, abs(pr));
 
-    vTaskDelay(10 / portTICK_PERIOD_MS); // 100 Hz
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
 
@@ -211,42 +172,32 @@ void motorControlTask(void * parameter) {
 void setup() {
   Serial.begin(115200);
 
-  // Motor pins
-  pinMode(FL_PWM, OUTPUT); pinMode(FL_IN1, OUTPUT); pinMode(FL_IN2, OUTPUT);
-  pinMode(FR_PWM, OUTPUT); pinMode(FR_IN1, OUTPUT); pinMode(FR_IN2, OUTPUT);
-  pinMode(RL_PWM, OUTPUT); pinMode(RL_IN1, OUTPUT); pinMode(RL_IN2, OUTPUT);
-  pinMode(RR_PWM, OUTPUT); pinMode(RR_IN1, OUTPUT); pinMode(RR_IN2, OUTPUT);
+  pinMode(FL_IN1, OUTPUT); pinMode(FL_IN2, OUTPUT);
+  pinMode(FR_IN1, OUTPUT); pinMode(FR_IN2, OUTPUT);
+  pinMode(RL_IN1, OUTPUT); pinMode(RL_IN2, OUTPUT);
+  pinMode(RR_IN1, OUTPUT); pinMode(RR_IN2, OUTPUT);
 
-  // PWM setup
   ledcSetup(0, PWM_FREQ, PWM_RES); ledcAttachPin(FL_PWM, 0);
   ledcSetup(1, PWM_FREQ, PWM_RES); ledcAttachPin(FR_PWM, 1);
   ledcSetup(2, PWM_FREQ, PWM_RES); ledcAttachPin(RL_PWM, 2);
   ledcSetup(3, PWM_FREQ, PWM_RES); ledcAttachPin(RR_PWM, 3);
-
-  // Encoders
-  pinMode(FL_ENC_A, INPUT); pinMode(FL_ENC_B, INPUT);
-  pinMode(FR_ENC_A, INPUT); pinMode(FR_ENC_B, INPUT);
-  pinMode(RL_ENC_A, INPUT_PULLUP); pinMode(RL_ENC_B, INPUT_PULLUP);
-  pinMode(RR_ENC_A, INPUT_PULLUP); pinMode(RR_ENC_B, INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(FL_ENC_A), isrFL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(FR_ENC_A), isrFR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(RL_ENC_A), isrRL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(RR_ENC_A), isrRR, CHANGE);
 
-  // WiFiManager
+  // ==================== WiFiManager SMALL EDIT ====================
   WiFiManager wifiManager;
+  wifiManager.setConfigPortalTimeout(0);      // keep portal alive
+  wifiManager.setBreakAfterConfig(false);     // do not close after connect
+  wifiManager.setConfigPortalBlocking(false); // firmware keeps running
   wifiManager.autoConnect("ElderlyBotESP32");
 
-  // ROS setup
   nh.initNode();
   nh.subscribe(cmd_vel_sub);
   nh.advertise(odom_pub);
 
-  odom_msg.header.frame_id = "odom";
-  odom_msg.child_frame_id = "base_footprint";
-
-  // Motor control task on Core 1
   xTaskCreatePinnedToCore(
     motorControlTask,
     "MotorTask",
@@ -264,7 +215,6 @@ void loop() {
 
   nh.spinOnce();
 
-  // Publish odometry every 50ms (20 Hz)
   if (now - last_odom_time >= ODOM_PUBLISH_INTERVAL) {
     float dt = (now - last_odom_time) / 1000.0;
     updateOdometry(dt);
@@ -272,5 +222,5 @@ void loop() {
     last_odom_time = now;
   }
 
-  delay(1); // prevent watchdog
+  delay(1);
 }

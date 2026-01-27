@@ -6,10 +6,6 @@
 <launch>
   <!-- ========== PARAMETERS ========== -->
 
-  <!-- ESP32 WiFi connection parameters -->
-  <arg name="esp32_ip" default="192.168.1.16" />
-  <arg name="esp32_port" default="11411" />
-
   <!-- Serial port for RPLidar -->
   <arg name="lidar_port" default="/dev/ttyUSB0" />
   <arg name="lidar_baud" default="115200" />
@@ -48,8 +44,8 @@
         respawn_delay="5"
         launch-prefix="bash -c 'sleep 1.0; $0 $@'">
     <param name="port" value="tcp" />
-    <param name="server_host" value="$(arg esp32_ip)" />
-    <param name="server_port" value="$(arg esp32_port)" />
+    <param name="server_host" value="elderlybot-esp32" />
+    <param name="server_port" value="11411" />
   </node>
   
   <!-- ========== RPLIDAR ========== -->
