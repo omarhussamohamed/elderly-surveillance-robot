@@ -27,7 +27,14 @@
   
   <node pkg="robot_localization" 
         type="ekf_localization_node" 
-        name="ekf_localization"
+        name="ekf_localization_odom"
+        output="screen">
+    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
+  </node>
+
+  <node pkg="robot_localization" 
+        type="ekf_localization_node" 
+        name="ekf_localization_map"
         output="screen">
     <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
   </node>
