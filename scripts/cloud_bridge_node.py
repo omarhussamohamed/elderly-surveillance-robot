@@ -55,88 +55,69 @@ class CloudBridgeNode:
             self.max_backoff = 300  # 5 minutes max
 
             # ROS Publishers (for commands FROM cloud TO robot)
-            self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=10)
-            self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-            self.status_pub = rospy.Publisher('/cloud/status', Bool, queue_size=10, latch=True)
+            self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
+            self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
-            # ROS Subscribers (for telemetry FROM robot TO cloud)
-            rospy.Subscriber('/gas_detected', Bool, self.gas_callback)
-            rospy.Subscriber('/jetson_temperature', Temperature, self.temp_callback)
-            
+            # ROS Subscribers (for data TO cloud)
+            rospy.Subscriber('/gas_detected', Bool, self.gas_callback, queue_size=1)
+            rospy.Subscriber('/jetson_temperature', Temperature, self.temp_callback, queue_size=1)
+
             # Connect to AWS
-            self.connect_with_backoff()
+            self.connect_to_aws()
 
         except Exception as e:
-            rospy.logerr("Initialization failed: %s", str(e))
+            rospy.logerr("Initialization error: %s", str(e))
             rospy.logerr(traceback.format_exc())
             sys.exit(1)
 
-    def connect_with_backoff(self):
+    def connect_to_aws(self):
+        """Connect to AWS with exponential backoff."""
         while not rospy.is_shutdown():
             try:
-                rospy.loginfo("Connecting to AWS IoT...")
+                backoff = min(2 ** self.reconnect_attempts, self.max_backoff)
+                rospy.sleep(backoff)
                 self.mqtt.connect(self.aws_endpoint, port=8883, keepalive=60)
                 self.mqtt.loop_start()
                 return
             except Exception as e:
                 self.reconnect_attempts += 1
-                backoff = min(2 ** self.reconnect_attempts, self.max_backoff)
-                rospy.logwarn("Connection failed: %s → retry in %d seconds (attempt %d)", 
-                              str(e), backoff, self.reconnect_attempts)
-                rospy.sleep(backoff)
+                rospy.logerr("Connection attempt %d failed: %s", self.reconnect_attempts, str(e))
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            rospy.loginfo("Connected to AWS IoT (rc=%d)", rc)
+            self.mqtt.subscribe(self.mqtt_commands, qos=1)
             self.reconnect_attempts = 0
-            # Subscribe to commands FROM cloud
-            client.subscribe(self.mqtt_commands)
-            rospy.loginfo("Subscribed to MQTT topic: %s", self.mqtt_commands)
-            self.status_pub.publish(Bool(True))
         else:
-            rospy.logerr("Connection refused (rc=%d)", rc)
+            rospy.logerr("Connection failed with RC: %d", rc)
 
     def on_disconnect(self, client, userdata, rc):
-        rospy.logwarn("Disconnected from AWS IoT (rc=%d)", rc)
-        self.status_pub.publish(Bool(False))
-        if not rospy.is_shutdown():
-            self.connect_with_backoff()
+        rospy.logwarn("Disconnected with RC: %d. Reconnecting...", rc)
+        self.connect_to_aws()
 
     def on_message(self, client, userdata, msg):
-        """Handle commands FROM cloud TO robot"""
         try:
-            payload = json.loads(msg.payload)
-            rospy.loginfo("Received cloud command: %s", payload)
-            
-            # Handle different command types
-            if 'command' in payload:
-                cmd = payload['command']
-                
-                if cmd == 'buzzer':
-                    # Example: {"command": "buzzer", "state": true}
-                    state = payload.get('state', False)
-                    self.buzzer_pub.publish(Bool(data=state))
-                    rospy.loginfo("Buzzer command: %s", "ON" if state else "OFF")
-                    
-                elif cmd == 'move':
-                    # Example: {"command": "move", "linear_x": 0.1, "angular_z": 0.0}
-                    twist = Twist()
-                    twist.linear.x = payload.get('linear_x', 0.0)
-                    twist.angular.z = payload.get('angular_z', 0.0)
-                    self.cmd_vel_pub.publish(twist)
-                    rospy.loginfo("Move command: vx=%.2f, vz=%.2f", twist.linear.x, twist.angular.z)
-                    
-                elif cmd == 'patrol':
-                    # Example: {"command": "patrol", "action": "start"}
-                    action = payload.get('action', '')
-                    # Could trigger patrol_client.py here via service call
-                    rospy.loginfo("Patrol command: %s", action)
-                    
+            if msg.topic == self.mqtt_commands:
+                payload = json.loads(msg.payload)
+                rospy.loginfo("Received cloud command: %s", payload)  # Debug full payload
+                if 'command' in payload:
+                    cmd = payload['command']
+                    if cmd == 'buzzer':
+                        state = bool(payload.get('value', False))  # FIXED: Use 'value' instead of 'state'
+                        self.buzzer_pub.publish(Bool(data=state))
+                        rospy.loginfo("Buzzer command: %s", "ON" if state else "OFF")
+                    elif cmd == 'move':
+                        twist = Twist()
+                        twist.linear.x = float(payload.get('vx', 0.0))
+                        twist.angular.z = float(payload.get('vth', 0.0))
+                        self.cmd_vel_pub.publish(twist)
+                    elif cmd == 'patrol':
+                        action = payload.get('action', '')
+                        # Could trigger patrol_client.py here via service call
+                        rospy.loginfo("Patrol command: %s", action)
+                    else:
+                        rospy.logwarn("Unknown command: %s", cmd)
                 else:
-                    rospy.logwarn("Unknown command: %s", cmd)
-            else:
-                rospy.logwarn("Invalid command format, missing 'command' field")
-                
+                    rospy.logwarn("Invalid command format, missing 'command' field")
         except Exception as e:
             rospy.logerr("Command parsing error: %s", str(e))
             rospy.logerr("Raw message: %s", msg.payload)
@@ -146,12 +127,10 @@ class CloudBridgeNode:
         try:
             telemetry = {
                 'timestamp': time.time(),
-                'type': 'gas_detection',
-                'detected': msg.data,
-                'robot_id': self.client_id
+                'detected': msg.data
             }
             self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
-            rospy.logdebug("Published gas detection: %s", msg.data)
+            rospy.loginfo("Published gas detection: %s", json.dumps(telemetry))  # Debug
         except Exception as e:
             rospy.logerr("Failed to publish gas detection: %s", str(e))
 
@@ -160,12 +139,10 @@ class CloudBridgeNode:
         try:
             telemetry = {
                 'timestamp': time.time(),
-                'type': 'temperature',
-                'temp_c': msg.temperature,
-                'robot_id': self.client_id
+                'temp_c': msg.temperature
             }
             self.mqtt.publish(self.mqtt_telemetry, json.dumps(telemetry), qos=1)
-            rospy.logdebug("Published temperature: %.1f°C", msg.temperature)
+            rospy.loginfo("Published temperature: %s", json.dumps(telemetry))  # Debug
         except Exception as e:
             rospy.logerr("Failed to publish temperature: %s", str(e))
 
