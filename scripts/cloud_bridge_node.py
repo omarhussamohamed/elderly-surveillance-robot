@@ -1,12 +1,10 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Cloud Bridge Node - RESTORED ORIGINAL BEHAVIOR
-- Gas alert published ONLY on change (rising edge to True → alert, falling to False → cleared)
-- No "Published gas alert" info logs (quiet like before)
-- Temperature published every callback (10Hz) quietly (no per-publish logs)
-- Original payload format with robot_id and type
-- Buzzer parsing uses 'value' for cloud commands
+Cloud Bridge Node - STRICT RISING EDGE & MINIMAL PAYLOAD
+- Gas: Publishes to cloud ONLY on Rising Edge (False -> True)
+- Payload format simplified: {"gas": true} and {"temperature": 25.5}
+- No "Gas cleared" logs or publications
 """
 
 import rospy
@@ -24,7 +22,7 @@ class CloudBridgeNode:
         try:
             rospy.init_node('cloud_bridge_node')
             rospy.loginfo("=" * 50)
-            rospy.loginfo("Starting AWS IoT Bridge...")
+            rospy.loginfo("Starting AWS IoT Bridge (Strict Mode)...")
             rospy.loginfo("=" * 50)
 
             # Load parameters
@@ -42,7 +40,7 @@ class CloudBridgeNode:
                     rospy.logerr("Certificate file missing: %s", path)
                     sys.exit(1)
 
-            # MQTT topics from config
+            # MQTT topics
             self.mqtt_telemetry = rospy.get_param('~mqtt_topic_telemetry', 'robot/telemetry')
             self.mqtt_alerts = rospy.get_param('~mqtt_topic_alerts', 'robot/alerts')
             self.mqtt_commands = rospy.get_param('~mqtt_topic_commands', 'robot/commands')
@@ -58,21 +56,19 @@ class CloudBridgeNode:
             self.max_backoff = 300
 
             # State for change detection
-            self.last_gas_detected = None
+            self.last_gas_detected = False  # Assume clear initially
 
-            # ROS Publishers (cloud → robot)
+            # ROS Publishers
             self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
 
-            # ROS Subscribers (robot → cloud)
+            # ROS Subscribers
             rospy.Subscriber('/gas_detected', Bool, self.gas_callback, queue_size=1)
             rospy.Subscriber('/jetson_temperature', Temperature, self.temp_callback, queue_size=1)
 
-            # Connect to AWS
             self.connect_to_aws()
 
         except Exception as e:
             rospy.logerr("Initialization error: %s", str(e))
-            rospy.logerr(traceback.format_exc())
             sys.exit(1)
 
     def connect_to_aws(self):
@@ -102,48 +98,42 @@ class CloudBridgeNode:
         try:
             if msg.topic == self.mqtt_commands:
                 payload = json.loads(msg.payload)
-                rospy.loginfo("Received cloud command: %s", payload)
-                if 'command' in payload:
-                    cmd = payload['command']
-                    if cmd == 'buzzer':
-                        state = bool(payload.get('value', False))
-                        self.buzzer_pub.publish(Bool(data=state))
-                        rospy.loginfo("Buzzer command from cloud: %s", "ON" if state else "OFF")
-                    else:
-                        rospy.logwarn("Unknown command: %s", cmd)
+                if 'command' in payload and payload['command'] == 'buzzer':
+                    state = bool(payload.get('value', False))
+                    self.buzzer_pub.publish(Bool(data=state))
+                    rospy.loginfo("Buzzer command from cloud: %s", "ON" if state else "OFF")
         except Exception as e:
             rospy.logerr("Command parsing error: %s", str(e))
 
     def gas_callback(self, msg):
-        """Send gas detection TO cloud ONLY on change"""
+        """
+        STRICT REQUIREMENT: 
+        1. Only publish on change from FALSE to TRUE.
+        2. Do not publish on clear.
+        """
         try:
-            if msg.data != self.last_gas_detected:
-                self.last_gas_detected = msg.data
+            # Detect Rising Edge (False -> True)
+            if msg.data and not self.last_gas_detected:
                 telemetry = {
-                    'timestamp': time.time(),
-                    'type': 'gas_detection',
-                    'detected': msg.data,
-                    'robot_id': self.client_id
+                    'gas': True,
+                    'timestamp': time.time()
                 }
                 self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
-                if msg.data:
-                    rospy.logwarn("GAS DETECTED - Alert sent to cloud")
-                else:
-                    rospy.loginfo("Gas cleared - Notification sent to cloud")
+                rospy.logwarn("GAS DETECTED - Alert sent to cloud")
+            
+            # Update state so we can detect the *next* rising edge
+            self.last_gas_detected = msg.data
+            
         except Exception as e:
             rospy.logerr("Failed to handle gas callback: %s", str(e))
 
     def temp_callback(self, msg):
-        """Send temperature TO cloud every time (quiet, like original)"""
+        """Send temperature value only."""
         try:
             telemetry = {
-                'timestamp': time.time(),
-                'type': 'temperature',
-                'temp_c': msg.temperature,
-                'robot_id': self.client_id
+                'temperature': msg.temperature
             }
             self.mqtt.publish(self.mqtt_telemetry, json.dumps(telemetry), qos=1)
-            # No log - quiet like original behavior
         except Exception as e:
             rospy.logerr("Failed to publish temperature: %s", str(e))
 
@@ -151,7 +141,6 @@ class CloudBridgeNode:
         rospy.spin()
 
     def shutdown(self):
-        rospy.loginfo("Shutting down AWS Bridge...")
         if hasattr(self, 'mqtt'):
             self.mqtt.loop_stop()
             self.mqtt.disconnect()
@@ -163,7 +152,3 @@ if __name__ == '__main__':
         node.run()
     except rospy.ROSInterruptException:
         pass
-    except Exception as e:
-        rospy.logerr("Fatal error: %s", str(e))
-        rospy.logerr(traceback.format_exc())
-        sys.exit(1)
