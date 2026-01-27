@@ -6,6 +6,9 @@ base_frame: base_footprint
 map_frame: map
 odom_frame: odom
 
+# Add transform tolerance to avoid timeout
+transform_tolerance: 0.2
+
 # ========== TRANSFORM ==========
 # Time tolerance for TF lookups
 transform_publish_period: 0.05
