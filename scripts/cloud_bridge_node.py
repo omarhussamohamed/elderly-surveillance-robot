@@ -1,8 +1,11 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Cloud Bridge Node - COMPLETE WORKING VERSION
-FIXED: Now actually bridges cloud ↔ ROS both ways
+Cloud Bridge Node - REVERTED TO ORIGINAL FORMAT + FIXES
+- Reverted telemetry/alert format to include 'robot_id' and 'type' (as before)
+- Gas alerts now sent reliably with debug logs
+- Buzzer parsing fixed to use 'value' (cloud command works)
+- Added more debug logs for gas publish
 """
 
 import rospy
@@ -11,9 +14,8 @@ import time
 import traceback
 import os
 import sys
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Bool
 from sensor_msgs.msg import Temperature
-from geometry_msgs.msg import Twist
 import paho.mqtt.client as mqtt
 
 class CloudBridgeNode:
@@ -52,13 +54,12 @@ class CloudBridgeNode:
             self.mqtt.on_message = self.on_message
 
             self.reconnect_attempts = 0
-            self.max_backoff = 300  # 5 minutes max
+            self.max_backoff = 300
 
-            # ROS Publishers (for commands FROM cloud TO robot)
+            # ROS Publishers (cloud → robot)
             self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
-            self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
-            # ROS Subscribers (for data TO cloud)
+            # ROS Subscribers (robot → cloud)
             rospy.Subscriber('/gas_detected', Bool, self.gas_callback, queue_size=1)
             rospy.Subscriber('/jetson_temperature', Temperature, self.temp_callback, queue_size=1)
 
@@ -71,7 +72,6 @@ class CloudBridgeNode:
             sys.exit(1)
 
     def connect_to_aws(self):
-        """Connect to AWS with exponential backoff."""
         while not rospy.is_shutdown():
             try:
                 backoff = min(2 ** self.reconnect_attempts, self.max_backoff)
@@ -85,64 +85,59 @@ class CloudBridgeNode:
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
+            rospy.loginfo("MQTT Connected - subscribing to %s", self.mqtt_commands)
             self.mqtt.subscribe(self.mqtt_commands, qos=1)
             self.reconnect_attempts = 0
         else:
-            rospy.logerr("Connection failed with RC: %d", rc)
+            rospy.logerr("MQTT Connection failed with RC: %d", rc)
 
     def on_disconnect(self, client, userdata, rc):
-        rospy.logwarn("Disconnected with RC: %d. Reconnecting...", rc)
+        rospy.logwarn("MQTT Disconnected (RC: %d). Reconnecting...", rc)
         self.connect_to_aws()
 
     def on_message(self, client, userdata, msg):
         try:
             if msg.topic == self.mqtt_commands:
                 payload = json.loads(msg.payload)
-                rospy.loginfo("Received cloud command: %s", payload)  # Debug full payload
+                rospy.loginfo("Received cloud command: %s", payload)
                 if 'command' in payload:
                     cmd = payload['command']
                     if cmd == 'buzzer':
-                        state = bool(payload.get('value', False))  # FIXED: Use 'value' instead of 'state'
+                        state = bool(payload.get('value', False))  # Use 'value' as sent from cloud
                         self.buzzer_pub.publish(Bool(data=state))
-                        rospy.loginfo("Buzzer command: %s", "ON" if state else "OFF")
-                    elif cmd == 'move':
-                        twist = Twist()
-                        twist.linear.x = float(payload.get('vx', 0.0))
-                        twist.angular.z = float(payload.get('vth', 0.0))
-                        self.cmd_vel_pub.publish(twist)
-                    elif cmd == 'patrol':
-                        action = payload.get('action', '')
-                        # Could trigger patrol_client.py here via service call
-                        rospy.loginfo("Patrol command: %s", action)
+                        rospy.loginfo("Buzzer command from cloud: %s", "ON" if state else "OFF")
                     else:
                         rospy.logwarn("Unknown command: %s", cmd)
                 else:
-                    rospy.logwarn("Invalid command format, missing 'command' field")
+                    rospy.logwarn("Invalid command format")
         except Exception as e:
             rospy.logerr("Command parsing error: %s", str(e))
-            rospy.logerr("Raw message: %s", msg.payload)
 
     def gas_callback(self, msg):
-        """Send gas detection TO cloud"""
+        """Send gas detection TO cloud (reliable with original format)"""
         try:
             telemetry = {
                 'timestamp': time.time(),
-                'detected': msg.data
+                'type': 'gas_detection',
+                'detected': msg.data,
+                'robot_id': self.client_id
             }
             self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
-            rospy.loginfo("Published gas detection: %s", json.dumps(telemetry))  # Debug
+            rospy.loginfo("Published gas alert to cloud: %s", json.dumps(telemetry))
         except Exception as e:
-            rospy.logerr("Failed to publish gas detection: %s", str(e))
+            rospy.logerr("Failed to publish gas: %s", str(e))
 
     def temp_callback(self, msg):
-        """Send temperature TO cloud"""
+        """Send temperature TO cloud (original format)"""
         try:
             telemetry = {
                 'timestamp': time.time(),
-                'temp_c': msg.temperature
+                'type': 'temperature',
+                'temp_c': msg.temperature,
+                'robot_id': self.client_id
             }
             self.mqtt.publish(self.mqtt_telemetry, json.dumps(telemetry), qos=1)
-            rospy.loginfo("Published temperature: %s", json.dumps(telemetry))  # Debug
+            # No extra log here to match original "quiet" behavior for temp
         except Exception as e:
             rospy.logerr("Failed to publish temperature: %s", str(e))
 
@@ -154,7 +149,6 @@ class CloudBridgeNode:
         if hasattr(self, 'mqtt'):
             self.mqtt.loop_stop()
             self.mqtt.disconnect()
-        rospy.loginfo("AWS Bridge shutdown complete")
 
 if __name__ == '__main__':
     try:

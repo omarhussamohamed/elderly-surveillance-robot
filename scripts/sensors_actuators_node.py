@@ -181,6 +181,7 @@ class SensorsActuatorsNode:
                 self.gas_pub.publish(Bool(data=self.gas_detected))
                 if self.gas_detected:
                     rospy.logwarn("GAS DETECTED")
+                    self.buzzer_pub.publish(Bool(data=True))
             else:
                 # Republish gas even if unchanged for consistent rate
                 self.gas_pub.publish(Bool(data=self.gas_detected))
