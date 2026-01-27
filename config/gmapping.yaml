@@ -127,3 +127,13 @@ occ_thresh: 0.25
 
 # Map update interval (redundant declaration - primary is at line 17)
 map_update_interval: 1.0
+
+# Explicitly disable unused services
+enable_map_server: false
+enable_map_updates: false
+
+# Disable dynamic reconfigure to prevent service conflicts
+enable_dynamic_reconfigure: false
+
+# Set service timeouts
+service_timeout: 10.0
