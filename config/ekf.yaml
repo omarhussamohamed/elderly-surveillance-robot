@@ -34,109 +34,88 @@ world_frame: odom
 # ========== WHEEL ODOMETRY (from ESP32) ==========
 
 # Wheel odometry input
-odom0: /wheel_odom
+odom0: /odom
 
 # Which values to fuse from wheel odometry
 # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
 # CRITICAL FIX: Do NOT fuse vyaw from wheel odometry - it accumulates drift from wheel slip
 # Only fuse position and linear velocity. IMU provides accurate yaw orientation.
-odom0_config: [true,  true,  false,  # position (x, y, z)
-               false, false, true,   # orientation (roll, pitch, yaw)
-               true,  false, false,  # linear velocity (vx, vy, vz) - only vx for diff drive
-               false, false, false,  # angular velocity (vroll, vpitch, vyaw) - DO NOT USE
-               false, false, false]  # linear acceleration (ax, ay, az)
+odom0_config: [false,  false,  false,  # position (x, y, z)
+               false, false, false,   # roll, pitch, yaw
+               true,  false, false,   # vx, vy, vz
+               false, false, false,   # vroll, vpitch, vyaw
+               false, false, false]   # ax, ay, az
 
-# Differential mode (integrates velocities to get pose)
-# GHOSTING FIX: Enable differential mode to handle odometry jumps/resets
-# When true, EKF only integrates velocity changes, ignoring absolute pose jumps
-# This prevents WiFi lag spikes from causing map teleportation
-odom0_differential: true
+# Differential mode for odometry
+odom0_differential: false
 
-# Relative mode
-odom0_relative: false
+# Reject outliers
+odom0_rejection_threshold: 2.0
 
-# Queue size - LAG FIX: Reduced from 10 to 2 to minimize buffering latency
-# With 20Hz wheel odom, 2-message queue = 100ms buffer (minimal while stable)
-odom0_queue_size: 2
+# Queue size
+odom0_queue_size: 10
 
-# Reject measurements that are this many standard deviations from the current state
-# (Mahalanobis distance threshold)
-odom0_pose_rejection_threshold: 5.0
-odom0_twist_rejection_threshold: 2.0
+# ========== IMU (MPU-9250) ==========
 
-# ========== IMU DATA (from MPU9250 via Madgwick filter) ==========
-
-# IMU input
+# IMU input (filtered by Madgwick)
 imu0: /imu/data
 
-# Which values to fuse from IMU
-# CRITICAL: Magnetometer DISABLED (indoor EMI), using gyro+accel Madgwick fusion
-# IMU provides ORIENTATION (absolute yaw from gyro integration + accel tilt correction)
-# This prevents gyro drift that would accumulate without fusion
-imu0_config: [false, false, false,  # position
-              false, false, true,   # orientation (YAW from gyro+accel fusion)
-              false, false, false,  # linear velocity
-              false, false, false,  # angular velocity (NOT USED - orientation is better)
-              false, false, false]  # linear acceleration (too noisy)
+# IMU configuration
+# Fuse absolute orientation (roll, pitch, yaw) from Madgwick filter
+# Fuse angular velocities and linear accelerations
+imu0_config: [false, false, false,  # position (x, y, z)
+              true,  true,  true,   # roll, pitch, yaw
+              false, false, false,  # vx, vy, vz
+              true,  true,  true,   # vroll, vpitch, vyaw
+              true,  true,  true]   # ax, ay, az
 
-# Differential mode
-# False: Use absolute orientation from Madgwick filter (recommended)
-# True: Only integrate angular velocity changes (not needed with good orientation)
-imu0_differential: false
+# IMU differential mode
+imu0_differential: true  # Integrate differences for orientation
 
-# Relative mode
-imu0_relative: false
+# IMU rejection threshold
+imu0_rejection_threshold: 0.5
 
-# Queue size - LAG FIX: Reduced from 10 to 2 for consistency with wheel odom
-# IMU publishes at ~100Hz, so 2-message queue = ~20ms buffer (minimal latency)
-imu0_queue_size: 2
+# IMU queue size
+imu0_queue_size: 10
 
-# Remove gravitational acceleration
+# Remove gravitational acceleration from IMU
 imu0_remove_gravitational_acceleration: true
-
-# Rejection thresholds (increased to handle stationary drift)
-imu0_pose_rejection_threshold: 5.0
-imu0_twist_rejection_threshold: 2.0
-imu0_linear_acceleration_rejection_threshold: 2.0
 
 # ========== PROCESS NOISE COVARIANCE ==========
 
 # Process noise covariance matrix
-# Diagonal values for [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
-process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # x
-                           0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # y
-                           0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # z
-                           0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # roll
-                           0.0,  0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # pitch
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.003, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # yaw (BALANCED: 3× baseline for rotation correction, 3.3× lower than 0.01 for stationary stability)
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # vx
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # vy
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.04, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   # vz
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,  0.0,  0.0,  0.0,   # vroll
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,  0.0,  0.0,   # vpitch
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.005, 0.0,  0.0,  0.0,   # vyaw (BALANCED: 5× baseline for rotation tracking, 2× lower than 0.01 for stationary stability)
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,   # ax
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,   # ay
-                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.015] # az
+# Increased noise for yaw and angular velocity due to skid-steer slip
+process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025,0.0,  0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.04, 0.0,  0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,
+                           0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.02]
 
 # ========== INITIAL STATE COVARIANCE ==========
 
-# Initial estimate covariance
+# Initial estimate covariance matrix
 initial_estimate_covariance: [1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
                               0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
                               0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
                               0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
                               0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,  0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,  0.0,  0.0,
                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,  0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9, 0.0,
-                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-9]
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3, 0.0,
+                              0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  1e-3]
 
 # ========== ADVANCED SETTINGS ==========
 
@@ -157,5 +136,3 @@ debug: false
 
 # Debug output file
 debug_out_file: /tmp/ekf_debug.txt
-
-

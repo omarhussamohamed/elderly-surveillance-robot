@@ -1,492 +1,163 @@
 # Elderly Bot - Autonomous Indoor Monitoring Robot
 
-**ROS Melodic | Jetson Nano | 4WD Skid-Steer Platform**
+**ROS Melodic | NVIDIA Jetson Nano | 4WD Skid-Steer Platform**
 
-An autonomous indoor monitoring robot with mapping, navigation, and AWS IoT cloud integration capabilities.
+A complete autonomous indoor monitoring robot designed for elderly care environments, featuring SLAM mapping, waypoint-based patrol, real-time gas detection with alerts, live video streaming to AWS Kinesis, and cloud telemetry via AWS IoT Core.
 
 > **⚠️ AUTHORITATIVE DOCUMENTATION**  
 > Hardware truth → [HARDWARE.md](HARDWARE.md)  
 > System architecture truth → [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)  
-> Do NOT trust any other .md file for hardware or architecture information — they may be outdated or deleted.
+> Do **NOT** trust any other .md file for hardware or architecture information — they may be outdated or deleted.
 
 ---
 
 ## Project Overview
 
-The Elderly Bot is a complete ROS 1 system designed for autonomous indoor monitoring with:
-- **SLAM mapping** using RPLidar A1 and GMapping
-- **Autonomous navigation** using move_base and AMCL
-- **Sensor fusion** for robust odometry (wheel encoders + IMU)
-- **Gas detection** using MQ-6 sensor with alert system
-- **Cloud connectivity** via AWS IoT Core for remote monitoring
+The Elderly Bot is a production-ready ROS 1 system running on NVIDIA Jetson Nano (Ubuntu 18.04 LTS, ROS Melodic) with:
 
----
+- **SLAM mapping** using RPLidar A1 + GMapping (optimized for Jetson Nano: 1.0 s map update interval, 500 particles, likelihood_field model for robustness to noise)
+- **Autonomous navigation** using move_base (Navfn global planner + DWA local planner) and AMCL localization (500 particles, tf_broadcast: true, base_footprint frame)
+- **Robust odometry** fusing wheel encoders (from ESP32) + MPU-9250 IMU (via robot_localization EKF with skid-steer slip compensation: no wheel vyaw fusion, high yaw covariance, two_d_mode: true)
+- **Gas detection & safety** using MQ-6 sensor (GPIO digital mode on Jetson BOARD pin 18) with automatic buzzer alerts (active buzzer on pin 16, 5-second auto-shutoff)
+- **Live video streaming** to AWS Kinesis Video Streams (KVS) at 1280×720 @ 15 fps using hardware-accelerated encoding (nvh264enc) for low CPU usage on Jetson
+- **AWS IoT Core integration** for real-time telemetry, alerts, and remote commands (certificates loaded securely via environment variables)
+- **System health monitoring** (`system_health_monitor.py`) with automatic respawn of critical nodes (e.g., rplidar_node, ekf_localization_node) and `/diagnostics` topic
+- **Primary visualization** — Foxglove Bridge (`ws://<jetson_ip>:8765`) displaying `/map`, `/scan`, `/tf`, `/odom`, `/gas_detected`, `/jetson_temperature` (RViz configs deprecated)
 
-## Hardware Configuration
+The system is fully Python 2 compatible (ROS Melodic requirement), uses merged costmap configurations, and includes idempotent setup scripts.
 
-### Computing Platform
-- **Main Controller**: NVIDIA Jetson Nano (Ubuntu 18.04, ROS Melodic)
-- **Motor Controller**: ESP32 (Arduino rosserial, WiFi)
-
-### Robot Geometry
-| Parameter | Value |
-|-----------|-------|
-| Dimensions | 35cm × 25cm × 14cm (L×W×H) |
-| Drivetrain | 4WD skid-steer |
-| Track width | 0.26m |
-| Wheelbase | 0.17m |
-| Wheel diameter | 0.065m |
-
-### Motors & Encoders
-- **Motor**: JGB37-520, 12V, 110 RPM, 90:1 gearbox
-- **Encoder**: Hall effect quadrature, 11 PPR × 90 = **3960 ticks/revolution**
-- **Distance per tick**: 0.0000515m (calibrated)
-- **Debouncing**: 100µs software filter
-
-### Sensors
-| Sensor | Model | Interface | Purpose |
-|--------|-------|-----------|---------|
-| **Lidar** | RPLidar A1 | USB (/dev/ttyUSB0) | 2D laser scanning (360°, 8Hz) |
-| **IMU** | MPU-9250 | I2C (bus 1, 0x68) | Orientation (gyro + accel, mag disabled) |
-| **Gas Sensor** | MQ-6 | GPIO (Pin 18) | LPG/natural gas detection |
-| **Jetson Stats** | jtop | Software | Temperature & power monitoring |
-
-**IMU Notes:**
-- Magnetometer disabled due to indoor electromagnetic interference
-- Dynamic gyroscope calibration on startup
-- Madgwick filter fusion for orientation estimation
-- Connected directly to Jetson I2C: SDA→Pin 3, SCL→Pin 5
-
-**Gas Sensor Notes:**
-- GPIO Mode (default): Digital D0 output (active-low with external pull-up)
-- Binary detection with 500ms debouncing
-- Auto-triggers buzzer alarm on gas detection
-
-### Actuators
-- **Active Buzzer**: Alert/alarm notifications (Pin 16, transistor-driven, 5V)
-  - Continuous beeping pattern (0.1s ON/OFF)
-  - ROS topic: `/buzzer_command` (std_msgs/Bool)
-
-### Motor Drivers
-- 2× L298N dual H-bridge motor drivers
-
----
-
-## Repository Structure
-
-```
-elderly_bot/
-├── aws_certs/                  # AWS IoT certificates
-│   ├── AmazonRootCA1.pem
-│   ├── certificate.pem.crt
-│   ├── private.pem.key
-├── config/                     # Configuration files
-│   ├── amcl.yaml
-│   ├── aws_bridge.yaml
-│   ├── bashrc_kvs_config.sh
-│   ├── cloud_config.yaml
-│   ├── costmap_common_params.yaml
-│   ├── dwa_local_planner.yaml
-│   ├── ekf.yaml
-│   ├── elderly-bot-kvs.service
-│   ├── global_costmap.yaml
-│   ├── gmapping.yaml
-│   ├── livekit_config.yaml
-│   ├── local_costmap.yaml
-│   ├── patrol_goals.yaml
-│   ├── sensors_actuators.yaml
-├── docs/                       # Documentation files
-│   ├── LIVEKIT_UBUNTU18_SETUP.md
-├── firmware/                   # ESP32 firmware
-│   ├── elderly_bot_esp32_wifi.ino
-├── launch/                     # Launch files for ROS nodes
-│   ├── bringup.launch
-│   ├── cloud_bridge.launch
-│   ├── imu_nav.launch
-│   ├── kvs_stream.launch
-│   ├── livekit_stream.launch
-│   ├── mapping.launch
-│   ├── navigation.launch
-├── maps/                       # Predefined maps for navigation
-│   ├── README.md
-├── rviz/                       # RViz visualization configurations
-│   ├── mapping.rviz
-│   ├── navigation.rviz
-├── scripts/                    # Python scripts (ROS nodes and utilities)
-│   ├── camera_node.py
-│   ├── cloud_bridge_node.py
-│   ├── kvs_streamer_node.py
-│   ├── livekit_streamer.py
-│   ├── mpu9250_node.py
-│   ├── patrol_client.py
-│   ├── sensors_actuators_node.py
-│   ├── system_health_monitor.py
-│   ├── test_cloud_connection.py
-│   ├── test_cloud_publisher.py
-│   ├── __pycache__/
-├── urdf/                       # Robot description files (URDF)
-│   ├── elderly_bot.urdf
-├── README.md                   # Project overview
-├── SYSTEM_OVERVIEW.md          # Detailed system architecture
-├── HARDWARE.md                 # Hardware configuration details
-```
-
----
-
-## How to Build & Run
-
-### Prerequisites
-- Ubuntu 18.04 (ARM64 for Jetson Nano)
-- ROS Melodic installed
-- Python 2.7 (default) and Python 3.8 (side-by-side)
-
-### Build Instructions
-1. Source ROS setup:
-   ```bash
-   source /opt/ros/melodic/setup.bash
-   ```
-2. Build the workspace:
-   ```bash
-   cd ~/catkin_ws
-   catkin_make
-   ```
-3. Source the workspace:
-   ```bash
-   source devel/setup.bash
-   ```
-
-### Run Instructions
-1. Start the ROS master:
-   ```bash
-   roscore
-   ```
-2. Launch the robot bringup:
-   ```bash
-   roslaunch elderly_bot bringup.launch enable_cloud:=true
-   ```
-3. Verify topics:
-   ```bash
-   rostopic list
-   ```
-
----
-
-## Important Launch Files
-
-| Launch File          | Purpose                                      |
-|----------------------|----------------------------------------------|
-| `bringup.launch`     | Starts all core nodes for the robot          |
-| `navigation.launch`  | Enables autonomous navigation                |
-| `mapping.launch`     | Runs SLAM for map creation                   |
-| `imu_nav.launch`     | IMU and sensor fusion pipeline               |
-| `kvs_stream.launch`  | AWS KVS video streaming                      |
-
----
-
-## Calibration & Tuning
-
-- **IMU Calibration**: Adjust parameters in `config/ekf.yaml`
-- **Lidar Settings**: Modify `config/amcl.yaml` for localization tuning
-- **Motor PID**: Update firmware constants in `firmware/elderly_bot_esp32_wifi.ino`
-
----
-
-## Known Issues
-
-- **WiFi Disconnections**: Ensure strong signal for AWS IoT connectivity
-- **High CPU Usage**: Reduce camera resolution or frame rate in `config/livekit_config.yaml`
-- **IMU Noise**: Verify I2C connections and reduce vibrations
+**Author**: Omar H. (Giza, Egypt)  
+**Date**: January 2026  
+**ROS Version**: Melodic (Ubuntu 18.04 LTS)  
+**Platform**: NVIDIA Jetson Nano (4GB, JetPack 4.6.x)
 
 ---
 
 ## Quick Start
 
-### 1. Initial Setup (First Time Only)
+### 1. Initial Setup & Dependencies
 
 ```bash
+# Install all ROS and Python dependencies (idempotent, usually <30s)
 cd ~/catkin_ws/src/elderly_bot
-chmod +x install_dependencies.sh
 ./install_dependencies.sh
-```
 
-This installs:
-- ROS navigation stack
-- Python dependencies (AWSIoTPythonSDK, jtop, smbus2, etc.)
-- RPLidar ROS driver
-- robot_localization package
-- imu_filter_madgwick
-
-### 2. Build the Workspace
-
-```bash
+# Build the workspace
 cd ~/catkin_ws
 catkin_make
 source devel/setup.bash
-```
 
-### 3. Hardware Connections
+# Set AWS environment variables (recommended: add to ~/.bashrc)
+export AWS_ROOT_CA_PATH="/home/omar/catkin_ws/src/elderly_bot/aws_certs/AmazonRootCA1.pem"
+export AWS_CERT_PATH="/home/omar/catkin_ws/src/elderly_bot/aws_certs/certificate.pem.crt"
+export AWS_KEY_PATH="/home/omar/catkin_ws/src/elderly_bot/aws_certs/private.pem.key"
+source ~/.bashrc
 
-- **RPLidar**: Connect to USB → `/dev/ttyUSB0`
-- **ESP32**: Ensure WiFi connection (see HARDWARE.md for details)
-- **IMU**: Verify I2C connection: `i2cdetect -y -r 1` (should show 0x68)
-- **Gas Sensor**: Connected to Pin 18 with external pull-up resistor
-- **Buzzer**: Connected to Pin 16 via transistor
-
-See [HARDWARE.md](HARDWARE.md) for complete wiring details.
-
-### 4. Launch Modes
-
-**Mapping Mode** (Create a new map):
-```bash
-roslaunch elderly_bot mapping.launch
-```
-
-**Navigation Mode** (Use existing map):
-```bash
-roslaunch elderly_bot navigation.launch map_file:=/path/to/map.yaml
-```
-
-**Full System** (sensors, IMU, optional cloud):
-```bash
-roslaunch elderly_bot bringup.launch enable_cloud:=false
-```
-
-**Patrol Mode** (Autonomous waypoint patrol):
-```bash
-roslaunch elderly_bot navigation.launch
-rosrun elderly_bot patrol_client.py
+# Verify hardware connections
+ls /dev/ttyUSB*          # Should show RPLidar (/dev/ttyUSB0)
+i2cdetect -y -r 1        # Should show 0x68 (MPU-9250)
 ```
 
 ---
 
-## System Architecture
+### 2. ESP32 WiFi & Firmware Setup (First Time Only)
 
-### TF Tree
+- Upload `firmware/elderly_bot_esp32_wifi.ino` using Arduino IDE (ESP32 Dev Module board).
+- Connect to temporary WiFi AP **ElderlyBotESP32** and configure:
+  - Your home WiFi SSID/password
+  - Jetson Nano IP address (e.g., 192.168.1.16)
 
-```
-map
- └── odom                    [AMCL or EKF]
-     └── base_footprint      [robot_localization EKF]
-         └── base_link       [robot_state_publisher]
-             ├── laser       [180° yaw for rear-mounted lidar]
-             └── imu_link    [aligned with robot frame]
-```
-
-### Node Graph
-
-```
-┌─────────────────┐
-│ ESP32 Firmware  │  (Arduino rosserial)
-│  - Motor control│
-│  - Encoders     │
-└────────┬────────┘
-         │ /cmd_vel (Twist)
-         │ /odom (Odometry)
-         ▼
-┌─────────────────┐     ┌──────────────┐
-│ robot_localiza- │◄────┤ mpu9250_node │
-│ tion (EKF)      │     │  IMU driver  │
-└────────┬────────┘     └──────────────┘
-         │ odom→base_footprint TF
-         ▼
-┌─────────────────┐     ┌──────────────┐
-│   RPLidar Node  │────►│  GMapping    │  (Mapping mode)
-│ /scan (LaserScan)│     │  or AMCL     │  (Navigation)
-└─────────────────┘     └──────┬───────┘
-                               │ map→odom TF
-                               ▼
-                        ┌──────────────┐
-                        │  move_base   │
-                        │  navigation  │
-                        └──────────────┘
-```
-
-### Important Topics
-
-| Topic | Type | Publisher | Purpose |
-|-------|------|-----------|---------|
-| `/cmd_vel` | Twist | move_base | Motor velocity commands |
-| `/odom` | Odometry | ESP32 | Wheel encoder odometry |
-| `/scan` | LaserScan | rplidar_node | 2D laser scans |
-| `/imu/data_raw` | Imu | mpu9250_node | Raw IMU measurements |
-| `/imu/data` | Imu | imu_filter_madgwick | Fused IMU with orientation |
-| `/gas_detected` | Bool | sensors_actuators_node | Gas detection status |
-| `/buzzer_command` | Bool | (command) | Buzzer control |
-| `/jetson_temperature` | Temperature | sensors_actuators_node | Jetson temp |
-| `/jetson_power` | Float32 | sensors_actuators_node | Power consumption |
+ESP32 stores settings permanently (`Preferences.h`) and publishes `/odom` at 20 Hz.
 
 ---
 
-## AWS IoT & Video Streaming Integration
+### 3. Launch Modes
 
-### AWS Kinesis Video Streams (KVS)
+#### Core system (hardware bringup + EKF + sensors + optional cloud):
 
-The robot streams live camera feed to AWS for remote monitoring. Credentials are embedded in the launch file for seamless operation.
-
-**Launch Camera Streaming:**
-```bash
-# Camera only (no AWS streaming)
-roslaunch elderly_bot camera_streaming.launch enable_kvs:=false
-
-# Camera + AWS KVS streaming (default)
-roslaunch elderly_bot camera_streaming.launch
-```
-
-**Features:**
-- 1280x720 @ 30fps MJPEG camera feed
-- Streams to AWS KVS stream: `RobotStream` in `us-east-1` region
-- Automatic reconnection on network interruptions
-- Publishes `/camera/image_raw` and `/camera/image_raw/compressed` topics
-
-**View Stream:**
-- AWS Console: https://us-east-1.console.aws.amazon.com/kinesisvideo/
-
-### AWS IoT Core (Optional)
-
-1. Follow instructions in `aws_certs/README.md` to download certificates
-2. Update `config/cloud_config.yaml` with your endpoint and Thing name
-3. Test connection: `python2 scripts/final_handshake.py` (if final_handshake.py is available)
-
-**Features:**
-- Publishes telemetry to `elderly_bot/telemetry` (1 Hz)
-- Publishes alerts to `elderly_bot/alerts` (event-driven)
-- Receives commands from `elderly_bot/commands`
-
-**Launch with Cloud:**
 ```bash
 roslaunch elderly_bot bringup.launch enable_cloud:=true
 ```
 
----
+#### Mapping (create new map with autonomous exploration):
 
-## Calibration & Tuning
-
-See [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) for complete operational modes and parameter details.
-
-**Key Calibration Points**:
-- Encoder resolution: 3960 ticks/rev (calibrated)
-- IMU gyro: Auto-calibrated on startup (robot must be stationary)
-- Navigation parameters: Tuned in config/*.yaml files
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Lidar not detected**:
 ```bash
-ls -l /dev/ttyUSB*
-sudo chmod 666 /dev/ttyUSB0
+roslaunch elderly_bot mapping.launch
+# Save the map when exploration finishes:
+rosrun map_server map_saver -f ~/catkin_ws/src/elderly_bot/maps/my_house
 ```
 
-**IMU not detected**:
+#### Navigation & Patrol (use saved map, autonomous patrol):
+
 ```bash
-i2cdetect -y -r 1  # Should show 0x68
-sudo apt-get install i2c-tools python3-smbus
+roslaunch elderly_bot navigation.launch map_file:=~/catkin_ws/src/elderly_bot/maps/my_house.yaml
+# Start autonomous patrol (cycles patrol_goals.yaml waypoints):
+rosrun elderly_bot patrol_client.py
 ```
 
-**ESP32 not connecting**:
-- Verify WiFi credentials in firmware
-- Check Jetson is on same network
-- Verify rosserial connection: `rostopic echo /rosout`
-
-**Gas sensor always triggered**:
-- Check pull-up resistor (2.2-4.7kΩ to 3.3V)
-- Verify polarity setting in `sensors_actuators.yaml`
-- Allow 24-hour burn-in period for MQ-6
-
-**Navigation fails**:
-- Verify map is loaded: `rostopic echo /map -n1`
-- Check TF tree: `rosrun tf view_frames`
-- Ensure AMCL localized: `rostopic echo /amcl_pose -n1`
-
-### Logs and Diagnostics
+#### Live Video Streaming (AWS KVS 720p):
 
 ```bash
-# View all active nodes
-rosnode list
-
-# Check TF tree
-rosrun tf view_frames
-evince frames.pdf
-
-# Monitor topics
-rostopic hz /scan
-rostopic hz /odom
-rostopic hz /imu/data
-
-# Debug navigation
-rostopic echo /move_base/status
-rostopic echo /move_base/feedback
+roslaunch elderly_bot kvs_stream.launch
+# View live feed in AWS Console → Kinesis Video Streams → RobotStream
 ```
 
 ---
 
-## Development
+### 4. Viewing & Monitoring
 
-### Building from Source
-
-```bash
-cd ~/catkin_ws
-catkin_make
-source devel/setup.bash
-```
-
-### Running Tests
-
-```bash
-# Test AWS connection
-python ~/catkin_ws/src/elderly_bot/scripts/final_handshake.py
-
-# Test IMU
-rostopic echo /imu/data_raw
-
-# Test gas sensor
-rostopic echo /gas_detected
-```
-
-### Code Style
-
-- Python: PEP 8, 4 spaces, snake_case
-- Launch files: 2-space indentation
-- YAML configs: 2-space indentation, comments above params
+- **Primary viewer:** Foxglove Studio → Connect to `ws://<jetson_ip>:8765`
+  - Displays: `/map`, `/scan`, `/tf`, `/odom`, `/gas_detected`, `/jetson_temperature`, costmaps
+- **Cloud monitoring:**
+  - AWS IoT Core → telemetry, alerts, commands
+  - AWS Kinesis Video Streams → live 720p video (us-east-1 region)
+- **Diagnostics & health:** `/diagnostics` topic (updated every 10 s)
+- **Logs:** `cat ~/.ros/log/latest/rosout.log` or `rqt_console`
 
 ---
 
-## License & Contributors
+## Key Features & Safety Mechanisms
 
-**Project**: Graduation Project - Elderly Care Robot  
-**Author**: Omar H. (Cairo)  
-**Date**: January 2026  
-**ROS Version**: Melodic (Ubuntu 18.04)  
-**Platform**: NVIDIA Jetson Nano
-
----
-
-## Documentation
-
-- **[HARDWARE.md](HARDWARE.md)**: Complete hardware specifications & wiring (authoritative source)
-- **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**: System architecture & operational modes (authoritative source)
-- **[aws_certs/README.md](aws_certs/README.md)**: AWS IoT Core certificate setup
+- **Odometry reliability:** EKF trusts IMU gyro over wheel encoders for yaw (handles skid-steer slip); high yaw covariance prevents drift accumulation.
+- **Gas safety:** MQ-6 auto-triggers buzzer on detection; publishes `/gas_detected` (Bool); 5-second buzzer timeout.
+- **Patrol robustness:** `patrol_client.py` retries failed goals (max 3), logs success rate and statistics.
+- **Performance optimizations:** AMCL 500 particles, GMapping 1.0 s updates, hardware video encoding.
+- **Security:** AWS certificates loaded via environment variables (no hardcoding).
+- **Reliability:** All critical nodes (rplidar, EKF, ESP32 serial) have `respawn="true"` and health monitoring.
+- **Visualization:** Foxglove Bridge (primary); RViz configs retained only for fallback/debugging.
 
 ---
 
-## Support
+## Dependencies
 
-For issues, check ROS logs:
-```bash
-cat ~/.ros/log/latest/rosout.log
-```
+- **ROS Melodic packages** (installed via apt):  
+  `navigation`, `robot_localization`, `gmapping`, `amcl`, `move_base`, `dwa_local_planner`, `rplidar_ros`, `rosserial_python`, `imu_filter_madgwick`, `diagnostic_aggregator`, `cv_bridge`, `image_transport`, `compressed_image_transport`
+- **Python 2 packages** (via pip):  
+  `paho-mqtt`, `smbus2`, `Jetson.GPIO`, `jetson-stats`, `pyyaml`, `opencv-python`
+- **Other:**  
+  GStreamer (for KVS), Arduino IDE (for ESP32 firmware)
+- **One-command install:**  
+  `./install_dependencies.sh` (idempotent, includes udev rules for RPLidar)
 
-For hardware/architecture questions, refer to HARDWARE.md and SYSTEM_OVERVIEW.md.
+---
 
-### Dependencies
+## Documentation & Support
 
-Ensure the following Python packages are installed:
-- `paho-mqtt`: MQTT client library for Python. Install using:
-  ```bash
-  sudo pip install paho-mqtt
-  ```
+- `HARDWARE.md` — Authoritative hardware specs, wiring, pinouts
+- `SYSTEM_OVERVIEW.md` — Authoritative architecture, nodes, TF tree
+- `aws_certs/README.md` — AWS certificate setup
+- `CHANGELOG.md` — Full update history
+- `docs/TROUBLESHOOTING.md` — Common errors and fixes
 
+---
 
+## For Issues
+
+- Check logs:  
+  `cat ~/.ros/log/latest/rosout.log`
+- Run diagnostics:  
+  `roswtf` or `rqt_console`
+- Hardware questions:  
+  See `HARDWARE.md`
+- Architecture questions:  
+  See `SYSTEM_OVERVIEW.md`

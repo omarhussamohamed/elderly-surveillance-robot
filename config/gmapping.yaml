@@ -16,7 +16,7 @@ transform_publish_period: 0.05
 # ========== MAP PARAMETERS ==========
 # Map resolution (meters per cell)
 # STABILITY FIX: Increased from 2.0 to 3.0 for CPU relief (visualization only, not internal mapping)
-map_update_interval: 3.0
+map_update_interval: 1.0
 
 # Maximum range of laser (RPLidar A1: ~12m, but accuracy degrades >6m)
 # LASER MODEL FIX: Reduced maxUrange from 9.5m to 6.0m
@@ -59,29 +59,12 @@ laser_z_rand: 0.05  # Weight for random readings (reflections, dust)
 
 # Likelihood field correlation parameters
 laser_likelihood_max_dist: 2.0  # Max distance for likelihood correlation (meters)
-# Limits search space for faster scan matching
+# Limits search space to prevent false positives in large open areas
 
-# Beam subsampling (reduce computational load)
-laser_max_beams: 180  # Use 180 beams (subsample 360→180 for 50% CPU reduction)
-# Still provides 2° angular resolution (sufficient for 2cm map)
-
-# Scan matching optimization parameters
-sigma: 0.05  # Increased from 0.02 for noise tolerance with likelihood model
-kernelSize: 1  # Gaussian kernel for map smoothing (1=no smoothing, sharper walls)
-lstep: 0.05  # Linear search step (5cm)
-astep: 0.05  # Angular search step (~3°)
-iterations: 5  # Scan matcher iterations (keep at 5 for likelihood model accuracy)
-lsigma: 0.075  # Laser likelihood sigma for correlation
-ogain: 3.0  # Gain for updating occupancy grid (higher=faster convergence)
-lskip: 0  # Laser skip (0=use all selected beams)
-
-# ========== MOTION MODEL ==========
-# Odometry error parameters for skid-steer robot
-# These are critical for accurate mapping with wheel slip
-# INCREASED from optimistic values to reflect 4WD skid-steer reality
-
-# Linear movement error
-srr: 0.05   # Linear -> Linear (was 0.01, increased for wheel slip)
+# ========== ODOMETRY MODEL ==========
+# Odom error parameters (alpha1-alpha4)
+# Increased alphas for skid-steer drive (high slip during rotation)
+srr: 0.2    # Linear -> Linear (was 0.1, increased for translation slip)
 srt: 0.15   # Linear -> Angular (INCREASED for stronger cross-coupling during turns)
 
 # Angular movement error - CRITICAL FOR ROTATION
@@ -143,6 +126,4 @@ ymax: 10.0
 occ_thresh: 0.25
 
 # Map update interval (redundant declaration - primary is at line 17)
-map_update_interval: 3.0
-
-
+map_update_interval: 1.0

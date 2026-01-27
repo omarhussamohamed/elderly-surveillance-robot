@@ -6,7 +6,6 @@
   
   Starts:
   - Hardware bringup
-  - robot_localization EKF
   - AMCL localization (with saved map)
   - move_base (navigation stack)
   
@@ -17,27 +16,10 @@
   <!-- ========== PARAMETERS ========== -->
   
   <arg name="map_file" default="/home/omar/catkin_ws/src/elderly_bot/maps/my_house.yaml" />
-  <arg name="rviz" default="false" doc="Set to true to enable RViz visualization" />
   
   <!-- ========== BRINGUP HARDWARE ========== -->
   
   <include file="$(find elderly_bot)/launch/bringup.launch" />
-  
-  <!-- ========== ROBOT LOCALIZATION (EKF) ========== -->
-  
-  <node pkg="robot_localization" 
-        type="ekf_localization_node" 
-        name="ekf_localization_odom"
-        output="screen">
-    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
-  </node>
-
-  <node pkg="robot_localization" 
-        type="ekf_localization_node" 
-        name="ekf_localization_map"
-        output="screen">
-    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
-  </node>
   
   <!-- ========== MAP SERVER ========== -->
   
@@ -72,11 +54,8 @@
     <param name="base_global_planner" value="navfn/NavfnROS" />
     <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />
     
-    <!-- Load configuration files -->
-    <rosparam file="$(find elderly_bot)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
-    <rosparam file="$(find elderly_bot)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
-    <rosparam file="$(find elderly_bot)/config/global_costmap.yaml" command="load" />
-    <rosparam file="$(find elderly_bot)/config/local_costmap.yaml" command="load" />
+    <!-- Load merged configuration file -->
+    <rosparam file="$(find elderly_bot)/config/costmap_params.yaml" command="load" />
     <rosparam file="$(find elderly_bot)/config/dwa_local_planner.yaml" command="load" />
     
     <!-- Recovery behaviors -->
@@ -93,16 +72,6 @@
     
   </node>
   
-  <!-- ========== RVIZ VISUALIZATION ========== -->
-  <!-- Note: Starts with default config. Manually add displays for /map, /scan, /tf, costmaps -->
-  <!-- Enable with: roslaunch elderly_bot navigation.launch rviz:=true -->
-  
-  <node name="rviz" 
-        pkg="rviz" 
-        type="rviz" 
-        required="false"
-        if="$(arg rviz)" />
-  
   <!-- ========== FOXGLOVE BRIDGE ========== -->
   <node name="foxglove_bridge" 
         pkg="foxglove_bridge" 
@@ -112,5 +81,3 @@
   </node>
   
 </launch>
-
-

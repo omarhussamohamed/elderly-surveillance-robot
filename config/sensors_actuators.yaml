@@ -1,13 +1,7 @@
 # Sensors and Actuators Configuration for Elderly Bot
 # ====================================================
 # This file contains parameters for the MQ-6 gas sensor, active buzzer, and Jetson monitoring.
-#
-# SAFETY: All features are DISABLED by default until hardware is connected and tested.
-# To enable a feature:
-#   1. Install required dependencies (see scripts/sensors_actuators_node.py)
-#   2. Connect and test hardware
-#   3. Set enable_xxx parameter to true
-#   4. Launch with sensors_actuators:=true
+# Merged with diagnostics.yaml for consolidation.
 
 # ===== FEATURE ENABLE FLAGS =====
 # Set to true only after hardware is connected and tested
@@ -28,45 +22,12 @@ gas_sensor_mode: "gpio"  # "gpio" or "i2c"
 # Physical Pin 18 = GPIO 24 (BCM)
 # Hardware wiring: MQ-6 D0 → BOARD pin 18, 3.3V pull-up (2.2–4.7kΩ), GND to Jetson GND
 # See docs/GAS_SENSOR_WIRING.md for wiring diagram
-gas_sensor_gpio_pin: 18
+gas_pin: 18  # BOARD numbering
 
-# Polarity of digital output (D0 pin)
-# Options:
-#   'active_low':  D0 LOW (0V) when gas detected (LM393 open-collector output)
-#   'active_high': D0 HIGH when gas detected (rare, inverted modules)
-# 
-# ⚠️ MQ-6 LM393 OPEN-COLLECTOR OUTPUT
-# The D0 pin is open-collector and pulls LOW when gas is detected.
-# A pull-up resistor to 3.3V (2.2–4.7kΩ) is required for proper operation.
-# When no gas: pin floats HIGH via pull-up
-# When gas present: LM393 pulls pin LOW, sensor LED turns ON
-# 
-# Test: Wave lighter near sensor, watch LED. When LED ON:
-#   - Pin should read LOW
-#   - /gas_detected should publish TRUE
-gas_polarity: "active_low"
+# Gas detection threshold (for gpio: 1=detected)
+gas_threshold: 1  # Digital high on detection
 
-# ⚠️ HARDWARE WIRING REQUIREMENTS
-# 
-# Current setup: MQ-6 with open-collector output
-#   - Sensor VCC: 5V (required for heater and full sensitivity)
-#   - D0 output: Open-collector (pulls LOW when gas detected)
-#   - Required: Pull-up resistor 2.2–4.7kΩ from D0 to Jetson 3.3V
-#   - Jetson GPIO pin 18: Input with pull-up resistor
-# 
-# Wiring:
-#   MQ-6 VCC → 5V power
-#   MQ-6 GND → Jetson GND
-#   MQ-6 D0  → Pull-up resistor (2.2–4.7kΩ) → Jetson 3.3V
-#             └────────────────────────────→ Jetson BOARD pin 18
-# 
-# When no gas: D0 pulled HIGH by resistor (3.3V) → /gas_detected = False
-# When gas present: LM393 pulls D0 LOW (0V), LED ON → /gas_detected = True
-# 
-# Detection: Polling-only at 10 Hz (no interrupts, no debouncing)
-# The MQ-6 sensor response time is slow (~1 second), so 10 Hz polling is sufficient.
-
-# --- I2C MODE SETTINGS (only used if gas_sensor_mode="i2c") ---
+# --- I2C MODE SETTINGS (if mode="i2c") ---
 # Voltage threshold for gas detection (volts)
 # MQ-6 typical: Clean air ~0.4-0.6V, gas present >1.0V
 gas_threshold_voltage: 1.0
@@ -81,6 +42,7 @@ adc_gain: 1            # Gain: 1=±4.096V (suitable for 0-5V sensors)
 # Hardware: Active buzzer module → 2N2222 transistor → Jetson GPIO
 # Circuit: Pin 16 → 1kΩ resistor → 2N2222 Base, Emitter → GND, Collector → Buzzer (-)
 # See: docs/BUZZER_WIRING.md
+# Note: Auto-triggers buzzer on gas detection (advisory only; configurable timeout in node)
 
 # GPIO pin number (BOARD numbering)
 # Pin 16 = GPIO 23 (controls transistor base)
@@ -101,3 +63,23 @@ publish_rate: 1.0  # 1 Hz = once per second (adjust as needed)
 # Buzzer Timeout:
 #   Buzzer auto-shutoff after 5 seconds without command (safety feature)
 #   This is hardcoded in the node, adjust there if needed
+
+# ===== DIAGNOSTICS (Merged from diagnostics.yaml) =====
+pub_rate: 1.0
+base_path: ''
+
+analyzers:
+  sensors:
+    type: diagnostic_aggregator/GenericAnalyzer
+    path: Sensors
+    contains: ['imu', 'lidar', 'jetson']
+  
+  network:
+    type: diagnostic_aggregator/GenericAnalyzer
+    path: Network
+    contains: ['wifi', 'cloud']
+  
+  hardware:
+    type: diagnostic_aggregator/GenericAnalyzer
+    path: Hardware
+    contains: ['cpu', 'gpu', 'memory', 'temperature']

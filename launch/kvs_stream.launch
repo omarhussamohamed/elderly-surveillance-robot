@@ -21,46 +21,32 @@
        doc="Camera width (1280 for high resolution)" />
   <arg name="height" default="720" 
        doc="Camera height (720 for high resolution)" />
-  <arg name="fps" default="30" 
-       doc="Frame rate (30fps for smooth video)" />
+  <arg name="fps" default="15" 
+       doc="Frames per second (15 for stability)" />
+  <arg name="bitrate" default="2000" 
+       doc="Bitrate in kbps (2000 for quality vs. bandwidth)" />
+  <arg name="fragment_duration" default="8" 
+       doc="Fragment duration in seconds (8 for latency tolerance)" />
+  <arg name="storage_size" default="512" 
+       doc="Storage size in MB" />
   
-  <!-- KVS Streaming -->
-  <arg name="enable_kvs" default="true" 
-       doc="Enable AWS KVS streaming" />
-  <arg name="bitrate" default="3000" 
-       doc="H.264 bitrate in kbps (3000 for 1280x720)" />
-  
-  <!-- AWS KVS stream configuration -->
   <arg name="stream_name" default="RobotStream" 
        doc="AWS KVS stream name" />
   <arg name="aws_region" default="us-east-1" 
-       doc="AWS region" />
+       doc="AWS region (us-east-1 for low latency from Cairo)" />
   
-  <!-- KVS Stability Parameters - Enhanced -->
-  <arg name="retry_count" default="5" 
-       doc="Number of stream reconnection attempts" />
-  <arg name="retry_delay" default="3" 
-       doc="Seconds between retries" />
-  <arg name="buffer_duration" default="180" 
-       doc="Buffer time in seconds for network drops" />
-  <arg name="connection_timeout" default="45" 
-       doc="Connection timeout in seconds" />
-  <arg name="storage_size" default="512" 
-       doc="Buffer storage in MB" />
-  
-  <!-- AWS Console playback optimization -->
-  <arg name="fragment_duration" default="5" 
-       doc="Fragment duration in seconds (5s for AWS console)" />
-  
-  <!-- Output Management -->
   <arg name="output_to_screen" default="true" 
-       doc="Output KVS logs to screen" />
+       doc="Output node logs to screen" />
 
   <!-- ========================================== -->
-  <!-- CAMERA NODE -->
+  <!-- CAMERA NODE (ROS Publisher) -->
   <!-- ========================================== -->
-  <node pkg="elderly_bot" type="camera_node.py" name="camera_publisher" 
-        output="screen" respawn="true" respawn_delay="5">
+  <node name="camera_publisher"
+        pkg="elderly_bot"
+        type="camera_node.py"
+        output="screen"
+        respawn="true"
+        respawn_delay="5">
     <param name="device" value="$(arg device)" />
     <param name="width" value="$(arg width)" />
     <param name="height" value="$(arg height)" />
@@ -69,33 +55,21 @@
   </node>
 
   <!-- ========================================== -->
-  <!-- AWS KVS STREAMER NODE -->
+  <!-- KVS STREAMER NODE -->
   <!-- ========================================== -->
-  <node pkg="elderly_bot" type="kvs_streamer_node.py" name="kvs_streamer" 
-        output="screen" respawn="true" respawn_delay="10" if="$(arg enable_kvs)">
-    
-    <!-- AWS Environment Variables -->
-    <env name="AWS_DEFAULT_REGION" value="$(arg aws_region)" />
-    <!-- Suppress GStreamer logs -->
-    <env name="GST_DEBUG" value="1" />
-    <env name="GST_DEBUG_NO_COLOR" value="1" />
-    
+  <node name="kvs_streamer_node"
+        pkg="elderly_bot"
+        type="kvs_streamer_node.py"
+        output="screen"
+        respawn="true"
+        respawn_delay="5">
     <!-- Video parameters -->
     <param name="width" value="$(arg width)" />
     <param name="height" value="$(arg height)" />
     <param name="fps" value="$(arg fps)" />
     <param name="bitrate" value="$(arg bitrate)" />
-    
-    <!-- Stability parameters -->
-    <param name="~retry_count" value="$(arg retry_count)" />
-    <param name="~retry_delay" value="$(arg retry_delay)" />
-    <param name="~buffer_duration" value="$(arg buffer_duration)" />
-    <param name="~connection_timeout" value="$(arg connection_timeout)" />
-    <param name="~storage_size" value="$(arg storage_size)" />
-    <param name="~fragment_duration" value="$(arg fragment_duration)" />
-    
-    <!-- Output management -->
-    <param name="~output_to_screen" value="$(arg output_to_screen)" />
+    <param name="fragment_duration" value="$(arg fragment_duration)" />
+    <param name="storage_size" value="$(arg storage_size)" />
     
     <!-- AWS configuration -->
     <param name="~stream_name" value="$(arg stream_name)" />

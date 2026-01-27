@@ -17,9 +17,6 @@
     rosrun map_server map_saver -f ~/catkin_ws/src/elderly_bot/maps/my_house
 -->
 <launch>
-  <!-- ========== ARGUMENTS ========== -->
-  <arg name="rviz" default="false" doc="Set to true to enable RViz visualization" />
-  
   <!-- ========== BRINGUP HARDWARE ========== -->
   <!-- Includes: rosserial, lidar, IMU pipeline, EKF -->
   
@@ -42,7 +39,7 @@
         output="screen">
     
     <!-- Robot radius for obstacle checking -->
-    <param name="robot_base_frame" value="base_link" />
+    <param name="robot_base_frame" value="base_footprint" />  <!-- Fixed to base_footprint for consistency -->
     <param name="costmap_topic" value="map" />
     <param name="costmap_updates_topic" value="map_updates" />
     <param name="visualize" value="true" />
@@ -58,16 +55,4 @@
     
   </node>
   
-  <!-- ========== RVIZ VISUALIZATION ========== -->
-  <!-- Note: Starts with default config. Manually add displays for /map, /scan, /tf -->
-  <!-- Enable with: roslaunch elderly_bot mapping.launch rviz:=true -->
-  
-  <node name="rviz" 
-        pkg="rviz" 
-        type="rviz" 
-        required="false"
-        if="$(arg rviz)" />
-  
 </launch>
-
-

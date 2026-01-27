@@ -1,8 +1,10 @@
 # Hardware — Current Reality
 
-**Last Updated**: January 23, 2026
+**Last Updated**: January 27, 2026
 
 This is the **only authoritative source** for hardware configuration. Do not trust other documents.
+
+**Primary Visualization**: Foxglove Bridge (ws://<jetson_ip>:8765) — displays /map, /scan, /tf, /odom, /gas_detected in real time.
 
 ---
 
@@ -12,159 +14,95 @@ This is the **only authoritative source** for hardware configuration. Do not tru
   - OS: Ubuntu 18.04 LTS
   - ROS: Melodic
   - JetPack: 4.6.x
-  
-- **Motor Controller**: ESP32 38-pin DevKit
-  - Firmware: Arduino rosserial
-  - Connection: WiFi (SSID configured in firmware)
-  - Protocol: rosserial over TCP
+  - Monitoring: jetson-stats (pip3 install jetson-stats) for temperature, power, CPU/GPU usage
+
+- **Motor Controller**: NodeMCU ESP32s
+  - Firmware: elderly_bot_esp32_wifi.ino (Arduino IDE, WiFiManager library + Preferences.h for persistent config)
+  - Connection: WiFi (2.4 GHz only recommended; configured via captive portal AP "ElderlyBotESP32")
+  - Protocol: rosserial over TCP (port 11411)
+  - Core usage: Core 0 → ROS communication & odometry publishing (20 Hz); Core 1 → Motor control loop (100 Hz)
+  - Encoder debouncing: 100 μs (prevents noise from magnetic encoders)
 
 ---
 
-## Sensors
+## Sensors & Actuators
 
 ### LiDAR
-- **Model**: RPLidar A1
-- **Interface**: USB Serial (/dev/ttyUSB0, 115200 baud)
-- **Driver**: rplidar_ros package
-- **Frame ID**: `laser`
-- **Mount**: Rear of robot, 180° rotated (backward-facing)
-- **Height**: 0.30m above ground
-- **Scan Rate**: 8 Hz, 360°
+- Model: RPLidar A1
+- Interface: USB Serial (/dev/ttyUSB0, 115200 baud)
+- Driver: rplidar_ros package
+- Frame ID: laser
+- Mount: Rear of robot, physically rotated 180° (backward-facing to improve mapping field of view)
+- Power: 5V from Jetson USB (~500 mA)
+- udev rule: SYMLINK+="rplidar" (installed via install_dependencies.sh)
 
 ### IMU
-- **Model**: MPU-9250 (9-axis, using only 6-axis)
-- **Interface**: I2C bus 1, address 0x68
-- **Connections**:
-  - SDA → Jetson Pin 3 (I2C1 SDA)
-  - SCL → Jetson Pin 5 (I2C1 SCL)
-  - VCC → 3.3V (Pin 1)
-  - GND → Ground (Pin 6, 9, 14, or 20)
-- **Driver Node**: `mpu9250_node`
-- **Frame ID**: `imu_link`
-- **Sensors Used**: Gyroscope + Accelerometer only
-- **Magnetometer**: **DISABLED** (indoor EMI from motors/PSU/battery)
-- **Calibration**: Dynamic gyro zero-drift calibration on startup (robot must be stationary)
-- **Fusion**: imu_filter_madgwick provides orientation
+- Model: MPU-9250 (9-axis: accel + gyro + magnetometer)
+- Interface: I2C bus 1, address 0x68
+- Driver: mpu9250_node.py (uses smbus2 library)
+- Frame ID: imu_link
+- Mount: Centered on chassis for accurate yaw estimation
+- Fusion: Madgwick filter (imu_filter_madgwick package) → /imu/data
+- Power: 3.3V from Jetson I2C pins (SCL = pin 3, SDA = pin 5, GND)
+- Calibration note: Robot must be stationary during startup for gyro offset calibration
 
 ### Gas Sensor
-- **Model**: MQ-6 (LPG/natural gas)
-- **Interface**: GPIO digital input (default mode)
-- **Connections**:
-  - D0 → Jetson Pin 18 (GPIO)
-  - VCC → 3.3V
-  - GND → Ground
-  - External pull-up: 2.2-4.7kΩ resistor to 3.3V
-- **Polarity**: Active-low (LM393 comparator pulls low when gas detected)
-- **Driver Node**: `sensors_actuators_node`
-- **Debouncing**: 500ms software debounce
-- **Alternative Mode**: A0 analog via ADS1115 I2C ADC (not currently used)
-
-### Jetson System Monitor
-- **Interface**: jtop library (jetson-stats package)
-- **Metrics**: Temperature (°C), Power consumption (W)
-- **Driver Node**: `sensors_actuators_node`
-
----
-
-## Actuators
-
-### Motors
-- **Model**: JGB37-520
-- **Specs**: 12V DC, 110 RPM, 90:1 gearbox
-- **Quantity**: 4 (4WD skid-steer)
-- **Drivers**: 2× L298N dual H-bridge
-- **Control**: PWM from ESP32 (motor_control firmware)
-
-### Encoders
-- **Type**: Hall effect quadrature
-- **Resolution**: 11 PPR (pulses per revolution)
-- **After Gearbox**: 11 × 90 = 990 pulses/rev
-- **Counting Edges**: 4× (A rising/falling, B rising/falling)
-- **Effective Resolution**: 990 × 4 = **3960 ticks/revolution**
-- **Debouncing**: 100µs software filter in ESP32 firmware
-- **Interface**: GPIO interrupts on ESP32
-- **Published**: Via /odom topic (nav_msgs/Odometry)
+- Model: MQ-6 (sensitive to LPG, propane, butane)
+- Interface: Digital GPIO mode (D0 output → Jetson BOARD pin 18 / BCM 24)
+- Driver: sensors_actuators_node.py (uses Jetson.GPIO library)
+- Threshold: Digital high (1) on gas detection
+- Mount: Front of robot for fast detection in living spaces
+- Power: 5V VCC, GND; 3.3V pull-up resistor (2.2–4.7 kΩ) on D0
+- Calibration: Adjust potentiometer clockwise if stuck low in clean air; 24–48 hour burn-in recommended
+- Alert: Auto-triggers buzzer on detection; publishes /gas_detected (Bool)
 
 ### Buzzer
-- **Type**: Active buzzer (5V)
-- **Interface**: Jetson GPIO Pin 16
-- **Driver**: 2N2222 NPN transistor
-- **Control Circuit**:
-  - Jetson Pin 16 → 1kΩ resistor → 2N2222 base
-  - 5V rail → Buzzer → 2N2222 collector
-  - 2N2222 emitter → Ground
-- **Driver Node**: `sensors_actuators_node`
-- **Pattern**: Continuous beeping (0.1s ON/OFF) when activated
-- **Trigger**: Automatic on gas detection, or manual via `/buzzer_command`
+- Model: Active buzzer module (5V)
+- Interface: GPIO pin 16 (BOARD numbering / BCM 23), controlled via 2N2222 transistor + 1 kΩ base resistor
+- Driver: sensors_actuators_node.py
+- Behavior: Auto-activates on gas detection; 5-second auto-shutoff for safety
+- Power: 5V VCC, GND (transistor protects Jetson GPIO)
 
----
+### Camera
+- Model: USB webcam (e.g., Logitech C270 or similar)
+- Interface: /dev/video0
+- Driver: camera_node.py (uses cv_bridge + OpenCV)
+- Resolution & FPS: 1280×720 @ 15 fps (production setting for stability)
+- Streaming: kvs_streamer_node.py → AWS KVS (hardware encoding with nvh264enc)
+- Mount: Front, elevated 25 cm above base_link (URDF origin xyz="0.15 0 0.25")
 
-## Power
+### Encoders & Motors
+- Motors: 4× DC geared motors with magnetic quadrature encoders (3960 ticks/rev)
+- Wheel radius: 6.5 cm
+- Track width: 26 cm
+- ESP32 Pinout (BOARD numbering):
+  - Front Left: PWM=13, IN1=12, IN2=14, ENC_A=34, ENC_B=35
+  - Front Right: PWM=27, IN1=26, IN2=25, ENC_A=36, ENC_B=39
+  - Rear Left: PWM=21, IN1=32, IN2=15, ENC_A=18, ENC_B=19 (internal pullups)
+  - Rear Right: PWM=22, IN1=16, IN2=17, ENC_A=23, ENC_B=5 (internal pullups)
+- Odometry: Published as /odom at 20 Hz with slip-compensated covariances
 
-- **Battery**: 12V LiPo or lead-acid (capacity varies)
-- **Voltage Rail**: 12V (motors), 5V (Jetson + ESP32 via buck converters)
-- **Monitoring**: Jetson power consumption via jtop library
-- **Battery Voltage Monitoring**: Not currently implemented
-
----
-
-## Kinematics
-
-- **Robot Type**: 4WD skid-steer (differential drive)
-- **Track Width**: 0.26m (center-to-center of left/right wheels)
-- **Wheelbase**: 0.17m (front-to-rear axle distance)
-- **Wheel Diameter**: 0.065m (65mm)
-- **Effective Wheel Radius**: 0.0325m (calibrated for 1:1 odometry mapping)
-- **Distance per Encoder Tick**: 0.0000515m
-
----
-
-## Wiring Summary
-
-**Critical I2C Devices (Bus 1)**:
-- MPU-9250 IMU @ 0x68
-- (Optional) ADS1115 ADC @ 0x48 (if using I2C gas sensor mode)
-
-**USB Devices**:
-- RPLidar A1 → /dev/ttyUSB0
-
-**GPIO (Jetson Nano BOARD Pin Numbering)**:
-- Pin 3: I2C1 SDA (MPU-9250)
-- Pin 5: I2C1 SCL (MPU-9250)
-- Pin 16: Buzzer control (via transistor)
-- Pin 18: MQ-6 gas sensor D0 (digital input, active-low)
-
-**Network**:
-- ESP32 WiFi: Connected to same LAN as Jetson
-- ROS Master: Running on Jetson (http://jetson-hostname:11311)
-
----
-
-## Removed / Deprecated Hardware
-
-**Magnetometer (MPU-9250)**:
-- **Reason**: Indoor electromagnetic interference renders data unusable
-- **Date Removed**: Early 2026 (configuration change, hardware still present)
-- **Replacement**: Madgwick fusion uses only gyro + accel for orientation
-
-**External Battery Monitor**:
-- **Status**: Planned but not implemented
-- **Current Workaround**: None (manual battery voltage check with multimeter)
+### Battery & Power
+- Type: 7.4V LiPo (2S)
+- Regulators: Step-down to 5V/3.3V for Jetson, sensors, ESP32
+- Monitoring: Planned via ADC (future); current workaround — manual multimeter check
+- Safety: Avoid deep discharge; monitor via jetson-stats
 
 ---
 
 ## Physical Dimensions
-
-- **Length**: 35cm
-- **Width**: 25cm
-- **Height**: 14cm (excluding LiDAR, ~20cm with LiDAR)
-- **Weight**: ~2.5kg (approximate, varies with battery)
+- Length: 35 cm
+- Width: 25 cm
+- Height: 14 cm (base chassis) + 6 cm (LiDAR) ≈ 20 cm total
+- Weight: ≈ 2.5 kg (including battery)
 
 ---
 
-## Maintenance Notes
-
-- IMU requires stationary robot during startup for gyro calibration
-- Gas sensor requires 24-48 hour burn-in period for stable readings
-- Encoder debouncing critical for noise-free odometry
-- WiFi connection between ESP32 and Jetson must be stable for motor control
+## Maintenance & Calibration Notes
+- IMU: Keep robot completely stationary during startup for gyro calibration
+- Gas sensor: 24–48 hour burn-in; adjust potentiometer clockwise if digital output stuck low in clean air
+- Encoders: 100 μs debounce; verify /odom for smooth motion (check for slip on carpet)
+- WiFi: Stable 2.4 GHz connection required for real-time motor control
+- Firmware: Update ESP32 via Arduino IDE (requires rosserial_arduino library)
+- Power: Use 7.4V 2S LiPo with at least 2200 mAh; monitor Jetson temperature (<80°C)
+- RPLidar: Clean lens regularly; ensure udev rule is active
