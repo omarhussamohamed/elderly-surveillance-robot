@@ -105,32 +105,23 @@ class CloudBridgeNode:
         except Exception as e:
             rospy.logerr("Command parsing error: %s", str(e))
 
-    def gas_callback(self, msg):
+def gas_callback(self, msg):
+    try:
+        # Update state for telemetry (used in temp_callback)
+        self.last_gas_detected = msg.data
+    except Exception as e:
+        rospy.logerr("Failed to handle gas callback: %s", str(e))
 
-        try:
-            # Detect Rising Edge (False -> True)
-            if msg.data and not self.last_gas_detected:
-                telemetry = {
-                    'gas': True,
-                    'timestamp': time.time()
-                }
-                self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
-            
-            # Update state so we can detect the *next* rising edge
-            self.last_gas_detected = msg.data
-            
-        except Exception as e:
-            rospy.logerr("Failed to handle gas callback: %s", str(e))
-
-    def temp_callback(self, msg):
-        """Send temperature value only."""
-        try:
-            telemetry = {
-                'temperature': msg.temperature
-            }
-            self.mqtt.publish(self.mqtt_telemetry, json.dumps(telemetry), qos=1)
-        except Exception as e:
-            rospy.logerr("Failed to publish temperature: %s", str(e))
+def temp_callback(self, msg):
+    try:
+        telemetry = {
+            'temperature': msg.temperature,  # Add comma here
+            'gas': self.last_gas_detected,
+            'timestamp': time.time()
+        }
+        self.mqtt.publish(self.mqtt_telemetry, json.dumps(telemetry), qos=1)
+    except Exception as e:
+        rospy.logerr("Failed to publish telemetry: %s", str(e))
 
     def run(self):
         rospy.spin()
