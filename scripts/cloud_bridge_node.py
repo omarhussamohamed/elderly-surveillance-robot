@@ -1,11 +1,12 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Cloud Bridge Node - REVERTED TO ORIGINAL FORMAT + FIXES
-- Reverted telemetry/alert format to include 'robot_id' and 'type' (as before)
-- Gas alerts now sent reliably with debug logs
-- Buzzer parsing fixed to use 'value' (cloud command works)
-- Added more debug logs for gas publish
+Cloud Bridge Node - RESTORED ORIGINAL BEHAVIOR
+- Gas alert published ONLY on change (rising edge to True → alert, falling to False → cleared)
+- No "Published gas alert" info logs (quiet like before)
+- Temperature published every callback (10Hz) quietly (no per-publish logs)
+- Original payload format with robot_id and type
+- Buzzer parsing uses 'value' for cloud commands
 """
 
 import rospy
@@ -56,6 +57,9 @@ class CloudBridgeNode:
             self.reconnect_attempts = 0
             self.max_backoff = 300
 
+            # State for change detection
+            self.last_gas_detected = None
+
             # ROS Publishers (cloud → robot)
             self.buzzer_pub = rospy.Publisher('/buzzer_command', Bool, queue_size=1)
 
@@ -85,14 +89,13 @@ class CloudBridgeNode:
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            rospy.loginfo("MQTT Connected - subscribing to %s", self.mqtt_commands)
             self.mqtt.subscribe(self.mqtt_commands, qos=1)
             self.reconnect_attempts = 0
         else:
-            rospy.logerr("MQTT Connection failed with RC: %d", rc)
+            rospy.logerr("Connection failed with RC: %d", rc)
 
     def on_disconnect(self, client, userdata, rc):
-        rospy.logwarn("MQTT Disconnected (RC: %d). Reconnecting...", rc)
+        rospy.logwarn("Disconnected with RC: %d. Reconnecting...", rc)
         self.connect_to_aws()
 
     def on_message(self, client, userdata, msg):
@@ -103,32 +106,35 @@ class CloudBridgeNode:
                 if 'command' in payload:
                     cmd = payload['command']
                     if cmd == 'buzzer':
-                        state = bool(payload.get('value', False))  # Use 'value' as sent from cloud
+                        state = bool(payload.get('value', False))
                         self.buzzer_pub.publish(Bool(data=state))
                         rospy.loginfo("Buzzer command from cloud: %s", "ON" if state else "OFF")
                     else:
                         rospy.logwarn("Unknown command: %s", cmd)
-                else:
-                    rospy.logwarn("Invalid command format")
         except Exception as e:
             rospy.logerr("Command parsing error: %s", str(e))
 
     def gas_callback(self, msg):
-        """Send gas detection TO cloud (reliable with original format)"""
+        """Send gas detection TO cloud ONLY on change"""
         try:
-            telemetry = {
-                'timestamp': time.time(),
-                'type': 'gas_detection',
-                'detected': msg.data,
-                'robot_id': self.client_id
-            }
-            self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
-            rospy.loginfo("Published gas alert to cloud: %s", json.dumps(telemetry))
+            if msg.data != self.last_gas_detected:
+                self.last_gas_detected = msg.data
+                telemetry = {
+                    'timestamp': time.time(),
+                    'type': 'gas_detection',
+                    'detected': msg.data,
+                    'robot_id': self.client_id
+                }
+                self.mqtt.publish(self.mqtt_alerts, json.dumps(telemetry), qos=1)
+                if msg.data:
+                    rospy.logwarn("GAS DETECTED - Alert sent to cloud")
+                else:
+                    rospy.loginfo("Gas cleared - Notification sent to cloud")
         except Exception as e:
-            rospy.logerr("Failed to publish gas: %s", str(e))
+            rospy.logerr("Failed to handle gas callback: %s", str(e))
 
     def temp_callback(self, msg):
-        """Send temperature TO cloud (original format)"""
+        """Send temperature TO cloud every time (quiet, like original)"""
         try:
             telemetry = {
                 'timestamp': time.time(),
@@ -137,7 +143,7 @@ class CloudBridgeNode:
                 'robot_id': self.client_id
             }
             self.mqtt.publish(self.mqtt_telemetry, json.dumps(telemetry), qos=1)
-            # No extra log here to match original "quiet" behavior for temp
+            # No log - quiet like original behavior
         except Exception as e:
             rospy.logerr("Failed to publish temperature: %s", str(e))
 
