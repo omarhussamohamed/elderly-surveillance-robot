@@ -103,6 +103,14 @@
         required="false"
         if="$(arg rviz)" />
   
+  <!-- ========== FOXGLOVE BRIDGE ========== -->
+  <node name="foxglove_bridge" 
+        pkg="foxglove_bridge" 
+        type="foxglove_bridge" 
+        output="screen">
+    <param name="port" value="8765" />
+  </node>
+  
 </launch>
 
 
