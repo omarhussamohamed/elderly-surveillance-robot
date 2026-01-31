@@ -1,144 +1,140 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-ROS Camera Publisher Node for ElderlyBot - GRACEFUL VERSION
+ROS Camera Publisher Node for ElderlyBot
+- Publishes raw and compressed images
+- Gracefully handles camera disconnects
 """
 
 import rospy
 import cv2
+import time
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
-import sys
-import time
 
-class CameraPublisher:
+
+class CameraPublisher(object):
     def __init__(self):
-        rospy.init_node('camera_publisher', anonymous=False)
-        
-        # Parameters
+        rospy.init_node('camera_node', anonymous=False)
+
+        # ── Parameters ─────────────────────────────────────────────
         self.device = rospy.get_param('~device', '/dev/video0')
         self.width = rospy.get_param('~width', 1280)
         self.height = rospy.get_param('~height', 720)
         self.fps = rospy.get_param('~fps', 30)
         self.frame_id = rospy.get_param('~frame_id', 'camera_link')
-        
-        # Publishers
-        self.image_pub = rospy.Publisher('/camera/image_raw', Image, queue_size=2)
-        self.compressed_pub = rospy.Publisher('/camera/image_raw/compressed', CompressedImage, queue_size=2)
-        
+        self.jpeg_quality = rospy.get_param('~jpeg_quality', 70)
+        self.retry_interval = rospy.get_param('~retry_interval', 10.0)
+
+        # ── Publishers ─────────────────────────────────────────────
+        self.image_pub = rospy.Publisher(
+            '/camera/image_raw', Image, queue_size=2
+        )
+        self.compressed_pub = rospy.Publisher(
+            '/camera/image_raw/compressed', CompressedImage, queue_size=2
+        )
+
         self.bridge = CvBridge()
         self.cap = None
-        
-        # Try to open camera
-        if not self._try_open_camera():
-            rospy.logwarn("Camera not found at %s. Will retry periodically.", self.device)
-            rospy.loginfo("To enable camera, connect USB camera and check: ls /dev/video*")
-            # Don't exit - just continue and retry
-        
-        self.rate = rospy.Rate(self.fps)
+
         self.frame_count = 0
         self.start_time = time.time()
-        
+        self.last_retry_time = 0.0
+
+        rospy.loginfo("Camera node configured: %s %dx%d @ %dfps",
+                      self.device, self.width, self.height, self.fps)
+
+        self._try_open_camera()
+
+    # ──────────────────────────────────────────────────────────────
     def _try_open_camera(self):
-        """Try to open camera, return True if successful."""
-        try:
-            # Release previous capture if exists
-            if self.cap is not None:
-                self.cap.release()
-                self.cap = None
-            
-            # Try to open
-            self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
-            if not self.cap.isOpened():
-                return False
-            
-            # Set camera properties
-            fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-            self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)  # FIXED: was cvray.set
-            self.cap.set(cv2.CAP_PROP_FPS, self.fps)
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
-            
-            # Verify
-            actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
-            rospy.loginfo("Camera opened: %s", self.device)
-            rospy.loginfo("Resolution: %dx%d @ %dfps", actual_width, actual_height, self.fps)
-            return True
-            
-        except Exception as e:
-            rospy.logdebug("Camera open failed: %s", str(e))
+        """Attempt to open the camera device."""
+        if self.cap:
+            self.cap.release()
+            self.cap = None
+
+        self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
+        if not self.cap.isOpened():
+            self.cap = None
             return False
-    
+
+        # Camera properties
+        fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
+        self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+
+        actual_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        rospy.loginfo("Camera opened: %s (%dx%d)", self.device, actual_w, actual_h)
+        return True
+
+    # ──────────────────────────────────────────────────────────────
+    def _publish_frame(self, frame):
+        """Publish raw and compressed frames."""
+        stamp = rospy.Time.now()
+
+        img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+        img_msg.header.stamp = stamp
+        img_msg.header.frame_id = self.frame_id
+        self.image_pub.publish(img_msg)
+
+        compressed = CompressedImage()
+        compressed.header = img_msg.header
+        compressed.format = "jpeg"
+        compressed.data = cv2.imencode(
+            '.jpg', frame,
+            [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality]
+        )[1].tobytes()
+        self.compressed_pub.publish(compressed)
+
+    # ──────────────────────────────────────────────────────────────
     def run(self):
-        """Main loop with camera retry logic."""
-        last_retry_time = 0
-        retry_interval = 10.0  # Retry every 10 seconds
-        
+        rate = rospy.Rate(self.fps)
+
         while not rospy.is_shutdown():
-            current_time = time.time()
-            
-            # If camera is not open, try to open it periodically
-            if self.cap is None or not self.cap.isOpened():
-                if current_time - last_retry_time > retry_interval:
-                    rospy.loginfo("Attempting to open camera...")
+            if not self.cap:
+                now = time.time()
+                if now - self.last_retry_time >= self.retry_interval:
+                    rospy.logwarn("Camera not available, retrying...")
                     if self._try_open_camera():
-                        rospy.loginfo("Camera reconnected!")
-                    else:
-                        rospy.loginfo("Camera not available. Next retry in %.0f seconds.", retry_interval)
-                    last_retry_time = current_time
-                
-                # Sleep briefly and continue
+                        rospy.loginfo("Camera reconnected")
+                    self.last_retry_time = now
+
                 rospy.sleep(1.0)
                 continue
-            
-            # Camera is open, try to read frame
+
+            ret, frame = self.cap.read()
+            if not ret:
+                rospy.logwarn("Camera frame grab failed")
+                self.cap.release()
+                self.cap = None
+                continue
+
+            self.frame_count += 1
+            if self.frame_count % (self.fps * 30) == 0:
+                elapsed = time.time() - self.start_time
+                if elapsed > 0:
+                    rospy.loginfo("Camera FPS: %.1f",
+                                  self.frame_count / elapsed)
+
             try:
-                ret, frame = self.cap.read()
-                
-                if not ret:
-                    rospy.logwarn("Frame grab failed. Camera might be disconnected.")
-                    self.cap.release()
-                    self.cap = None
-                    continue
-                
-                self.frame_count += 1
-                
-                # Log FPS every 30 seconds
-                if self.frame_count % (self.fps * 30) == 0:
-                    elapsed = time.time() - self.start_time
-                    actual_fps = self.frame_count / elapsed
-                    rospy.loginfo("Camera FPS: %.1f", actual_fps)
-                
-                # Create ROS Image message
-                img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                img_msg.header.stamp = rospy.Time.now()
-                img_msg.header.frame_id = self.frame_id
-                self.image_pub.publish(img_msg)
-                
-                # Publish compressed version
-                compressed_msg = CompressedImage()
-                compressed_msg.header = img_msg.header
-                compressed_msg.format = "jpeg"
-                compressed_msg.data = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])[1].tobytes()
-                self.compressed_pub.publish(compressed_msg)
-                
+                self._publish_frame(frame)
             except Exception as e:
-                rospy.logwarn("Camera error: %s", str(e))
-                if self.cap is not None:
-                    self.cap.release()
-                    self.cap = None
-            
-            self.rate.sleep()
-    
+                rospy.logwarn("Publish error: %s", str(e))
+
+            rate.sleep()
+
+    # ──────────────────────────────────────────────────────────────
     def shutdown(self):
-        """Clean shutdown"""
         rospy.loginfo("Shutting down camera node")
-        if self.cap is not None:
+        if self.cap:
             self.cap.release()
         cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     try:
@@ -147,5 +143,3 @@ if __name__ == '__main__':
         node.run()
     except rospy.ROSInterruptException:
         pass
-    except Exception as e:
-        rospy.logerr("Camera node error: %s", str(e))

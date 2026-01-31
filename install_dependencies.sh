@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 
 ###############################################################################
-# Elderly Bot Dependencies Installer - FINAL VERSION
-# Idempotent, fast, and safe to run multiple times
+# Elderly Bot Dependencies Installer
+# ROS Melodic (Ubuntu 18.04) — Python 2 based
+# Safe to run multiple times (idempotent)
 ###############################################################################
 
 set -euo pipefail
 
-WORKSPACE_ROOT="${HOME}/catkin_ws"
-ELDERLY_BOT_PATH="${WORKSPACE_ROOT}/src/elderly_bot"
-
 echo -e "\n\033[1;32mInstalling Elderly Bot Dependencies\033[0m"
 
-# ROS Melodic core + navigation
 sudo apt-get update -qq
+
+# ── Core ROS packages ─────────────────────────────────────────
 sudo apt-get install -y --no-install-recommends \
     ros-melodic-navigation \
     ros-melodic-robot-localization \
@@ -26,31 +25,33 @@ sudo apt-get install -y --no-install-recommends \
     ros-melodic-diagnostic-aggregator \
     ros-melodic-imu-filter-madgwick \
     python-rosdep \
-    python-pip \
-    python3-pip \
     python-opencv \
-    python-yaml
+    python-yaml \
+    i2c-tools \
+    python-smbus
 
-# Python 2 dependencies (Melodic)
+# ── Python 2 packages (ROS Melodic) ───────────────────────────
 sudo pip install --upgrade \
     paho-mqtt \
-    pyserial \
     smbus2 \
-    pyyaml
+    pyyaml \
+    pyserial
 
-# Jetson specific
-sudo apt-get install -y python-smbus i2c-tools
-sudo pip3 install --upgrade Jetson.GPIO jetson-stats
+# ── Jetson-specific utilities (safe even if not on Jetson) ───
+sudo pip install --upgrade jetson-stats || true
+sudo pip install --upgrade Jetson.GPIO || true
 
-# Add user to groups
+# ── User permissions ─────────────────────────────────────────
 sudo usermod -a -G dialout,video $USER
 
-# udev rules
+# ── RPLidar udev rule ────────────────────────────────────────
 sudo tee /etc/udev/rules.d/99-rplidar.rules > /dev/null << 'EOF'
 KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE:="0666", GROUP:="dialout", SYMLINK+="rplidar"
 EOF
 
-sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo udevadm control --reload-rules
+sudo udevadm trigger
 
 echo -e "\n\033[1;32m✓ Dependencies installed successfully\033[0m"
-echo "Run: source ~/.bashrc && cd ~/catkin_ws && catkin_make"
+echo "Reboot recommended. Then run:"
+echo "  cd ~/catkin_ws && catkin_make"

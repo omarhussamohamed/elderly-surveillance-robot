@@ -1,83 +1,32 @@
-<?xml version="1.0"?>
-<!--
-  Elderly Bot Navigation Launch File
-  
-  MODE 2: Navigation & Patrol
-  
-  Starts:
-  - Hardware bringup
-  - AMCL localization (with saved map)
-  - move_base (navigation stack)
-  
-  Usage:
-    roslaunch elderly_bot navigation.launch map_file:=/path/to/map.yaml
--->
 <launch>
-  <!-- ========== PARAMETERS ========== -->
-  
-  <arg name="map_file" default="/home/omar/catkin_ws/src/elderly_bot/maps/my_house.yaml" />
-  
-  <!-- ========== BRINGUP HARDWARE ========== -->
-  
-  <include file="$(find elderly_bot)/launch/bringup.launch" />
-  
-  <!-- ========== MAP SERVER ========== -->
-  
-  <node name="map_server" 
-        pkg="map_server" 
-        type="map_server"
-        args="$(arg map_file)"
+
+  <!-- ===================== -->
+  <!-- Bringup (NO Cloud) -->
+  <!-- ===================== -->
+  <include file="$(find elderly_bot)/launch/bringup.launch">
+    <arg name="use_cloud" value="false"/>
+  </include>
+
+  <!-- ===================== -->
+  <!-- Patrol Client (Disabled by Default) -->
+  <!-- ===================== -->
+  <node pkg="elderly_bot"
+        type="patrol_client.py"
+        name="patrol_client"
         output="screen">
-    <param name="frame_id" value="map" />
+
+    <!-- Explicitly disable patrol until navigation is stable -->
+    <param name="enabled" value="false"/>
+
+    <!-- Load patrol goals -->
+    <rosparam file="$(find elderly_bot)/config/navigation/patrol_goals.yaml"/>
+
   </node>
-  
-  <!-- ========== AMCL LOCALIZATION ========== -->
-  
-  <node pkg="amcl" 
-        type="amcl" 
-        name="amcl"
-        output="screen">
-    <rosparam command="load" file="$(find elderly_bot)/config/amcl.yaml" />
-    
-    <!-- Remap to use EKF output -->
-    <remap from="scan" to="scan" />
-  </node>
-  
-  <!-- ========== MOVE_BASE (NAVIGATION STACK) ========== -->
-  
-  <node pkg="move_base" 
-        type="move_base" 
-        name="move_base"
-        output="screen">
-    
-    <!-- Planner selection -->
-    <param name="base_global_planner" value="navfn/NavfnROS" />
-    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />
-    
-    <!-- Load merged configuration file -->
-    <rosparam file="$(find elderly_bot)/config/costmap_params.yaml" command="load" />
-    <rosparam file="$(find elderly_bot)/config/dwa_local_planner.yaml" command="load" />
-    
-    <!-- Recovery behaviors -->
-    <param name="recovery_behavior_enabled" value="true" />
-    <param name="clearing_rotation_allowed" value="true" />
-    
-    <!-- Timeouts and tolerances -->
-    <param name="planner_patience" value="5.0" />
-    <param name="controller_patience" value="15.0" />
-    <param name="planner_frequency" value="1.0" />
-    <param name="controller_frequency" value="10.0" />
-    <param name="oscillation_timeout" value="10.0" />
-    <param name="oscillation_distance" value="0.2" />
-    
-  </node>
-  
-  <!-- ========== FOXGLOVE BRIDGE ========== -->
-  <node name="foxglove_bridge" 
-        pkg="foxglove_bridge" 
-        type="foxglove_bridge" 
-        output="screen">
-    <param name="port" value="8765" />
-  </node>
-  
+
+  <!-- ===================== -->
+  <!-- Navigation stack -->
+  <!-- ===================== -->
+  <!-- move_base, costmaps, planners -->
+  <!-- Intentionally NOT launched yet -->
+
 </launch>

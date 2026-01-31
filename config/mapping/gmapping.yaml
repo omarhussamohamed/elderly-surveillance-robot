@@ -1,0 +1,56 @@
+# GMapping configuration
+# Mapping phase ONLY
+
+base_frame: base_link
+odom_frame: odom
+map_frame: map
+
+scan_topic: scan
+
+# ── Map update behavior ───────────────────────────────
+map_update_interval: 2.0
+
+linearUpdate: 0.2
+angularUpdate: 0.1
+temporalUpdate: -1.0
+
+# ── Particle filter ───────────────────────────────────
+particles: 80
+resampleThreshold: 0.7
+
+# ── Sensor model ──────────────────────────────────────
+maxRange: 6.0
+maxUrange: 6.0
+
+sigma: 0.05
+kernelSize: 3
+
+lstep: 0.1
+astep: 0.1
+iterations: 10
+
+lsigma: 0.075
+ogain: 3.0
+
+# ── Map resolution & bounds ───────────────────────────
+delta: 0.05
+
+xmin: -20.0
+xmax: 20.0
+ymin: -20.0
+ymax: 20.0
+
+occ_thresh: 0.25
+lskip: 0
+
+# ── TF handling ───────────────────────────────────────
+transform_publish_period: 0.1
+tf_delay: 0.05
+
+# ── Scan matching stability ───────────────────────────
+minimumScore: 50
+
+llsamplerange: 0.05
+llsamplestep: 0.05
+lasamplerange: 0.05
+lasamplestep: 0.05

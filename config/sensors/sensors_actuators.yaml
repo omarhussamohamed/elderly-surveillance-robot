@@ -1,0 +1,17 @@
+# Sensors & Actuators Configuration
+# Gas sensor uses DIGITAL output (D0)
+
+enable_gas_sensor: true
+enable_buzzer: true
+enable_stats: true
+
+# ── Gas Sensor (DIGITAL GPIO) ───────────────────────────
+gas_pin: 18              # Jetson BOARD numbering
+gas_polarity: active_low # LOW = gas detected
+
+# ── Buzzer ─────────────────────────────────────────────
+buzzer_pin: 16            # Jetson BOARD numbering
+
+# ── Rates ──────────────────────────────────────────────
+loop_rate: 10.0
+stats_rate: 1.0

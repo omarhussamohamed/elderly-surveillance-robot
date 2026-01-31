@@ -1,96 +1,23 @@
-<!--
-     ElderlyBot KVS Stream Launch File - FINAL PRODUCTION SETTINGS
-     - 1280x720 @ 15fps, 2000kbps, 8s fragment (no low-res fallback)
-     - Hardware encoding (nvh264enc) for Jetson Nano
-     - 15fps and 2000kbps for stable streaming on limited CPU/network
-     - 8s fragment for high-latency tolerance (Cairo → us-east-1)
-     - No low-res fallback: always 720p for cloud/live viewing
-     - See kvs_streamer_node.py for pipeline details and rationale
-     - If instability occurs, check WiFi signal and AWS region latency
--->
-
 <launch>
-  <!-- ========================================== -->
-  <!-- ARGUMENTS -->
-  <!-- ========================================== -->
-  <arg name="device" default="/dev/video0" 
-       doc="USB camera device path" />
-  
-  <!-- HIGH RESOLUTION SETTINGS - 1280x720 @ 30fps -->
-  <arg name="width" default="1280" 
-       doc="Camera width (1280 for high resolution)" />
-  <arg name="height" default="720" 
-       doc="Camera height (720 for high resolution)" />
-  <arg name="fps" default="15" 
-       doc="Frames per second (15 for stability)" />
-  <arg name="bitrate" default="2000" 
-       doc="Bitrate in kbps (2000 for quality vs. bandwidth)" />
-  <arg name="fragment_duration" default="8" 
-       doc="Fragment duration in seconds (8 for latency tolerance)" />
-  <arg name="storage_size" default="512" 
-       doc="Storage size in MB" />
-  
-  <arg name="stream_name" default="RobotStream" 
-       doc="AWS KVS stream name" />
-  <arg name="aws_region" default="us-east-1" 
-       doc="AWS region (us-east-1 for low latency from Cairo)" />
-  
-  <arg name="output_to_screen" default="true" 
-       doc="Output node logs to screen" />
 
-  <!-- ========================================== -->
-  <!-- CAMERA NODE (ROS Publisher) -->
-  <!-- ========================================== -->
-  <node name="camera_publisher"
-        pkg="elderly_bot"
-        type="camera_node.py"
-        output="screen"
-        respawn="true"
-        respawn_delay="5">
-    <param name="device" value="$(arg device)" />
-    <param name="width" value="$(arg width)" />
-    <param name="height" value="$(arg height)" />
-    <param name="fps" value="$(arg fps)" />
-    <param name="frame_id" value="camera_link" />
-  </node>
-
-  <!-- ========================================== -->
-  <!-- KVS STREAMER NODE -->
-  <!-- ========================================== -->
-  <node name="kvs_streamer_node"
-        pkg="elderly_bot"
+  <!-- ===================== -->
+  <!-- KVS Streamer -->
+  <!-- ===================== -->
+  <node pkg="elderly_bot"
         type="kvs_streamer_node.py"
-        output="screen"
-        respawn="true"
-        respawn_delay="5">
-    <!-- Video parameters -->
-    <param name="width" value="$(arg width)" />
-    <param name="height" value="$(arg height)" />
-    <param name="fps" value="$(arg fps)" />
-    <param name="bitrate" value="$(arg bitrate)" />
-    <param name="fragment_duration" value="$(arg fragment_duration)" />
-    <param name="storage_size" value="$(arg storage_size)" />
-    
-    <!-- AWS configuration -->
-    <param name="~stream_name" value="$(arg stream_name)" />
-    <param name="~aws_region" value="$(arg aws_region)" />
+        name="kvs_streamer_node"
+        output="screen">
+
+    <!-- Load AWS / cloud configuration -->
+    <rosparam file="$(find elderly_bot)/config/cloud/cloud_config.yaml"/>
+
+    <!-- Stream parameters -->
+    <param name="stream_name" value="RobotStream"/>
+    <param name="width" value="1280"/>
+    <param name="height" value="720"/>
+    <param name="fps" value="15"/>
+    <param name="bitrate" value="2000"/>
+
   </node>
-
-  <!-- ========================================== -->
-  <!-- FINAL PRODUCTION SETTINGS FOR STABILITY (Jetson Nano, AWS KVS):
-       - 1280x720 @ 15fps, 2000kbps, 8s fragment
-       - Hardware encoding (nvh264enc) ensures low CPU usage
-       - 8s fragment improves reliability on high-latency networks
-       - No low-res fallback: 720p is always used for cloud and live viewing
-       - If instability occurs, check WiFi signal and AWS region latency
-  ========================================== -->
-
-  <!-- ========================================== -->
-  <!-- HEALTH MONITORING -->
-  <!-- ========================================== -->
-  <!-- Monitor streaming status -->
-  <node pkg="rostopic" type="rostopic" name="stream_monitor" 
-       args="echo /kvs/streaming" 
-       output="screen" if="$(arg output_to_screen)" />
 
 </launch>

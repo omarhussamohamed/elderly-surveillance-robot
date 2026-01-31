@@ -1,48 +1,113 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+"""
+System Health Monitor
+
+- Publishes real diagnostics to /diagnostics
+- Checks existence of critical & optional ROS nodes
+- Never fakes OK status
+"""
 
 import rospy
+import xmlrpc.client
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 
-class SystemHealthMonitor:
+
+class SystemHealthMonitor(object):
     def __init__(self):
-        rospy.init_node('system_health_monitor')
+        rospy.init_node('system_health_monitor', anonymous=False)
 
-        self.check_interval = rospy.get_param('~check_interval', 10)
-        self.startup_delay = rospy.get_param('~startup_delay', 30)
-        self.critical_nodes = rospy.get_param('~critical_nodes', "rplidar_node,esp32_serial_node,ekf_localization_node").split(',')
-        self.optional_nodes = rospy.get_param('~optional_nodes', "mpu9250_node,cloud_bridge_node,sensors_actuators_node").split(',')
+        # ── Parameters ─────────────────────────────────────────────
+        self.check_interval = rospy.get_param('~check_interval', 10.0)
+        self.startup_delay = rospy.get_param('~startup_delay', 30.0)
 
-        rospy.sleep(self.startup_delay)  # Wait for startup
+        self.critical_nodes = rospy.get_param(
+            '~critical_nodes',
+            ['rplidar_node', 'sensors_actuators_node']
+        )
 
-        self.pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=10)
-        rospy.Timer(rospy.Duration(self.check_interval), self.check_nodes)
+        self.optional_nodes = rospy.get_param(
+            '~optional_nodes',
+            ['mpu9250_node', 'cloud_bridge_node', 'kvs_streamer_node']
+        )
 
-    def check_nodes(self, event):
+        rospy.loginfo("System Health Monitor starting...")
+        rospy.sleep(self.startup_delay)
+
+        self.pub = rospy.Publisher(
+            '/diagnostics', DiagnosticArray, queue_size=10
+        )
+
+        self.master = xmlrpc.client.ServerProxy(
+            rospy.get_master_uri()
+        )
+
+        rospy.Timer(
+            rospy.Duration(self.check_interval),
+            self._check_nodes
+        )
+
+        rospy.loginfo("System Health Monitor running")
+
+    # ─────────────────────────────────────────────────────────────
+    def _get_active_nodes(self):
+        try:
+            _, _, system_state = self.master.getSystemState('')
+            pubs, subs, srvs = system_state
+            nodes = set()
+
+            for lst in (pubs, subs, srvs):
+                for _, node_list in lst:
+                    nodes.update(node_list)
+
+            return nodes
+        except Exception as e:
+            rospy.logerr("Failed to query ROS master: %s", str(e))
+            return set()
+
+    # ─────────────────────────────────────────────────────────────
+    def _node_status(self, node, active_nodes, critical):
+        if node in active_nodes:
+            return DiagnosticStatus(
+                level=DiagnosticStatus.OK,
+                name=node,
+                message="Running"
+            )
+
+        if critical:
+            rospy.logerr("CRITICAL node down: %s", node)
+            return DiagnosticStatus(
+                level=DiagnosticStatus.ERROR,
+                name=node,
+                message="Not running"
+            )
+
+        rospy.logwarn("Optional node down: %s", node)
+        return DiagnosticStatus(
+            level=DiagnosticStatus.WARN,
+            name=node,
+            message="Not running"
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    def _check_nodes(self, event):
+        active_nodes = self._get_active_nodes()
+
         msg = DiagnosticArray()
         msg.header.stamp = rospy.Time.now()
 
-        # Check critical
         for node in self.critical_nodes:
-            status = self.get_node_status(node)
-            if status.level == DiagnosticStatus.ERROR:
-                rospy.logerr("Critical node %s down!" % node)
-            msg.status.append(status)
+            msg.status.append(
+                self._node_status(node, active_nodes, critical=True)
+            )
 
-        # Check optional
         for node in self.optional_nodes:
-            msg.status.append(self.get_node_status(node))
+            msg.status.append(
+                self._node_status(node, active_nodes, critical=False)
+            )
 
         self.pub.publish(msg)
 
-    def get_node_status(self, node):
-        # Real implementation would use rosnode ping or similar
-        # This is a placeholder
-        try:
-            # Simulate check
-            return DiagnosticStatus(level=DiagnosticStatus.OK, name=node, message="OK")
-        except:
-            return DiagnosticStatus(level=DiagnosticStatus.ERROR, name=node, message="Down")
 
 if __name__ == '__main__':
     try:

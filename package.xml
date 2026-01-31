@@ -1,54 +1,40 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>elderly_bot</name>
-  <version>1.0.0</version>
-  <description>Autonomous indoor 4WD elderly monitoring robot with SLAM, navigation, and AWS integration.</description>
-  <maintainer email="omar@example.com">Omar</maintainer>
-  <license>BSD</license>
+  <version>0.1.0</version>
+  <description>
+    ROS package for an indoor robot assisting in elderly monitoring.
+  </description>
 
+  <maintainer email="omarhussamohamed@gmail.com">Omar Hussam</maintainer>
+  <license>MIT</license>
+
+  <!-- Build tool -->
   <buildtool_depend>catkin</buildtool_depend>
 
-  <!-- Core -->
+  <!-- Core ROS -->
   <depend>rospy</depend>
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
-  <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
+
+  <!-- TF -->
   <depend>tf</depend>
   <depend>tf2_ros</depend>
 
-  <!-- Navigation & Actions -->
-  <depend>move_base</depend>
-  <depend>move_base_msgs</depend>
-  <depend>actionlib</depend>
-  <depend>actionlib_msgs</depend>      <!-- Added - fixes the catkin_package error -->
-  <depend>amcl</depend>
-  <depend>map_server</depend>
-  <depend>dwa_local_planner</depend>
-  <depend>costmap_2d</depend>
-
-  <!-- Mapping & Localization -->
-  <depend>gmapping</depend>
-  <depend>explore_lite</depend>
-  <depend>robot_localization</depend>
-
-  <!-- Sensors -->
-  <depend>rplidar_ros</depend>
-  <depend>rosserial_python</depend>
-  <depend>rosserial_arduino</depend>
-  <depend>imu_filter_madgwick</depend>
-  <depend>diagnostic_aggregator</depend>
-
-  <!-- Image / Camera -->
+  <!-- Image handling -->
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
-  <depend>compressed_image_transport</depend>
 
-  <!-- Exec dependencies (runtime) -->
-  <exec_depend>python-paho-mqtt</exec_depend>
-  <exec_depend>python-yaml</exec_depend>
-  <exec_depend>python-opencv</exec_depend>
-  <exec_depend>python-smbus</exec_depend>
+  <!-- Diagnostics -->
+  <depend>diagnostic_msgs</depend>
 
+  <!-- Actions / navigation messages (client only) -->
+  <depend>actionlib</depend>
+  <depend>move_base_msgs</depend>
+
+  <export>
+  </export>
 </package>

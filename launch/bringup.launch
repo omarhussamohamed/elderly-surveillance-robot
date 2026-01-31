@@ -1,161 +1,66 @@
-<?xml version="1.0"?>
-<!--
-  Elderly Bot Bringup Launch File - OPTIMIZED STARTUP ORDER
-  Fixed: Node startup timing, Reduced warnings
--->
 <launch>
-  <!-- ========== PARAMETERS ========== -->
 
-  <!-- Serial port for RPLidar -->
-  <arg name="lidar_port" default="/dev/ttyUSB0" />
-  <arg name="lidar_baud" default="115200" />
-  
-  <!-- IMU configuration -->
-  <arg name="imu_source" default="jetson" />
-  <arg name="enable_imu" default="true" />
-  <arg name="i2c_bus" default="1" />
-  <arg name="i2c_address" default="0x68" />
-  
-  <!-- Camera and KVS streaming -->
-  <arg name="enable_camera" default="false" />
-  <arg name="kvs_silent" default="true" />
-  <arg name="camera_device" default="/dev/video0" />
-  
-  <!-- Robot geometry parameters -->
-  <param name="robot_description" 
-         textfile="$(find elderly_bot)/urdf/elderly_bot.urdf" />
-  
-  <!-- ========== ROBOT STATE PUBLISHER ========== -->
-  <node name="robot_state_publisher" 
-        pkg="robot_state_publisher" 
-        type="robot_state_publisher"
-        output="screen"
-        respawn="true"
-        respawn_delay="5">
-    <param name="publish_frequency" value="50.0" />
-  </node>
-  
-  <!-- ========== ESP32 ROSSERIAL (WiFi) ========== -->
-  <node name="esp32_serial_node"
-        pkg="rosserial_python"
-        type="serial_node.py"
-        output="screen"
-        respawn="true"
-        respawn_delay="5"
-        launch-prefix="bash -c 'sleep 1.0; $0 $@'">
-    <param name="port" value="tcp" />
-    <param name="server_host" value="elderlybot-esp32" />
-    <param name="server_port" value="11411" />
-  </node>
-  
-  <!-- ========== RPLIDAR ========== -->
-  <node name="rplidar_node"
-        pkg="rplidar_ros"
-        type="rplidarNode"
-        output="screen"
-        respawn="true"
-        respawn_delay="5"
-        launch-prefix="bash -c 'sleep 2.0; $0 $@'">
-    <param name="serial_port" value="$(arg lidar_port)" />
-    <param name="serial_baudrate" value="$(arg lidar_baud)" />
-    <param name="frame_id" value="laser" />
-    <param name="inverted" value="false" />
-  </node>
-  
-  <!-- ========== IMU (MPU9250) ========== -->
-  <group if="$(arg enable_imu)">
-    <node name="mpu9250_node"
-          pkg="elderly_bot"
-          type="mpu9250_node.py"
-          output="screen"
-          respawn="true"
-          respawn_delay="5"
-          launch-prefix="bash -c 'sleep 3.0; $0 $@'">
-      <param name="i2c_bus" value="$(arg i2c_bus)" />
-      <param name="i2c_address" value="$(arg i2c_address)" />
-      <param name="publish_rate" value="50.0" />
-    </node>
-    
-    <!-- IMU Filter (Madgwick) -->
-    <node name="imu_filter"
-          pkg="imu_filter_madgwick"
-          type="imu_filter_node"
-          output="screen"
-          respawn="true"
-          respawn_delay="5"
-          launch-prefix="bash -c 'sleep 4.0; $0 $@'">
-      <param name="use_mag" value="false" />
-      <param name="publish_tf" value="false" />
-      <param name="fixed_frame" value="odom" />
-      <param name="gain" value="0.1" />
-      <param name="zeta" value="0.0" />
-    </node>
-  </group>
-  
-  <!-- ========== ROBOT LOCALIZATION (EKF) ========== -->
-  <node pkg="robot_localization" 
-        type="ekf_localization_node" 
-        name="ekf_localization_node"
-        output="screen"
-        respawn="true"
-        respawn_delay="5"
-        launch-prefix="bash -c 'sleep 3.0; $0 $@'"> 
-    <rosparam command="load" file="$(find elderly_bot)/config/ekf.yaml" />
-    <param name="publish_tf" value="true" />
-    <param name="two_d_mode" value="true" />
-  </node>
-  
-  <!-- ========== SENSORS AND ACTUATORS ========== -->
-  <node name="sensors_actuators_node"
-        pkg="elderly_bot"
+  <!-- ===================== -->
+  <!-- Global Arguments -->
+  <!-- ===================== -->
+  <arg name="use_cloud" default="true"/>
+  <arg name="use_camera" default="true"/>
+  <arg name="use_imu" default="true"/>
+
+  <!-- ===================== -->
+  <!-- Sensors & Actuators -->
+  <!-- ===================== -->
+  <node pkg="elderly_bot"
         type="sensors_actuators_node.py"
-        output="screen"
-        respawn="true"
-        respawn_delay="5"
-        launch-prefix="bash -c 'sleep 6.0; $0 $@'">
-    <rosparam command="load" file="$(find elderly_bot)/config/sensors_actuators.yaml" />
+        name="sensors_actuators_node"
+        output="screen">
+
+    <!-- Load hardware configuration -->
+    <rosparam file="$(find elderly_bot)/config/sensors/sensors_actuators.yaml"/>
+
   </node>
-  
-  <!-- ========== CLOUD BRIDGE ========== -->
-  <node name="cloud_bridge_node"
-        pkg="elderly_bot"
-        type="cloud_bridge_node.py"
-        output="screen"
-        respawn="true"
-        respawn_delay="5"
-        launch-prefix="bash -c 'sleep 7.0; $0 $@'">
-    <rosparam command="load" file="$(find elderly_bot)/config/cloud_config.yaml" />
-  </node>
-  
-  <!-- ========== CAMERA & KVS STREAMING ========== -->
-  <group if="$(arg enable_camera)">
-    <include file="$(find elderly_bot)/launch/kvs_stream.launch">
-      <arg name="device" value="$(arg camera_device)" />
-      <arg name="output_to_screen" value="false" if="$(arg kvs_silent)" />
-      <arg name="output_to_screen" value="true" unless="$(arg kvs_silent)" />
-      <arg name="enable_kvs" value="true" />
-      <arg name="width" value="1280" />
-      <arg name="height" value="720" />
-      <arg name="fps" value="15" />
-      <arg name="bitrate" value="2000" />
-      <arg name="fragment_duration" value="8" />
-      <arg name="storage_size" value="512" />
-    </include>
+
+  <!-- ===================== -->
+  <!-- Camera -->
+  <!-- ===================== -->
+  <group if="$(arg use_camera)">
+    <node pkg="elderly_bot"
+          type="camera_node.py"
+          name="camera_node"
+          output="screen"/>
   </group>
-  
-  <!-- ========== SYSTEM HEALTH MONITOR ========== -->
-  <!-- Uncommented for reliability -->
-  <node name="system_health_monitor"
-        pkg="elderly_bot"
+
+  <!-- ===================== -->
+  <!-- IMU -->
+  <!-- ===================== -->
+  <group if="$(arg use_imu)">
+    <node pkg="elderly_bot"
+          type="mpu9250_node.py"
+          name="mpu9250_node"
+          output="screen"/>
+  </group>
+
+  <!-- ===================== -->
+  <!-- Cloud Bridge -->
+  <!-- ===================== -->
+  <group if="$(arg use_cloud)">
+    <node pkg="elderly_bot"
+          type="cloud_bridge_node.py"
+          name="cloud_bridge_node"
+          output="screen">
+
+      <!-- Load cloud configuration -->
+      <rosparam file="$(find elderly_bot)/config/cloud/cloud_config.yaml"/>
+
+    </node>
+  </group>
+
+  <!-- ===================== -->
+  <!-- System Health Monitor -->
+  <!-- ===================== -->
+  <node pkg="elderly_bot"
         type="system_health_monitor.py"
-        output="screen"
-        respawn="true"
-        respawn_delay="15"
-        launch-prefix="bash -c 'sleep 15.0; $0 $@'">
-    <param name="check_interval" value="10" />
-    <param name="startup_delay" value="30" />
-    <param name="critical_nodes" value="rplidar_node,esp32_serial_node,ekf_localization_node" />
-    <param name="optional_nodes" value="mpu9250_node,cloud_bridge_node,sensors_actuators_node" />
-  </node>
-  
+        name="system_health_monitor"
+        output="screen"/>
+
 </launch>
