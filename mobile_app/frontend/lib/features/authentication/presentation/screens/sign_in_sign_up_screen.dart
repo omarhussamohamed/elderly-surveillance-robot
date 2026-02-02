@@ -114,6 +114,13 @@ class _SignInSignUpScreenState extends State<SignInSignUpScreen> {
   bool _isLogin = true; // true = login, false = signUp
 
   @override
+  void dispose() {
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     double width = AppSizes.screenWidth(context);
     double height = AppSizes.screenHeight(context);

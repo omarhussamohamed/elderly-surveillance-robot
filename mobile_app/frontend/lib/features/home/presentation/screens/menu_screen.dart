@@ -172,7 +172,7 @@ class MenuScreen extends StatelessWidget {
                 SizedBox(height: width * 0.056),
                 InkWell(
                   onTap: () {
-                    Navigator.pushNamed(context, ScreenConst.HelpSupportScreen);
+                    Navigator.pushNamed(context, ScreenConst.helpSupportScreen);
                   },
                   child: Container(
                     height: height * 0.12,

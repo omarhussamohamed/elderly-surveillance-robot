@@ -7,7 +7,6 @@ import 'package:grad_project/features/authentication/domain/usecases/sign_in_use
 import 'package:grad_project/features/authentication/domain/usecases/sign_out_usecase.dart';
 import 'package:grad_project/features/authentication/domain/usecases/sign_up_usecase.dart';
 import 'package:grad_project/features/authentication/presentation/cubit/cubit/auth_state.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 
 class AuthCubit extends Cubit<AuthState> {
@@ -30,9 +29,8 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final auth = AuthEntity(phone: phone, password: password); 
       final token = await signInUseCase(auth);
-      print('Token from backend: $token');
       emit(AuthSuccess(token: token));
-    } on DioError catch (dioError) {
+    } on DioException catch (dioError) {
       final message = dioError.response?.data['detail'] ??
                     dioError.response?.statusMessage ??
                     dioError.message;
@@ -50,7 +48,7 @@ Future<void> signUp({required String phone, required String password}) async {
     final auth = AuthEntity(phone: phone, password: password);
     final token = await signUpUseCase(auth); 
     emit(AuthSuccess(token: token));
-  } on DioError catch (dioError) {
+  } on DioException catch (dioError) {
       final message = dioError.response?.data['detail'] ??
                     dioError.response?.statusMessage ??
                     dioError.message;
@@ -67,7 +65,7 @@ Future<void> signUp({required String phone, required String password}) async {
     try {
       await signOutUseCase();
       emit(AuthInitial());
-    } on DioError catch (dioError) {
+    } on DioException catch (dioError) {
       final message = dioError.response?.data['detail'] ??
                     dioError.response?.statusMessage ??
                     dioError.message;
@@ -83,7 +81,7 @@ Future<void> signUp({required String phone, required String password}) async {
     try {
       final user = await getCurrentUserUseCase();
       emit(AuthSuccess(user: user));
-    } on DioError catch (dioError) {
+    } on DioException catch (dioError) {
       final message = dioError.response?.data['detail'] ??
                     dioError.response?.statusMessage ??
                     dioError.message;
