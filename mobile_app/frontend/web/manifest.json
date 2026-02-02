@@ -1,6 +1,6 @@
 {
-    "name": "grad_project",
-    "short_name": "grad_project",
+    "name": "Elderly Surveillance Robot",
+    "short_name": "ElderWatch",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

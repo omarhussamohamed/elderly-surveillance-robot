@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "grad_project" "\0"
+            VALUE "CompanyName", "Elderly Surveillance Team" "\0"
+            VALUE "FileDescription", "Elderly Surveillance Robot Mobile App" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "grad_project" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "grad_project.exe" "\0"
-            VALUE "ProductName", "grad_project" "\0"
+            VALUE "InternalName", "elderly_surveillance_mobile" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2024 Elderly Surveillance Team. All rights reserved." "\0"
+            VALUE "OriginalFilename", "elderly_surveillance_mobile.exe" "\0"
+            VALUE "ProductName", "Elderly Surveillance Robot" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
