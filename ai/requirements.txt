@@ -1,0 +1,33 @@
+# ============================================
+# Elderly Monitoring AI – Runtime Requirements
+# ============================================
+# Python Version: 3.10 ONLY (tested & recommended)
+# Purpose: Running the main AI pipeline (src/)
+# ============================================
+
+# -------- Layer 1: Fire / Smoke / Person Detection --------
+# Stable CPU-only setup for YOLOv8
+torch>=1.13.1,<2.1.0
+torchvision>=0.14.1,<0.16.0
+ultralytics>=8.0.20,<8.2.0
+
+# -------- Layer 2: Fall Detection (MediaPipe Pose) --------
+mediapipe>=0.10.0,<0.11.0
+
+# -------- Layer 3: Face Recognition --------
+face-recognition>=1.3.0,<1.4.0
+dlib>=19.24.0,<19.25.0
+
+# -------- Common Dependencies --------
+opencv-python>=4.8.0,<5.0.0
+numpy>=1.23.5,<2.0.0
+pillow>=10.0.0,<11.0.0
+
+# ============================================
+# IMPORTANT NOTES
+# --------------------------------------------
+# 1. Install torch BEFORE ultralytics
+# 2. This file is for RUNTIME only
+# 3. Notebooks use a separate requirements file
+# 4. GPU support is optional and NOT required
+# ============================================

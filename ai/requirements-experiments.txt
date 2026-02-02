@@ -1,0 +1,39 @@
+# ============================================
+# Elderly Monitoring AI – Experiment Requirements
+# ============================================
+# Python Version: 3.10 ONLY
+# Purpose: Jupyter notebooks in /experiments
+# ============================================
+
+# -------- Jupyter Environment --------
+jupyterlab>=3.6.0,<5.0.0
+notebook>=6.5.0,<8.0.0
+ipykernel>=6.25.0,<7.0.0
+
+# -------- Layer 1: Fire / Smoke (YOLOv8 Experiments) --------
+torch==1.12.1
+torchvision==0.13.1
+ultralytics==8.0.20
+
+# -------- Layer 2: Fall Detection Experiments --------
+mediapipe==0.9.0
+
+# -------- Layer 3: Face Recognition Experiments --------
+face-recognition==1.3.0
+dlib==19.24.0
+
+# -------- Common Scientific Stack --------
+opencv-python==4.6.0.66
+numpy==1.23.5
+matplotlib>=3.7.0,<4.0.0
+pandas>=1.5.0,<2.1.0
+seaborn>=0.12.0,<0.14.0
+
+# ============================================
+# IMPORTANT NOTES
+# --------------------------------------------
+# 1. This file is NOT for runtime execution
+# 2. Use only for notebooks in /experiments
+# 3. Do NOT mix with requirements.txt
+# 4. Older versions are intentional for stability
+# ============================================
