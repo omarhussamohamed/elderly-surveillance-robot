@@ -36,7 +36,7 @@ class RemoteScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(0),
                   ),
                   child: Image.asset(
-                    'assets/camera_view.jpg',
+                    'assets/camera_view.webp',
                     fit: BoxFit.cover,
                   ),
                   // child: Center(

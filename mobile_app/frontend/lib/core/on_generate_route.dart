@@ -13,8 +13,6 @@ class OnGenerateRoute {
   //User? user = FirebaseAuth.instance.currentUser;
 
   static Route<dynamic>? route(RouteSettings settings) {
-    final args = settings.arguments;
-
     switch (settings.name) {
       case ScreenConst.homeScreen:
         {
@@ -40,7 +38,7 @@ class OnGenerateRoute {
         {
           return _fadeRoute(ProfileScreen());
         }
-  case ScreenConst.HelpSupportScreen:
+  case ScreenConst.helpSupportScreen:
         {
           return _fadeRoute(HelpSupportScreen());
         }
@@ -51,7 +49,7 @@ class OnGenerateRoute {
 
 
       default:
-        NoScreenFound();
+        return MaterialPageRoute(builder: (_) => const NoScreenFound());
     }
   }
 

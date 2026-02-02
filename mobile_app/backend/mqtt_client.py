@@ -40,20 +40,24 @@ def on_message(client, userdata, msg):
         print("❌ MQTT parse error:", e)
 
 def start_mqtt():
-    client = mqtt.Client(client_id=CLIENT_ID)
-    client.on_connect = on_connect
-    client.on_message = on_message
+    try:
+        client = mqtt.Client(client_id=CLIENT_ID)
+        client.on_connect = on_connect
+        client.on_message = on_message
 
-    client.tls_set(
-        ca_certs=AWS_ROOT_CA,
-        certfile=AWS_CERT_FILE,
-        keyfile=AWS_PRIVATE_KEY,
-        tls_version=ssl.PROTOCOL_TLSv1_2,
-    )
+        client.tls_set(
+            ca_certs=AWS_ROOT_CA,
+            certfile=AWS_CERT_FILE,
+            keyfile=AWS_PRIVATE_KEY,
+            tls_version=ssl.PROTOCOL_TLSv1_2,
+        )
 
-    print("🔐 Connecting to AWS IoT...")
-    client.connect(AWS_ENDPOINT, 8883)
-    client.loop_forever()
+        print("🔐 Connecting to AWS IoT...")
+        client.connect(AWS_ENDPOINT, 8883)
+        client.loop_forever()
+    except Exception as e:
+        print(f"❌ MQTT Connection failed: {e}")
+        # App continues even if MQTT fails
 
 def start_mqtt_thread():
     threading.Thread(target=start_mqtt, daemon=True).start()

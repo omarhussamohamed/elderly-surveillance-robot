@@ -27,7 +27,7 @@ class WelcomeScreen extends StatelessWidget {
             ),
             // Image.asset('assets/link_logo.png', width: 250, height: 250),
             SizedBox(height: 50),
-            ElevatedButton(
+            const ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blue,
                 fixedSize: Size(322, 37),

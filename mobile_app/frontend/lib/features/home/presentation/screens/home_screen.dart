@@ -219,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           //child: Icon(Icons.cloud, color: AppColors.green),
                           child: Image.asset(
-                            'assets/gass.png',
+                            'assets/gas.svg',
                             width: 20,
                             height: 20,
                           ),
@@ -284,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           //   color: AppColors.green,
                           // ),
                           child: Image.asset(
-                            'assets/fire.png',
+                            'assets/fire.svg',
                             width: 20,
                             height: 20,
                           ),
@@ -365,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           //   height: 20,
                           // // ),
                           child: Image.asset(
-                            'assets/fall.png',
+                            'assets/fall.svg',
                             width: 20,
                             height: 20,
                           ),
@@ -424,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           //   height: 20,
                           // ),
                           child: Image.asset(
-                            'assets/stranger.png',
+                            'assets/stranger.svg',
                             width: 20,
                             height: 20,
                           ),

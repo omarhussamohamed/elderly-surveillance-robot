@@ -29,6 +29,6 @@ class ScreenConst {
   static const String emergencyCallScreen = 'emergencyCallScreen';
   static const String managePeopleScreen = 'managePeopleScreen';
   static const String profileScreen = 'profileScreen';
-  static const String HelpSupportScreen = 'HelpSupportScreen';
+  static const String helpSupportScreen = 'helpSupportScreen';
   static const String notificationScreen = 'notificationScreen';
 }

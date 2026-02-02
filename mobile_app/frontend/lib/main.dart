@@ -65,7 +65,7 @@ class MyApp extends StatelessWidget {
         ),
         onGenerateRoute: OnGenerateRoute.route,
 
-        home: WelcomeScreen(),
+        home: const WelcomeScreen(),
       ),
     );
   }

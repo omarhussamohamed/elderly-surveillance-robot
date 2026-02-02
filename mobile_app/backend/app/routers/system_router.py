@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import SystemHealth, SafetyMonitor
+from app.models import SystemHealth, SafetyMonitor, User
 from app.auth_utils import get_current_user
-from app.models import User
 
 
 router = APIRouter(
