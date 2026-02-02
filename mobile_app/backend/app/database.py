@@ -26,10 +26,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# Test the connection immediately
-try:
-    with engine.connect() as conn:
-        print("Successfully connected to the RDS database!")
-except Exception as e:
-    print(f"Connection failed: {e}")

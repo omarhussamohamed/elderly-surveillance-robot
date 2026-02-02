@@ -1,8 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import logging
 from . import mqtt_client
 from .routers import auth, system_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -19,32 +25,12 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(system_router.router)
 
-# ======== MODELS ========
-class User(BaseModel):
-    phone: str
-    password: str
-
-# ======== FAKE STORAGE (DEMO ONLY) ========
-USERS = {}
-
 @app.on_event("startup")
 def startup():
-    print("🚀 Starting MQTT thread")
+    logger.info("Starting MQTT thread")
     mqtt_client.start_mqtt_thread()
 
-# ======== AUTH ========
-@app.post("/register")
-def register(user: User):
-    USERS[user.phone] = user.password
-    return {"status": "registered"}
-
-@app.post("/login")
-def login(user: User):
-    if USERS.get(user.phone) == user.password:
-        return {"status": "login_success"}
-    return {"status": "login_failed"}
-
-# ======== TELEMETRY ========
 @app.get("/telemetry")
 def telemetry():
-    return mqtt_client.LAST_MESSAGE
+    with mqtt_client.MESSAGE_LOCK:
+        return mqtt_client.LAST_MESSAGE.copy()
