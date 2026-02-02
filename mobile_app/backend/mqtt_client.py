@@ -1,10 +1,17 @@
 import json
 import ssl
 import threading
+import os
+from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 
-AWS_ENDPOINT = "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
-CLIENT_ID = "backend-fastapi"
+load_dotenv()
+
+AWS_ENDPOINT = os.getenv("AWS_IOT_ENDPOINT", "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com")
+CLIENT_ID = os.getenv("AWS_IOT_CLIENT_ID", "backend-fastapi")
+AWS_ROOT_CA = os.getenv("AWS_ROOT_CA", "certs/AmazonRootCA1.pem")
+AWS_CERT_FILE = os.getenv("AWS_CERT_FILE", "certs/backend.cert.pem")
+AWS_PRIVATE_KEY = os.getenv("AWS_PRIVATE_KEY", "certs/backend.private.key")
 
 TOPICS = [
     ("elderly_bot/telemetry", 0),
@@ -38,9 +45,9 @@ def start_mqtt():
     client.on_message = on_message
 
     client.tls_set(
-        ca_certs="/home/ubuntu/grad_project_backend/certs/AmazonRootCA1.pem",
-        certfile="/home/ubuntu/grad_project_backend/certs/backend.cert.pem",
-        keyfile="/home/ubuntu/grad_project_backend/certs/backend.private.key",
+        ca_certs=AWS_ROOT_CA,
+        certfile=AWS_CERT_FILE,
+        keyfile=AWS_PRIVATE_KEY,
         tls_version=ssl.PROTOCOL_TLSv1_2,
     )
 

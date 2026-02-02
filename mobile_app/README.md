@@ -59,16 +59,36 @@ Mobile App/
 
 ### Backend
 
-```bash
-cd Mobile App/grad_project_backend
-npm install
-npm start
-Confirm the backend is running at the configured URL (e.g., http://localhost:3000).
+1. **Setup Environment:**
+   ```bash
+   cd mobile_app/backend
+   
+   # Copy environment template and configure your secrets
+   cp .env.example .env
+   # Edit .env with your actual credentials
+   
+   # Install dependencies
+   pip install -r requirements.txt
+   ```
 
-Frontend
-cd Mobile App/grad_project_frontend
+2. **Configure Certificates:**
+   - Place AWS IoT certificates in `backend/certs/`
+   - Update paths in `.env` if needed
+   - **⚠️ IMPORTANT:** Never commit certificates or `.env` to version control
+
+3. **Run Backend:**
+   ```bash
+   python -m uvicorn app.main:app --reload
+   ```
+
+### Frontend
+
+```bash
+cd mobile_app/frontend
 flutter pub get
 flutter run
+```
+
 Make sure the backend server is running before launching the frontend.
 
 
