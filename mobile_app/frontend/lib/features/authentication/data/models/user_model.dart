@@ -1,4 +1,4 @@
-import 'package:grad_project/features/authentication/domain/entities/user_entity.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/entities/user_entity.dart';
 
 class UserModel extends UserEntity {
   UserModel({required super.id, required super.phone});

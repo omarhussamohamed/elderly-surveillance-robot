@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:grad_project/features/home/domain/usecases/get_power_usecase.dart';
-import 'package:grad_project/features/home/domain/usecases/get_safety_status_usecase.dart';
-import 'package:grad_project/features/home/domain/usecases/get_temp_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/usecases/get_power_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/usecases/get_safety_status_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/usecases/get_temp_usecase.dart';
 
 import 'home_state.dart';
 

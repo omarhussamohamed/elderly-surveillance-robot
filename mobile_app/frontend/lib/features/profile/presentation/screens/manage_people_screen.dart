@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:grad_project/core/const.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
 
 class ManagePeopleScreen extends StatelessWidget {
   ManagePeopleScreen({super.key});

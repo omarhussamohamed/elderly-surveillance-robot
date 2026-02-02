@@ -10,7 +10,11 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-AWS_ENDPOINT = os.getenv("AWS_IOT_ENDPOINT", "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com")
+# AWS IoT Core Configuration - All values required
+AWS_ENDPOINT = os.getenv("AWS_IOT_ENDPOINT")
+if not AWS_ENDPOINT:
+    raise ValueError("AWS_IOT_ENDPOINT must be set in .env file")
+
 CLIENT_ID = os.getenv("AWS_IOT_CLIENT_ID", "backend-fastapi")
 AWS_ROOT_CA = os.getenv("AWS_ROOT_CA", "certs/AmazonRootCA1.pem")
 AWS_CERT_FILE = os.getenv("AWS_CERT_FILE", "certs/backend.cert.pem")

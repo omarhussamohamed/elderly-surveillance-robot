@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:grad_project/core/const.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/screens/sign_in_sign_up_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});

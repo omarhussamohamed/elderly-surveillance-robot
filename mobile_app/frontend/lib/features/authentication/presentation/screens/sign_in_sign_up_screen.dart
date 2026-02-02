@@ -1,6 +1,6 @@
 // import 'package:flutter/material.dart';
 // import 'package:flutter_svg/flutter_svg.dart';
-// import 'package:grad_project/core/const.dart';
+// import 'package:elderly_surveillance_mobile/core/const.dart';
 
 // class SignInSignUpScreen extends StatelessWidget {
 //   const SignInSignUpScreen({super.key});
@@ -96,9 +96,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:grad_project/core/const.dart';
-import 'package:grad_project/features/authentication/presentation/cubit/cubit/auth_cubit.dart';
-import 'package:grad_project/features/authentication/presentation/cubit/cubit/auth_state.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/cubit/auth_cubit.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/cubit/auth_state.dart';
 
 class SignInSignUpScreen extends StatefulWidget {
   const SignInSignUpScreen({super.key});

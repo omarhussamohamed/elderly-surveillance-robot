@@ -1,12 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:grad_project/features/authentication/domain/entities/auth_entity.dart';
-import 'package:grad_project/features/authentication/domain/entities/user_entity.dart';
-import 'package:grad_project/features/authentication/domain/usecases/get_current_user_usecase.dart';
-import 'package:grad_project/features/authentication/domain/usecases/sign_in_usecase.dart';
-import 'package:grad_project/features/authentication/domain/usecases/sign_out_usecase.dart';
-import 'package:grad_project/features/authentication/domain/usecases/sign_up_usecase.dart';
-import 'package:grad_project/features/authentication/presentation/cubit/cubit/auth_state.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/entities/auth_entity.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/entities/user_entity.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/get_current_user_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/sign_in_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/sign_out_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/sign_up_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/cubit/auth_state.dart';
 
 
 class AuthCubit extends Cubit<AuthState> {

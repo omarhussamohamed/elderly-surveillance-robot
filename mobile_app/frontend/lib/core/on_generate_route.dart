@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:grad_project/core/const.dart';
-import 'package:grad_project/features/emergency/presentation/screens/emergency_screen.dart';
-import 'package:grad_project/features/authentication/presentation/screens/sign_in_sign_up_screen.dart';
-import 'package:grad_project/features/home/presentation/screens/home_screen.dart';
-import 'package:grad_project/features/profile/presentation/screens/help_support_screen.dart';
-import 'package:grad_project/features/main_screen/main_screen.dart';
-import 'package:grad_project/features/profile/presentation/screens/manage_people_screen.dart';
-import 'package:grad_project/features/notifications/notification.dart';
-import 'package:grad_project/features/profile/presentation/screens/profile_screen.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
+import 'package:elderly_surveillance_mobile/features/emergency/presentation/screens/emergency_screen.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/screens/sign_in_sign_up_screen.dart';
+import 'package:elderly_surveillance_mobile/features/home/presentation/screens/home_screen.dart';
+import 'package:elderly_surveillance_mobile/features/profile/presentation/screens/help_support_screen.dart';
+import 'package:elderly_surveillance_mobile/features/main_screen/main_screen.dart';
+import 'package:elderly_surveillance_mobile/features/profile/presentation/screens/manage_people_screen.dart';
+import 'package:elderly_surveillance_mobile/features/notifications/notification.dart';
+import 'package:elderly_surveillance_mobile/features/profile/presentation/screens/profile_screen.dart';
 
 class OnGenerateRoute {
   //User? user = FirebaseAuth.instance.currentUser;

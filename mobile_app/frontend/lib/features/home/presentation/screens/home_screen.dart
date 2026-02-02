@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:grad_project/core/const.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
 //import 'package:gradapp/core/const.dart';
 
 class HomeScreen extends StatefulWidget {

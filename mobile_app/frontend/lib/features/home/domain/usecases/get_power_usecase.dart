@@ -1,4 +1,4 @@
-import 'package:grad_project/features/home/domain/repositories/home_repo.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/repositories/home_repo.dart';
 
 class GetPowerUseCase {
   final HomeRepo repo;

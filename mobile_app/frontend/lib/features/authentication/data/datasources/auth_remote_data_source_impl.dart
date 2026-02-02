@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
-import 'package:grad_project/core/network/dio_client.dart';
-import 'package:grad_project/features/authentication/data/datasources/auth_remote_data_source.dart';
-import 'package:grad_project/features/authentication/domain/entities/auth_entity.dart';
-import 'package:grad_project/features/authentication/domain/entities/user_entity.dart';
-import 'package:grad_project/features/authentication/data/models/user_model.dart';
+import 'package:elderly_surveillance_mobile/core/network/dio_client.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/data/datasources/auth_remote_data_source.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/entities/auth_entity.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/entities/user_entity.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/data/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {

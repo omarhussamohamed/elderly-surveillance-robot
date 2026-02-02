@@ -1,7 +1,7 @@
 
 
-import 'package:grad_project/features/home/domain/entities/safety_status_entity.dart';
-import 'package:grad_project/features/home/domain/repositories/home_repo.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/entities/safety_status_entity.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/repositories/home_repo.dart';
 
 class GetSafetyStatusUseCase {
   final HomeRepo repo;

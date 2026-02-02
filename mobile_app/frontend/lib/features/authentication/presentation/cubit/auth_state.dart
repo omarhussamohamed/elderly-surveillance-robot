@@ -1,6 +1,6 @@
 // auth_state.dart
 import 'package:equatable/equatable.dart';
-import 'package:grad_project/features/authentication/domain/entities/user_entity.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/entities/user_entity.dart';
 
 abstract class AuthState extends Equatable {
   const AuthState();

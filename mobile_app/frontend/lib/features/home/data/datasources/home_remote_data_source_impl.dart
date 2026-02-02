@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:grad_project/features/home/domain/entities/safety_status_entity.dart';
+import 'package:elderly_surveillance_mobile/features/home/domain/entities/safety_status_entity.dart';
 import 'home_remote_data_source.dart';
 
 class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {

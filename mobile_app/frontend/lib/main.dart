@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:grad_project/core/on_generate_route.dart';
-import 'package:grad_project/features/authentication/data/datasources/auth_remote_data_source_impl.dart';
-import 'package:grad_project/features/authentication/presentation/screens/sign_in_sign_up_screen.dart';
-import 'package:grad_project/core/const.dart';
+import 'package:elderly_surveillance_mobile/core/on_generate_route.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/data/datasources/auth_remote_data_source_impl.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/screens/sign_in_sign_up_screen.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
 
 // Cubit & Usecases
-import 'package:grad_project/features/authentication/presentation/cubit/cubit/auth_cubit.dart';
-import 'package:grad_project/features/authentication/presentation/cubit/cubit/auth_state.dart';
-import 'package:grad_project/features/authentication/domain/usecases/sign_in_usecase.dart';
-import 'package:grad_project/features/authentication/domain/usecases/sign_up_usecase.dart';
-import 'package:grad_project/features/authentication/domain/usecases/sign_out_usecase.dart';
-import 'package:grad_project/features/authentication/domain/usecases/get_current_user_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/cubit/auth_cubit.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/cubit/auth_state.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/sign_in_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/sign_up_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/sign_out_usecase.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/usecases/get_current_user_usecase.dart';
 
 // Repo & DataSource
-import 'package:grad_project/features/authentication/data/repositories/auth_repo_impl.dart';
-import 'package:grad_project/features/authentication/data/datasources/auth_remote_data_source.dart';
-import 'package:grad_project/welcome_screen.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/data/repositories/auth_repo_impl.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/data/datasources/auth_remote_data_source.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/presentation/screens/welcome_screen.dart';
 
 void main() {
   runApp(const MyApp());

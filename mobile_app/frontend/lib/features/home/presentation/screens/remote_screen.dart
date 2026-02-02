@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:grad_project/core/const.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
 import 'package:flutter_svg/svg.dart';
 
 class RemoteScreen extends StatelessWidget {

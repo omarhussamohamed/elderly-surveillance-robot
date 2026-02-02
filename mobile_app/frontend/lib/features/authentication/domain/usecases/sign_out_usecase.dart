@@ -1,4 +1,4 @@
-import 'package:grad_project/features/authentication/domain/repositories/auth_repo.dart';
+import 'package:elderly_surveillance_mobile/features/authentication/domain/repositories/auth_repo.dart';
 
 class SignOutUseCase {
   final AuthRepo authRepo;

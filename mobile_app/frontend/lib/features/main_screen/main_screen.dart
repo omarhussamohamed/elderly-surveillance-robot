@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:grad_project/core/const.dart';
-import 'package:grad_project/features/home/presentation/screens/home_screen.dart';
-import 'package:grad_project/features/home/presentation/screens/menu_screen.dart';
-import 'package:grad_project/features/home/presentation/screens/remote_screen.dart';
+import 'package:elderly_surveillance_mobile/core/const.dart';
+import 'package:elderly_surveillance_mobile/features/home/presentation/screens/home_screen.dart';
+import 'package:elderly_surveillance_mobile/features/home/presentation/screens/menu_screen.dart';
+import 'package:elderly_surveillance_mobile/features/home/presentation/screens/remote_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
