@@ -1,0 +1,63 @@
+import json
+import ssl
+import threading
+import paho.mqtt.client as mqtt
+from database import SessionLocal
+from models import Telemetry, ActivityLog
+
+AWS_ENDPOINT = "a1k8itxfx77i0w-ats.iot.us-east-1.amazonaws.com"
+CLIENT_ID = "backend-fastapi"
+
+TOPICS = [
+    ("elderly_bot/telemetry", 0),
+    ("elderly_bot/alerts", 0),
+]
+
+def on_connect(client, userdata, flags, rc):
+    print("MQTT Connected:", rc)
+    for topic, qos in TOPICS:
+        client.subscribe(topic, qos)
+
+def on_message(client, userdata, msg):
+    payload = json.loads(msg.payload.decode())
+    db = SessionLocal()
+
+    try:
+        if msg.topic == "elderly_bot/telemetry":
+            telemetry = Telemetry(
+                power=payload["power"],
+                temperature=payload["temperature"],
+                gas_detected=payload["gas"],
+            )
+            db.add(telemetry)
+
+        elif msg.topic == "elderly_bot/alerts":
+            log = ActivityLog(
+                type=payload["type"],
+                message=payload["message"]
+            )
+            db.add(log)
+
+        db.commit()
+    finally:
+        db.close()
+
+def start_mqtt():
+    client = mqtt.Client(client_id=CLIENT_ID)
+
+    client.tls_set(
+        ca_certs="certs/AmazonRootCA1.pem",
+        certfile="certs/backend.cert.pem",
+        keyfile="certs/backend.private.key",
+        tls_version=ssl.PROTOCOL_TLSv1_2,
+    )
+
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(AWS_ENDPOINT, 8883)
+    client.loop_forever()
+
+def start():
+    thread = threading.Thread(target=start_mqtt)
+    thread.daemon = True
+    thread.start()
