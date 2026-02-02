@@ -1,4 +1,4 @@
-package com.example.grad_project
+package com.elderly.surveillance_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 
