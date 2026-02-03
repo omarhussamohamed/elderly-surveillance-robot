@@ -7,7 +7,7 @@ import pickle
 import logging
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 
 CACHE_FILE = "encodings.joblib"
 
