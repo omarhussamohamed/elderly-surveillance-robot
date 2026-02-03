@@ -9,7 +9,10 @@ System Health Monitor
 """
 
 import rospy
-import xmlrpc.client
+try:
+    import xmlrpc.client as xmlrpclib  # Python 3
+except ImportError:
+    import xmlrpclib  # Python 2
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 
 
@@ -38,7 +41,7 @@ class SystemHealthMonitor(object):
             '/diagnostics', DiagnosticArray, queue_size=10
         )
 
-        self.master = xmlrpc.client.ServerProxy(
+        self.master = xmlrpclib.ServerProxy(
             rospy.get_master_uri()
         )
 

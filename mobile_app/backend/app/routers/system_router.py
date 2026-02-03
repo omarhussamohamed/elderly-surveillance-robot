@@ -1,8 +1,25 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import SystemHealth, SafetyMonitor, User
 from app.auth_utils import get_current_user
+
+
+# Request schemas
+class HealthUpdate(BaseModel):
+    """Request model for health updates."""
+    power: int = Field(..., ge=0, le=100, description="Battery percentage")
+    temperature: float = Field(..., ge=-40, le=150, description="Temperature in Celsius")
+
+
+class SafetyUpdate(BaseModel):
+    """Request model for safety status updates."""
+    gas: str = Field(default="Normal", max_length=50)
+    fire: str = Field(default="None", max_length=50)
+    fall: str = Field(default="None", max_length=50)
+    stranger: str = Field(default="None", max_length=50)
 
 
 router = APIRouter(
@@ -14,7 +31,8 @@ router = APIRouter(
 def get_system_health(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> Dict[str, Any]:
+    """Get latest system health metrics."""
     latest = (
         db.query(SystemHealth)
         .order_by(SystemHealth.created_at.desc())
@@ -22,7 +40,7 @@ def get_system_health(
     )
 
     if not latest:
-        return {"power": 0, "temperature": 0}
+        return {"power": 0, "temperature": 0.0}
 
     return {
         "power": latest.power,
@@ -32,14 +50,14 @@ def get_system_health(
 
 @router.post("/health")
 def update_system_health(
-    power: int,
-    temperature: float,
+    health: HealthUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> Dict[str, Any]:
+    """Update system health metrics."""
     data = SystemHealth(
-        power=power,
-        temperature=temperature
+        power=health.power,
+        temperature=health.temperature
     )
     db.add(data)
     db.commit()
@@ -56,7 +74,8 @@ def update_system_health(
 def get_safety_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> Dict[str, Any]:
+    """Get latest safety monitor status."""
     latest = (
         db.query(SafetyMonitor)
         .order_by(SafetyMonitor.created_at.desc())
@@ -81,18 +100,16 @@ def get_safety_status(
 # POST update safety status
 @router.post("/safety")
 def update_safety_status(
-    gas: str,
-    fire: str,
-    fall: str,
-    stranger: str,
+    safety: SafetyUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> Dict[str, Any]:
+    """Update safety monitor status."""
     data = SafetyMonitor(
-        gas=gas,
-        fire=fire,
-        fall=fall,
-        stranger=stranger
+        gas=safety.gas,
+        fire=safety.fire,
+        fall=safety.fall,
+        stranger=safety.stranger
     )
     db.add(data)
     db.commit()

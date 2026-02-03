@@ -1,8 +1,10 @@
+"""AWS IoT Core MQTT Client for robot telemetry."""
 import json
 import ssl
 import threading
 import os
 import logging
+from typing import Dict, Any, Optional, List, Tuple
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 
@@ -10,22 +12,22 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# AWS IoT Core Configuration - All values required
-AWS_ENDPOINT = os.getenv("AWS_IOT_ENDPOINT")
+# AWS IoT Core Configuration
+AWS_ENDPOINT: Optional[str] = os.getenv("AWS_IOT_ENDPOINT")
 if not AWS_ENDPOINT:
     raise ValueError("AWS_IOT_ENDPOINT must be set in .env file")
 
-CLIENT_ID = os.getenv("AWS_IOT_CLIENT_ID", "backend-fastapi")
-AWS_ROOT_CA = os.getenv("AWS_ROOT_CA", "certs/AmazonRootCA1.pem")
-AWS_CERT_FILE = os.getenv("AWS_CERT_FILE", "certs/backend.cert.pem")
-AWS_PRIVATE_KEY = os.getenv("AWS_PRIVATE_KEY", "certs/backend.private.key")
+CLIENT_ID: str = os.getenv("AWS_IOT_CLIENT_ID", "backend-fastapi")
+AWS_ROOT_CA: str = os.getenv("AWS_ROOT_CA", "certs/AmazonRootCA1.pem")
+AWS_CERT_FILE: str = os.getenv("AWS_CERT_FILE", "certs/backend.cert.pem")
+AWS_PRIVATE_KEY: str = os.getenv("AWS_PRIVATE_KEY", "certs/backend.private.key")
 
-TOPICS = [
+TOPICS: List[Tuple[str, int]] = [
     ("elderly_bot/telemetry", 0),
 ]
 
-# 🔑 Shared global state
-LAST_MESSAGE = {
+# Shared global state (thread-safe)
+LAST_MESSAGE: Dict[str, Any] = {
     "gas": False,
     "battery": None,
     "temperature": None

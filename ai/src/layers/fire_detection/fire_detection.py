@@ -53,7 +53,15 @@ class PersonFireDetector:
 
             for box in results.boxes:
                 cls = int(box.cls[0])
+                conf = float(box.conf[0])
                 name = self.CLASS_NAMES.get(cls, "unknown")
+                xyxy = box.xyxy[0].tolist()  # [x1, y1, x2, y2]
+
+                detections.append({
+                    "class": name,
+                    "confidence": conf,
+                    "bbox": xyxy
+                })
 
                 if name == "person":
                     person = True

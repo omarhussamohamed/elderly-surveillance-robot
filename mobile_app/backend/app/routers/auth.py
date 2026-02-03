@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -9,7 +10,11 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register")
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def register(
+    user: schemas.UserCreate,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Register a new user account."""
     existing_user = db.query(models.User).filter(models.User.phone == user.phone).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Phone already registered")
@@ -24,12 +29,19 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     token = create_access_token({"user_id": new_user.id})
-    return {"message": "User registered successfully", "access_token": token, "token_type": "bearer"}
-
+    return {
+        "message": "User registered successfully",
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/login")
-def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+def login(
+    user: schemas.UserLogin,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Authenticate user and return JWT token."""
     db_user = db.query(models.User).filter(models.User.phone == user.phone).first()
 
     if not db_user or not verify_password(user.password, db_user.hashed_password):
