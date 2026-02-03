@@ -1,92 +1,143 @@
 import sys
 import logging
+import os
+import signal
 from pathlib import Path
+from typing import Dict, Any, NoReturn
+import cv2
 
-# Defensive import for OpenCV
-try:
-    import cv2
-except ImportError as e:
-    raise ImportError(
-        "Failed to import OpenCV (cv2). Ensure that OpenCV is installed.\n"
-        "→ Run 'pip install opencv-python' to install it."
-    ) from e
-
-# Defensive import for VisionPipeline
-try:
-    from pipeline import VisionPipeline
-except ImportError as e:
-    raise ImportError(
-        "Failed to import VisionPipeline. Ensure that the 'pipeline' module is present and correctly installed.\n"
-        "→ Check the README.md for setup instructions."
-    ) from e
+from pipeline import VisionPipeline
 
 
-def setup_logging():
-    try:
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-        )
-    except Exception as e:
-        raise RuntimeError(
-            "Failed to set up logging. Ensure the logging configuration is correct."
-        ) from e
+def setup_logging() -> None:
+    """Configure logging for the entire application."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+        ]
+    )
 
 
-def validate_paths(config: dict):
-    """Fail early if required model files are missing."""
+def validate_paths(config: Dict[str, Any]) -> None:
+    """Validate that required file paths exist.
+    
+    Args:
+        config: Configuration dictionary
+        
+    Raises:
+        FileNotFoundError: If required files are missing
+    """
     logger = logging.getLogger("ai.validation")
+
     required_paths = [
-        config["layer1"]["model_path"],
-        config["layer2"]["model_path"],
-        config["layer3"]["encodings_path"],
+        config["layer1"]["model_path"]
     ]
 
     for p in required_paths:
         path = Path(p)
         if not path.exists():
-            logger.error(f"Missing required file/folder: {path}")
-            raise FileNotFoundError(
-                f"Required file/folder not found: {path}\n"
-                f"→ Check README.md for setup instructions."
-            )
+            logger.error(f"Missing required file: {path}")
+            logger.error(f"Please ensure YOLOv8 model is downloaded to: {path}")
+            raise FileNotFoundError(f"Required file not found: {path}")
+    
+    logger.info("All required paths validated successfully")
 
 
-def main():
+def validate_environment() -> None:
+    """Validate environment setup and warn about missing configuration."""
+    logger = logging.getLogger("ai.validation")
+    
+    # Check DB password (optional but recommended)
+    if not os.getenv("DB_PASSWORD"):
+        logger.warning("DB_PASSWORD environment variable not set")
+        logger.warning("Face recognition will run in OFFLINE mode")
+        logger.info("To enable cloud face recognition, set DB_PASSWORD:")
+        logger.info("  Windows: $env:DB_PASSWORD=\"your_password\"")
+        logger.info("  Linux/macOS: export DB_PASSWORD=\"your_password\"")
+    else:
+        logger.info("DB_PASSWORD configured - cloud face recognition enabled")
+
+
+def signal_handler(signum: int, frame: Any) -> NoReturn:
+    """Handle interrupt signals gracefully."""
+    logger = logging.getLogger("ai.main")
+    logger.info(f"\nReceived signal {signum}, shutting down gracefully...")
+    sys.exit(0)
+
+
+def main() -> None:
+    """Main entry point for the elderly monitoring system."""
     setup_logging()
     logger = logging.getLogger("ai.main")
+    
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, signal_handler)
+    
+    logger.info("="*60)
+    logger.info("Elderly Monitoring AI System - Starting...")
+    logger.info("="*60)
 
-    # Validate Python version
-    if not (sys.version_info.major == 3 and sys.version_info.minor == 10):
-        raise RuntimeError("This project requires Python 3.10. Please install the correct version and try again.")
+    try:
+        # Validate environment
+        validate_environment()
+        
+        # Configuration
+        config: Dict[str, Any] = {
+            "layer1": {
+                "model_path": "assets/models/fire/yolov8_fire_smoke_person.pt",
+                "confidence": 0.5,
+                "iou_threshold": 0.45,
+                "device": "cpu"
+            },
 
-    config = {
-        "layer1": {
-            "model_path": "assets/models/fire/yolov8_fire_smoke_person.pt",
-            "confidence": 0.5,
-            "iou_threshold": 0.45,
-            "device": "cpu"
-        },
-        "layer2": {
-            "model_path": "assets/models/fall/pose_landmarker_full.task",
-            "confidence_threshold": 0.7,
-            "angle_threshold": 45,
-            "min_detection_confidence": 0.5,
-            "min_tracking_confidence": 0.5
-        },
-        "layer3": {
-            "encodings_path": "assets/known_faces",
-            "tolerance": 0.6,
-            "detection_model": "hog",
-            "num_jitters": 1
+            "layer2": {
+                "min_detection_confidence": 0.5,
+                "min_tracking_confidence": 0.5
+            },
+
+            "layer3": {
+                "tolerance": 0.45,
+                "detection_model": "hog",
+
+                # ───── CLOUD CONFIG ─────
+                "db": {
+                    "host": "elderly-care-db.cr66282o8nxf.eu-north-1.rds.amazonaws.com",
+                    "database": "elderly-care-db",
+                    "user": "postgres",
+                    "password": os.getenv("DB_PASSWORD"),
+                    "port": "5432"
+                }
+            }
         }
-    }
 
-    validate_paths(config)
+        # Validate required files exist
+        validate_paths(config)
 
-    pipeline = VisionPipeline(config)
-    logger.info("Pipeline started. Press 'q' to quit.")
-    pipeline.run(source=0)
+        # Initialize and run pipeline
+        logger.info("Initializing vision pipeline...")
+        pipeline = VisionPipeline(config)
+        
+        logger.info("Starting video processing...")
+        logger.info("Press 'q' to quit, 's' to save frame")
+        pipeline.run(source=0)
+        
+    except FileNotFoundError as e:
+        logger.error(f"Setup error: {e}")
+        logger.error("Please check the installation and model files")
+        sys.exit(1)
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        logger.error("Please ensure all dependencies are installed: pip install -r requirements.txt")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":

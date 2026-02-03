@@ -1,77 +1,93 @@
 from ultralytics import YOLO
 import cv2
-import numpy as np
 import logging
+import numpy as np
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Any, List
 
 
 class PersonFireDetector:
-    """YOLOv8 detector for person, fire, and smoke."""
+    """Layer 1: Fire, Smoke, and Person Detection using YOLOv8."""
 
-    CLASS_NAMES = {0: "person", 1: "fire", 2: "smoke"}
+    CLASS_NAMES: Dict[int, str] = {0: "person", 1: "fire", 2: "smoke"}
 
-    COLORS = {
-        "person": (0, 255, 0),
-        "fire": (0, 0, 255),
-        "smoke": (128, 128, 128),
-    }
-
-    def __init__(self, config: Dict):
-        self.logger = logging.getLogger("ai.layer1")
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.logger = logging.getLogger("ai.fire_detection")
+        
         model_path = Path(config["model_path"])
-
         if not model_path.exists():
-            raise FileNotFoundError(
-                f"YOLOv8 model not found: {model_path}\n"
-                "Check docs/SETUP_GUIDE.md for model placement instructions."
-            )
-
+            self.logger.error(f"Model file not found: {model_path}")
+            raise FileNotFoundError(f"Model not found: {model_path}")
+        
+        self.logger.info(f"Loading YOLO model from {model_path}")
         self.model = YOLO(str(model_path))
-        self.model.to(config.get("device", "cpu"))
+        
+        device = config.get("device", "cpu")
+        self.model.to(device)
+        self.logger.info(f"Model loaded on device: {device}")
 
-        self.confidence = config.get("confidence", 0.5)
-        self.iou_threshold = config.get("iou_threshold", 0.45)
+        self.confidence: float = config.get("confidence", 0.5)
+        self.iou_threshold: float = config.get("iou_threshold", 0.45)
+        
+        self.logger.info(f"Detector initialized (conf={self.confidence}, iou={self.iou_threshold})")
 
-    def detect(self, frame: np.ndarray) -> Dict:
-        results = self.model.predict(
-            frame,
-            conf=self.confidence,
-            iou=self.iou_threshold,
-            verbose=False,
-        )[0]
+    def detect(self, frame: np.ndarray) -> Dict[str, Any]:
+        """Detect person, fire, and smoke in frame.
+        
+        Args:
+            frame: BGR image from OpenCV
+            
+        Returns:
+            Dictionary with detection results
+        """
+        try:
+            results = self.model.predict(
+                frame,
+                conf=self.confidence,
+                iou=self.iou_threshold,
+                verbose=False,
+            )[0]
 
-        person = fire = smoke = False
-        detections = []
+            person = fire = smoke = False
+            detections: List[Dict[str, Any]] = []
 
-        for box in results.boxes:
-            cls = int(box.cls[0])
-            name = self.CLASS_NAMES.get(cls, "unknown")
-            conf = float(box.conf[0])
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            for box in results.boxes:
+                cls = int(box.cls[0])
+                name = self.CLASS_NAMES.get(cls, "unknown")
 
-            detections.append(
-                {"class": name, "confidence": conf, "bbox": [x1, y1, x2, y2]}
-            )
+                if name == "person":
+                    person = True
+                elif name == "fire":
+                    fire = True
+                    self.logger.warning("FIRE detected in frame!")
+                elif name == "smoke":
+                    smoke = True
+                    self.logger.warning("SMOKE detected in frame!")
 
-            if name == "person":
-                person = True
-            elif name == "fire":
-                fire = True
-            elif name == "smoke":
-                smoke = True
+            return {
+                "person_detected": person,
+                "fire_detected": fire,
+                "smoke_detected": smoke,
+                "detections": detections,
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in fire detection: {e}")
+            return {
+                "person_detected": False,
+                "fire_detected": False,
+                "smoke_detected": False,
+                "detections": [],
+            }
 
-        return {
-            "person_detected": person,
-            "fire_detected": fire,
-            "smoke_detected": smoke,
-            "detections": detections,
-        }
-
-    def draw_detections(self, frame, results):
-        out = frame.copy()
-        for d in results["detections"]:
-            x1, y1, x2, y2 = d["bbox"]
-            color = self.COLORS.get(d["class"], (255, 255, 255))
-            cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        return out
+    def draw_detections(self, frame: np.ndarray, results: Dict[str, Any]) -> np.ndarray:
+        """Draw detection boxes on frame (optional visualization).
+        
+        Args:
+            frame: BGR image from OpenCV
+            results: Detection results dictionary
+            
+        Returns:
+            Frame with drawn detections (currently unchanged)
+        """
+        return frame
