@@ -1,5 +1,7 @@
 # Cloud Infrastructure
 
+> **Part of:** [Elderly Surveillance Robot](../README.md)
+
 **AWS-based backend and communication layer for the Elderly Surveillance Robot**
 
 This document describes the cloud architecture, AWS services, and deployment procedures that enable secure communication between the robot, backend server, and mobile application.

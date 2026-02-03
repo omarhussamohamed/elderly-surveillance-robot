@@ -1,105 +1,106 @@
-# Elderly Bot
+# Robot System (ROS)
 
-**Autonomous Indoor Monitoring Robot (ROS Melodic)**
+> **Part of:** [Elderly Surveillance Robot](../README.md)
 
-This repository contains the software stack for **Elderly Bot**, an indoor mobile robot designed for **environment monitoring and SLAM mapping** in elderly-care environments.
+**Autonomous Indoor Monitoring Robot using ROS Melodic**
 
-The system is currently validated for **mapping and sensor monitoring**. Navigation and patrol are prepared but intentionally disabled.
+This module contains the ROS stack for **Elderly Bot**, an indoor mobile robot designed for environment monitoring and SLAM mapping.
 
 ---
 
 ## Platform
 
-- **OS**: Ubuntu 18.04 LTS
-- **Middleware**: ROS Melodic (Python 2)
-- **Compute**: NVIDIA Jetson (Nano)
-- **Microcontroller**: ESP32 (wheel encoders & low-level I/O)
-- **Visualization**: Foxglove Studio
+| Component | Specification |
+|-----------|---------------|
+| **OS** | Ubuntu 18.04 LTS |
+| **Middleware** | ROS Melodic |
+| **Compute** | NVIDIA Jetson Nano |
+| **Microcontroller** | ESP32 (wheel encoders, I/O) |
+| **Visualization** | Foxglove Studio |
 
 ---
 
-## Current Verified Capabilities
+## Current Capabilities
 
-### Mapping
-- 2D SLAM using **GMapping**
-- RPLidar-based laser scanning
-- EKF-based odometry fusion (wheel encoders + IMU)
+### ✅ Verified Features
+- **Mapping:** 2D SLAM using GMapping + RPLidar
+- **Odometry:** EKF fusion (wheel encoders + IMU)
+- **Sensors:** Gas detection, temperature monitoring
+- **Alerts:** Buzzer on gas detection
+- **Cloud:** AWS IoT Core telemetry (optional)
 
-### Sensors & Safety
-- Digital gas sensor (D0 output)
-- Buzzer alert on gas detection
-- Jetson temperature monitoring
-
-### System Architecture
-- Clean TF tree with no duplicate publishers
-- Static geometry defined in URDF
-- Motion estimation handled only by EKF
-
-### Cloud (Optional)
-- AWS IoT Core telemetry
-- AWS Kinesis Video Streams
-- Disabled by default during mapping
-
----
-
-## What Is NOT Active Yet
-
+### ⏳ Prepared (Not Active)
 - Autonomous navigation (move_base)
-- Localization using AMCL
+- AMCL localization
 - Patrol behavior
 
-These components are configured but **not required** for mapping.
-
 ---
 
-## Quick Start (Mapping)
+## Quick Start
 
-### Setup & Installation
+### Installation
 ```bash
 cd ~/catkin_ws/src/elderly_bot
 ./install_dependencies.sh
 ```
 
-### Build Workspace
+### Build
 ```bash
 cd ~/catkin_ws
 catkin_make
 source devel/setup.bash
 ```
 
-### Launch Mapping
+### Run Mapping
 ```bash
 roslaunch elderly_bot mapping.launch
 ```
 
-### Save Generated Map
+### Save Map
 ```bash
 rosrun map_server map_saver -f maps/my_house
 ```
 
-### Visualization (Foxglove Studio)
-
-Monitor these recommended topics:
-- `/map` – Occupancy grid
-- `/scan` – Laser scan data
-- `/tf` – Transform tree
-- `/odom` – Odometry estimates
-- `/gas_detected` – Gas sensor alerts
-- `/jetson_temperature` – Temperature monitoring
-
 ---
 
-## Design Rules (Important)
+## Design Rules
 
 These rules maintain system integrity:
 
-- **EKF** is the only publisher of `odom → base_link`
-- **GMapping** is the only publisher of `map → odom`
-- **URDF** publishes static TF only
-- Hardware-validated axes are never modified in software
+| Publisher | Transform |
+|-----------|-----------|
+| **EKF** | `odom → base_link` |
+| **GMapping** | `map → odom` |
+| **URDF** | Static TF only |
 
 ---
 
-## Status
+## ROS Topics
 
-This repository reflects the current, tested system state and avoids claiming unimplemented functionality.
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/map` | OccupancyGrid | SLAM map |
+| `/scan` | LaserScan | LiDAR data |
+| `/odom` | Odometry | Robot position |
+| `/gas_detected` | Bool | Gas sensor alert |
+| `/jetson_temperature` | Float32 | CPU temperature |
+
+---
+
+## Cloud Integration
+
+When enabled, telemetry is sent to AWS IoT Core:
+- **Topic:** `elderly_bot/telemetry`
+- **Protocol:** MQTT over TLS
+- **Format:** JSON
+
+📖 See [cloud/README.md](../cloud/README.md) for AWS setup.
+
+---
+
+## Related Documentation
+
+- [Main README](../README.md) — System overview
+- [Cloud Setup](../cloud/README.md) — AWS configuration
+- [Hardware Guide](docs/HARDWARE.md) — Hardware setup
+- [System Overview](docs/SYSTEM_OVERVIEW.md) — Architecture details
