@@ -73,7 +73,7 @@ class NotificationScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Fire detected in Kitchen',
+                              'FIRE detected in Kitchen',
                               style: TextStyle(
                                 color: AppColors.white,
                                 fontSize: 13,
@@ -143,7 +143,7 @@ class NotificationScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Fall detected in Hallway',
+                              'FALL detected in Hallway',
                               style: TextStyle(
                                 color: AppColors.white,
                                 fontSize: 13,
@@ -281,7 +281,7 @@ class NotificationScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'New person detected in Hallway',
+                              'STRANGER detected in Hallway',
                               style: TextStyle(
                                 color: AppColors.white,
                                 fontSize: 13,

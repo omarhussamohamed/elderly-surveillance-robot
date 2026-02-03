@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:elderly_surveillance_mobile/core/on_generate_route.dart';
 import 'package:elderly_surveillance_mobile/features/authentication/data/datasources/auth_remote_data_source_impl.dart';
-import 'package:elderly_surveillance_mobile/features/authentication/presentation/screens/sign_in_sign_up_screen.dart';
 import 'package:elderly_surveillance_mobile/core/const.dart';
 
 // Cubit & Usecases
@@ -15,7 +14,6 @@ import 'package:elderly_surveillance_mobile/features/authentication/domain/useca
 
 // Repo & DataSource
 import 'package:elderly_surveillance_mobile/features/authentication/data/repositories/auth_repo_impl.dart';
-import 'package:elderly_surveillance_mobile/features/authentication/data/datasources/auth_remote_data_source.dart';
 import 'package:elderly_surveillance_mobile/features/authentication/presentation/screens/welcome_screen.dart';
 
 void main() {

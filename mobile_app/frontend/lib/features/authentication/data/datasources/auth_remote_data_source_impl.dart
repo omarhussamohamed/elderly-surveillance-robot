@@ -85,8 +85,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       } else {
         throw Exception('Failed to fetch current user');
       }
-    } on DioError catch (e) {
-      throw Exception(e.response?.data ?? 'Get current user error');
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Connection timeout');
+      }
+      throw Exception(e.response?.data?['detail'] ?? 'Get current user error');
     }
   }
 }

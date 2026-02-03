@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:elderly_surveillance_mobile/core/const.dart';
-//import 'package:gradapp/core/const.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -488,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Fall detected in Hallway',
+                            'FALL detected in Hallway',
                             style: TextStyle(
                               fontFamily: 'Montserrat',
                               fontSize: width * 0.032,

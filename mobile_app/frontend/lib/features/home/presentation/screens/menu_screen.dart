@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:elderly_surveillance_mobile/core/const.dart';
-//import 'package:gradapp/core/const.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});

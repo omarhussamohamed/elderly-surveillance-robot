@@ -31,9 +31,7 @@ class AuthCubit extends Cubit<AuthState> {
       final token = await signInUseCase(auth);
       emit(AuthSuccess(token: token));
     } on DioException catch (dioError) {
-      final message = dioError.response?.data['detail'] ??
-                    dioError.response?.statusMessage ??
-                    dioError.message;
+      final message = _extractErrorMessage(dioError);
       emit(AuthError('Login failed: $message'));
     } catch (e) {
       emit(AuthError('Login failed: ${e.toString()}'));
@@ -49,12 +47,10 @@ Future<void> signUp({required String phone, required String password}) async {
     final token = await signUpUseCase(auth); 
     emit(AuthSuccess(token: token));
   } on DioException catch (dioError) {
-      final message = dioError.response?.data['detail'] ??
-                    dioError.response?.statusMessage ??
-                    dioError.message;
-      emit(AuthError('Login failed: $message'));
+      final message = _extractErrorMessage(dioError);
+      emit(AuthError('Sign up failed: $message'));
     } catch (e) {
-      emit(AuthError('Login failed: ${e.toString()}'));
+      emit(AuthError('Sign up failed: ${e.toString()}'));
     }
 }
 
@@ -66,12 +62,10 @@ Future<void> signUp({required String phone, required String password}) async {
       await signOutUseCase();
       emit(AuthInitial());
     } on DioException catch (dioError) {
-      final message = dioError.response?.data['detail'] ??
-                    dioError.response?.statusMessage ??
-                    dioError.message;
-      emit(AuthError('Login failed: $message'));
+      final message = _extractErrorMessage(dioError);
+      emit(AuthError('Sign out failed: $message'));
     } catch (e) {
-      emit(AuthError('Login failed: ${e.toString()}'));
+      emit(AuthError('Sign out failed: ${e.toString()}'));
     }
   }
 
@@ -82,12 +76,29 @@ Future<void> signUp({required String phone, required String password}) async {
       final user = await getCurrentUserUseCase();
       emit(AuthSuccess(user: user));
     } on DioException catch (dioError) {
-      final message = dioError.response?.data['detail'] ??
-                    dioError.response?.statusMessage ??
-                    dioError.message;
-      emit(AuthError('Login failed: $message'));
+      final message = _extractErrorMessage(dioError);
+      emit(AuthError('Failed to get user: $message'));
     } catch (e) {
-      emit(AuthError('Login failed: ${e.toString()}'));
+      emit(AuthError('Failed to get user: ${e.toString()}'));
     }
+  }
+
+  /// Extract user-friendly error message from DioException
+  String _extractErrorMessage(DioException error) {
+    // Handle network timeouts
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout) {
+      return 'Connection timeout. Please check your network.';
+    }
+    // Handle no connection
+    if (error.type == DioExceptionType.connectionError) {
+      return 'No internet connection.';
+    }
+    // Handle server response errors
+    return error.response?.data['detail'] ??
+           error.response?.statusMessage ??
+           error.message ??
+           'Unknown error occurred';
   }
 }
