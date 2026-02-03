@@ -93,9 +93,10 @@ class CameraPublisher(object):
 
     # ──────────────────────────────────────────────────────────────
     def run(self):
+        self.running = True
         rate = rospy.Rate(self.fps)
 
-        while not rospy.is_shutdown():
+        while self.running and not rospy.is_shutdown():
             if not self.cap:
                 now = time.time()
                 if now - self.last_retry_time >= self.retry_interval:
@@ -107,32 +108,38 @@ class CameraPublisher(object):
                 rospy.sleep(1.0)
                 continue
 
-            ret, frame = self.cap.read()
-            if not ret:
-                rospy.logwarn("Camera frame grab failed")
-                self.cap.release()
-                self.cap = None
-                continue
-
-            self.frame_count += 1
-            if self.frame_count % (self.fps * 30) == 0:
-                elapsed = time.time() - self.start_time
-                if elapsed > 0:
-                    rospy.loginfo("Camera FPS: %.1f",
-                                  self.frame_count / elapsed)
-
             try:
+                ret, frame = self.cap.read()
+                if not ret:
+                    rospy.logwarn("Camera frame grab failed")
+                    self.cap.release()
+                    self.cap = None
+                    continue
+
+                self.frame_count += 1
+                if self.frame_count % (self.fps * 30) == 0:
+                    elapsed = time.time() - self.start_time
+                    if elapsed > 0:
+                        rospy.loginfo("Camera FPS: %.1f",
+                                      self.frame_count / elapsed)
+
                 self._publish_frame(frame)
+
             except Exception as e:
-                rospy.logwarn("Publish error: %s", str(e))
+                rospy.logerr("Camera error: %s", str(e))
 
             rate.sleep()
 
     # ──────────────────────────────────────────────────────────────
     def shutdown(self):
+        """Clean shutdown of camera node."""
         rospy.loginfo("Shutting down camera node")
+        self.running = False
         if self.cap:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except Exception:
+                pass
         cv2.destroyAllWindows()
 
 

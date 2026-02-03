@@ -63,6 +63,8 @@ class MPU9250Node(object):
         )
 
         self.rate = rospy.Rate(self.rate_hz)
+        self.running = True
+        rospy.on_shutdown(self.shutdown)
 
     # ─────────────────────────────────────────────────────────────
     @staticmethod
@@ -82,7 +84,7 @@ class MPU9250Node(object):
     def run(self):
         rospy.loginfo("MPU9250 node running")
 
-        while not rospy.is_shutdown():
+        while self.running and not rospy.is_shutdown():
             if self.bus is None:
                 rospy.sleep(1.0)
                 continue
@@ -128,6 +130,17 @@ class MPU9250Node(object):
                 rospy.logwarn("MPU9250 read error: %s", str(e))
 
             self.rate.sleep()
+
+    # ─────────────────────────────────────────────────────────────
+    def shutdown(self):
+        """Clean shutdown of IMU node."""
+        rospy.loginfo("Shutting down MPU9250 node")
+        self.running = False
+        if self.bus is not None:
+            try:
+                self.bus.close()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':

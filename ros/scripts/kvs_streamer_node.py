@@ -108,10 +108,22 @@ class KVSStreamerNode(object):
         rospy.loginfo("KVS logs redirected to %s", log_file)
 
     def _log(self, level, msg):
+        """Log message via file logger or rospy."""
         if self.logger:
             getattr(self.logger, level)(msg)
         else:
-            getattr(rospy, level)(msg)
+            # Map to rospy log methods
+            log_map = {
+                'debug': rospy.logdebug,
+                'info': rospy.loginfo,
+                'loginfo': rospy.loginfo,
+                'warn': rospy.logwarn,
+                'logwarn': rospy.logwarn,
+                'error': rospy.logerr,
+                'logerr': rospy.logerr,
+            }
+            log_fn = log_map.get(level, rospy.loginfo)
+            log_fn(msg)
 
     # ─────────────────────────────────────────────────────────────
     def _build_pipeline(self):

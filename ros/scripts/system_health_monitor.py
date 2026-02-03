@@ -45,12 +45,20 @@ class SystemHealthMonitor(object):
             rospy.get_master_uri()
         )
 
-        rospy.Timer(
+        self.timer = rospy.Timer(
             rospy.Duration(self.check_interval),
             self._check_nodes
         )
 
+        rospy.on_shutdown(self.shutdown)
         rospy.loginfo("System Health Monitor running")
+
+    # ─────────────────────────────────────────────────────────────
+    def shutdown(self):
+        """Clean shutdown of health monitor."""
+        rospy.loginfo("Shutting down System Health Monitor")
+        if hasattr(self, 'timer') and self.timer:
+            self.timer.shutdown()
 
     # ─────────────────────────────────────────────────────────────
     def _get_active_nodes(self):
