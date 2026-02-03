@@ -78,6 +78,7 @@ htmlcov/
 # ROS build artifacts
 devel/
 install/
+.catkin_workspace
 
 # Flutter/Dart
 .dart_tool/
@@ -85,6 +86,13 @@ install/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+
+# AI Model artifacts
+ai/assets/models/**/*.pt
+ai/assets/known_faces/**/*.jpg
+ai/assets/known_faces/**/*.png
+*.joblib
+encodings.joblib
 
 # Compiled files
 *.class

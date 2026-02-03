@@ -247,8 +247,13 @@ CREATE TABLE known_faces (
 | Robot Internal | ROS Topics | ROS Messages | N/A |
 
 ### MQTT Topics
-- `elderly_bot/telemetry` — Robot → Cloud (sensor data)
-- `elderly_bot/commands` — Cloud → Robot (control commands)
+| Topic | Direction | Purpose |
+|-------|-----------|---------|
+| `robot/telemetry` | Robot → Cloud | Sensor data (ROS default) |
+| `robot/commands` | Cloud → Robot | Control commands (ROS default) |
+| `elderly_bot/telemetry` | Robot → Cloud | Backend subscription |
+
+> **Note:** Topic names are configurable via ROS parameters and backend `.env`
 
 ---
 
