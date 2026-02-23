@@ -300,10 +300,9 @@ CREATE TABLE known_faces (
 
 ## Team
 
-- **Omar Hussam** — Hardware & ROS
-- **Maryse Hani** — Cloud Architecture, and Mobile App & Backend Development
-- **Mariam Waleed** — Mobile App & Backend Development
-- **Shahd Hamdy** — AI
+- **Maryse Hani** — Mobile App & Backend Development, Cloud Architecture
+- **Mariam Waleed** — Mobile App Development
+- [Additional team members] — ROS, AI, Hardware
 
 ---
 
